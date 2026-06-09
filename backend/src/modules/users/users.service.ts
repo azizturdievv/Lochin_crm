@@ -7,7 +7,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, FindManyOptions } from 'typeorm';
+import { Repository, FindManyOptions, In } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 import { User } from '../../entities/user.entity';
 import { Enrollment, EnrollmentStatus } from '../../entities/enrollment.entity';
@@ -522,5 +522,55 @@ export class UsersService {
     });
 
     return { message: 'Parol muvaffaqiyatli tiklandi' };
+  }
+
+  // Foydalanuvchi qidirish (chat uchun: username yoki ism bo'yicha)
+  async searchUsers(q: string, actorId: string, actorRole: string) {
+    if (!q || q.trim().length < 2) return [];
+    const query = `%${q.trim().toLowerCase()}%`;
+
+    const qb = this.userRepository
+      .createQueryBuilder('u')
+      .select(['u.id', 'u.firstName', 'u.lastName', 'u.username', 'u.role', 'u.avatarUrl'])
+      .where('u.deleted_at IS NULL')
+      .andWhere('u.is_active = true')
+      .andWhere('u.id != :actorId', { actorId })
+      .andWhere(
+        '(LOWER(u.username) LIKE :q OR LOWER(u.first_name) LIKE :q OR LOWER(u.last_name) LIKE :q)',
+        { q: query },
+      )
+      .orderBy('u.first_name', 'ASC')
+      .limit(20);
+
+    // O'quvchi faqat o'z guruhi a'zolari va ustozi bilan chat qila oladi
+    if (actorRole === Role.STUDENT) {
+      const enrollments = await this.enrollmentRepository.find({
+        where: { studentId: actorId, status: EnrollmentStatus.ACTIVE },
+        select: { groupId: true },
+      });
+      const groupIds = enrollments.map((e) => e.groupId);
+      if (!groupIds.length) return [];
+
+      const groups = await this.groupRepository.find({
+        where: { id: In(groupIds) },
+        select: { id: true, teacherId: true },
+      });
+      const teacherIds = groups.map((g) => g.teacherId).filter((id): id is string => !!id);
+
+      const sameGroupEnrollments = await this.enrollmentRepository.find({
+        where: { groupId: In(groupIds), status: EnrollmentStatus.ACTIVE },
+        select: { studentId: true },
+      });
+      const sameGroupStudentIds = sameGroupEnrollments
+        .map((e) => e.studentId)
+        .filter((id) => id !== actorId);
+
+      const allowedIds = [...new Set([...sameGroupStudentIds, ...teacherIds])];
+      if (!allowedIds.length) return [];
+
+      qb.andWhere('u.id IN (:...allowedIds)', { allowedIds });
+    }
+
+    return qb.getMany();
   }
 }

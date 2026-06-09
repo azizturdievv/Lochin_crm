@@ -56,6 +56,16 @@ export class ChatController {
     return this.chatService.getUserRooms(user.id, user.role);
   }
 
+  // SA uchun barcha xonalar (pagination bilan)
+  @Get('rooms/all')
+  @Roles(Role.SUPER_ADMIN)
+  getAllRooms(
+    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
+    @Query('limit', new DefaultValuePipe(50), ParseIntPipe) limit: number,
+  ) {
+    return this.chatService.getAllRooms(page, Math.min(limit, 100));
+  }
+
   @Get('rooms/:id')
   @Roles(Role.SUPER_ADMIN, Role.MANAGER, Role.USTOZ, Role.STUDENT)
   getRoom(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: User) {

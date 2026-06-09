@@ -75,6 +75,14 @@ export class UsersController {
     return this.usersService.changeOwnPassword(user.id, dto);
   }
 
+  // Foydalanuvchi qidirish (chat uchun)
+  @Get('search')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.SUPER_ADMIN, Role.MANAGER, Role.USTOZ, Role.STUDENT)
+  searchUsers(@Query('q') q: string, @CurrentUser() user: User) {
+    return this.usersService.searchUsers(q ?? '', user.id, user.role);
+  }
+
   // ─── ADMIN ENDPOINTLARI ──────────────────────────────────────────────────────
 
   // Xodimlar ro'yxati

@@ -57,6 +57,31 @@ export class ChatService {
   async createRoom(dto: CreateRoomDto, actorId: string, actorRole: string): Promise<ChatRoom> {
     // Shaxsiy chat: mavjud bo'lsa topish
     if (dto.type === ChatRoomType.PRIVATE && dto.targetUserId) {
+      // O'quvchi boshqa o'quvchi bilan: faqat bir xil guruhda bo'lsa ruxsat
+      if (actorRole === Role.STUDENT) {
+        const targetUser = await this.userRepo.findOne({
+          where: { id: dto.targetUserId },
+          select: { role: true },
+        });
+        if (targetUser?.role === Role.STUDENT) {
+          const actorEnrollments = await this.enrollmentRepo.find({
+            where: { studentId: actorId, status: EnrollmentStatus.ACTIVE },
+            select: { groupId: true },
+          });
+          const actorGroupIds = actorEnrollments.map((e) => e.groupId);
+
+          const sharedGroup = actorGroupIds.length
+            ? await this.enrollmentRepo.findOne({
+                where: { studentId: dto.targetUserId, groupId: In(actorGroupIds), status: EnrollmentStatus.ACTIVE },
+              })
+            : null;
+
+          if (!sharedGroup) {
+            throw new ForbiddenException('Faqat bir xil guruhda o\'qiydigan o\'quvchilar bilan chat ochish mumkin');
+          }
+        }
+      }
+
       const existing = await this.findPrivateRoom(actorId, dto.targetUserId);
       if (existing) return existing;
 
@@ -141,14 +166,29 @@ export class ChatService {
 
   // ─── FOYDALANUVCHI XONALARI ───────────────────────────────────────────────
   async getUserRooms(userId: string, actorRole: string): Promise<ChatRoom[]> {
-    if (actorRole === Role.SUPER_ADMIN || actorRole === Role.MANAGER) {
+    // SA: barcha xonalar (kuzatuv uchun)
+    if (actorRole === Role.SUPER_ADMIN) {
       return this.roomRepo.find({
         where: { isActive: true },
+        relations: { members: true },
+        order: { lastMessageAt: 'DESC' },
+        take: 100,
+      });
+    }
+
+    // Manager: faqat e'lonlar va guruh sinfxonalari
+    if (actorRole === Role.MANAGER) {
+      return this.roomRepo.find({
+        where: [
+          { isActive: true, type: ChatRoomType.ANNOUNCEMENTS },
+          { isActive: true, type: ChatRoomType.GROUP_CLASS },
+        ],
         relations: { members: true },
         order: { lastMessageAt: 'DESC' },
       });
     }
 
+    // Ustoz, student, ota-ona: faqat o'zi a'zo bo'lgan xonalar
     return this.roomRepo
       .createQueryBuilder('r')
       .innerJoin('r.members', 'm', 'm.id = :uid', { uid: userId })
@@ -158,6 +198,18 @@ export class ChatService {
       .getMany();
   }
 
+  // SA uchun barcha xonalar (pagination bilan)
+  async getAllRooms(page = 1, limit = 50): Promise<{ items: ChatRoom[]; total: number }> {
+    const [items, total] = await this.roomRepo.findAndCount({
+      where: { isActive: true },
+      relations: { members: true },
+      order: { lastMessageAt: 'DESC' },
+      skip: (page - 1) * limit,
+      take: limit,
+    });
+    return { items, total };
+  }
+
   async getUserRoomIds(userId: string, actorRole: string): Promise<string[]> {
     const rooms = await this.getUserRooms(userId, actorRole);
     return rooms.map((r) => r.id);
@@ -165,7 +217,27 @@ export class ChatService {
 
   // ─── RUXSATNI TEKSHIRISH ──────────────────────────────────────────────────
   async checkRoomAccess(roomId: string, userId: string, actorRole: string): Promise<boolean> {
-    if (actorRole === Role.SUPER_ADMIN || actorRole === Role.MANAGER) return true;
+    // SA: barcha xonalarga kirish — audit log
+    if (actorRole === Role.SUPER_ADMIN) {
+      await this.auditLog.log({
+        userId,
+        userRole: actorRole,
+        action: 'SA_CHAT_ROOM_READ',
+        entityName: 'chat_rooms',
+        entityId: roomId,
+        newValues: { roomId, readAt: new Date().toISOString() },
+      });
+      return true;
+    }
+
+    // Manager faqat e'lonlar va guruh sinfxonalari
+    if (actorRole === Role.MANAGER) {
+      const room = await this.roomRepo.findOne({
+        where: { id: roomId },
+        select: { type: true },
+      });
+      return room?.type === ChatRoomType.ANNOUNCEMENTS || room?.type === ChatRoomType.GROUP_CLASS;
+    }
 
     const room = await this.roomRepo
       .createQueryBuilder('r')
@@ -178,13 +250,20 @@ export class ChatService {
 
   // E'lonlar xonasiga yozish ruxsati
   async canWriteToRoom(roomId: string, userId: string, actorRole: string): Promise<boolean> {
-    if (actorRole === Role.SUPER_ADMIN || actorRole === Role.MANAGER) return true;
+    if (actorRole === Role.SUPER_ADMIN) return true;
 
     const room = await this.roomRepo.findOne({ where: { id: roomId } });
     if (!room) return false;
 
     // E'lonlar xonasiga faqat SA/Manager yozadi
-    if (room.type === ChatRoomType.ANNOUNCEMENTS) return false;
+    if (room.type === ChatRoomType.ANNOUNCEMENTS) {
+      return actorRole === Role.MANAGER;
+    }
+
+    // Manager faqat guruh sinfxonasiga yoza oladi
+    if (actorRole === Role.MANAGER) {
+      return room.type === ChatRoomType.GROUP_CLASS;
+    }
 
     return this.checkRoomAccess(roomId, userId, actorRole);
   }
