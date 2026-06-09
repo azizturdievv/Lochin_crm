@@ -102,11 +102,12 @@ export function useChatSocket(): UseChatSocketReturn {
     };
   }, [accessToken]);
 
-  const joinRoom    = useCallback((roomId: string) => socketRef.current?.emit('join_room', { roomId }), []);
-  const leaveRoom   = useCallback((roomId: string) => socketRef.current?.emit('leave_room', { roomId }), []);
+  // String yuboramiz — gateway { roomId } va string ikkalasini ham qabul qiladi
+  const joinRoom    = useCallback((roomId: string) => socketRef.current?.emit('join_room', roomId), []);
+  const leaveRoom   = useCallback((roomId: string) => socketRef.current?.emit('leave_room', roomId), []);
   const sendMessage = useCallback((payload: object) => socketRef.current?.emit('send_message', payload), []);
-  const sendTyping  = useCallback((roomId: string) => socketRef.current?.emit('typing', { roomId }), []);
-  const stopTyping  = useCallback((roomId: string) => socketRef.current?.emit('stop_typing', { roomId }), []);
+  const sendTyping  = useCallback((roomId: string) => socketRef.current?.emit('typing', roomId), []);
+  const stopTyping  = useCallback((roomId: string) => socketRef.current?.emit('stop_typing', roomId), []);
   const markRead    = useCallback((roomId: string, messageId: string) => socketRef.current?.emit('mark_read', { roomId, messageId }), []);
   const deleteMsg   = useCallback((roomId: string, messageId: string) => socketRef.current?.emit('delete_message', { roomId, messageId }), []);
 

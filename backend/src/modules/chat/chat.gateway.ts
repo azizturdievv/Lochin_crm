@@ -97,14 +97,26 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     }
   }
 
+  // Payload dan roomId ni olish (string yoki { roomId } object bo'lishi mumkin)
+  private extractRoomId(payload: unknown): string {
+    if (typeof payload === 'string') return payload;
+    if (payload && typeof payload === 'object' && 'roomId' in payload) {
+      return (payload as { roomId: string }).roomId;
+    }
+    return '';
+  }
+
   // ─── XONAGA QO'SHILISH ────────────────────────────────────────────────────
   @SubscribeMessage('join_room')
   async handleJoinRoom(
     @ConnectedSocket() client: Socket,
-    @MessageBody() roomId: string,
+    @MessageBody() payload: string | { roomId: string },
   ) {
     const user: User = client.data.user;
     if (!user) return;
+
+    const roomId = this.extractRoomId(payload);
+    if (!roomId) return;
 
     const hasAccess = await this.chatService.checkRoomAccess(roomId, user.id, user.role);
     if (!hasAccess) {
@@ -115,8 +127,8 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     await client.join(roomId);
     client.emit('joined_room', { roomId });
 
-    // Oxirgi xabarlarni yuborish
-    const history = await this.chatService.getMessages(roomId, user.id, 1, 30);
+    // Oxirgi 50 xabarni yuborish (tarix)
+    const history = await this.chatService.getMessages(roomId, user.id, 1, 50);
     client.emit('room_history', { roomId, ...history });
   }
 
@@ -124,8 +136,10 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @SubscribeMessage('leave_room')
   handleLeaveRoom(
     @ConnectedSocket() client: Socket,
-    @MessageBody() roomId: string,
+    @MessageBody() payload: string | { roomId: string },
   ) {
+    const roomId = this.extractRoomId(payload);
+    if (!roomId) return;
     client.leave(roomId);
     client.emit('left_room', { roomId });
   }
@@ -176,10 +190,13 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @SubscribeMessage('typing')
   handleTyping(
     @ConnectedSocket() client: Socket,
-    @MessageBody() roomId: string,
+    @MessageBody() payload: string | { roomId: string },
   ) {
     const user: User = client.data.user;
     if (!user) return;
+
+    const roomId = this.extractRoomId(payload);
+    if (!roomId) return;
 
     client.to(roomId).emit('user_typing', {
       userId: user.id,
@@ -191,10 +208,13 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @SubscribeMessage('stop_typing')
   handleStopTyping(
     @ConnectedSocket() client: Socket,
-    @MessageBody() roomId: string,
+    @MessageBody() payload: string | { roomId: string },
   ) {
     const user: User = client.data.user;
     if (!user) return;
+
+    const roomId = this.extractRoomId(payload);
+    if (!roomId) return;
 
     client.to(roomId).emit('user_stop_typing', { userId: user.id, roomId });
   }

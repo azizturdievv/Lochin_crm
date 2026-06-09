@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { useAuthStore } from '@/store/auth.store';
 import { useChatSocket } from '@/hooks/useChatSocket';
@@ -11,18 +11,23 @@ import MessageInput from '@/components/chat/MessageInput';
 import { isReadOnly, ROOM_META } from '@/types/chat';
 import type { ChatRoom, ChatMessage } from '@/types/chat';
 
-export default function ChatPage() {
-  const user        = useAuthStore(s => s.user);
-  const qc          = useQueryClient();
+const PAGE_SIZE = 50;
 
-  const [activeRoom,   setActiveRoom]   = useState<ChatRoom | null>(null);
-  const [messages,     setMessages]     = useState<ChatMessage[]>([]);
-  const [historyTotal, setHistoryTotal] = useState(0);
-  const [loadingMore,  setLoadingMore]  = useState(false);
-  const [toast,        setToast]        = useState<string | null>(null);
+export default function ChatPage() {
+  const user = useAuthStore(s => s.user);
+  const qc   = useQueryClient();
+
+  const [activeRoom,  setActiveRoom]  = useState<ChatRoom | null>(null);
+  const [messages,    setMessages]    = useState<ChatMessage[]>([]);
+  const [hasMore,     setHasMore]     = useState(false);
+  const [loadingHist, setLoadingHist] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [toast,       setToast]       = useState<string | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const prevRoomRef    = useRef<string | null>(null);
+  // Eng eski yetkazilgan xabar ID (load more uchun cursor)
+  const oldestIdRef    = useRef<string | null>(null);
 
   const {
     connected, lastEvent, typingUsers,
@@ -30,54 +35,82 @@ export default function ChatPage() {
     sendTyping, stopTyping, markRead, deleteMsg,
   } = useChatSocket();
 
-  // Xonaga qo'shilish / chiqish
-  useEffect(() => {
-    if (!activeRoom) return;
-    const id = activeRoom.id;
-    if (prevRoomRef.current && prevRoomRef.current !== id) {
+  // ─── TARIX YUKLASH (REST API) ───────────────────────────────────────────
+  const loadHistory = useCallback(async (roomId: string) => {
+    setLoadingHist(true);
+    setMessages([]);
+    oldestIdRef.current = null;
+    try {
+      const res = await api.get<{ items: ChatMessage[]; total: number; hasMore: boolean }>(
+        `/chat/rooms/${roomId}/messages?limit=${PAGE_SIZE}`,
+      );
+      setMessages(res.data.items);
+      setHasMore(res.data.hasMore);
+      oldestIdRef.current = res.data.items[0]?.id ?? null;
+      scrollToBottom();
+    } catch {
+      showToast('Xabarlar yuklanmadi');
+    } finally {
+      setLoadingHist(false);
+    }
+  }, []);
+
+  // ─── ESKI XABARLAR (pagination) ──────────────────────────────────────────
+  async function handleLoadMore() {
+    if (!activeRoom || loadingMore || !hasMore || !oldestIdRef.current) return;
+    setLoadingMore(true);
+    try {
+      const res = await api.get<{ items: ChatMessage[]; total: number; hasMore: boolean }>(
+        `/chat/rooms/${activeRoom.id}/messages?limit=${PAGE_SIZE}&before=${oldestIdRef.current}`,
+      );
+      setMessages(prev => [...res.data.items, ...prev]);
+      setHasMore(res.data.hasMore);
+      oldestIdRef.current = res.data.items[0]?.id ?? null;
+    } catch {
+      showToast('Yuklashda xatolik');
+    } finally {
+      setLoadingMore(false);
+    }
+  }
+
+  // ─── XONA TANLASH ─────────────────────────────────────────────────────────
+  function handleRoomSelect(room: ChatRoom) {
+    if (prevRoomRef.current && prevRoomRef.current !== room.id) {
       leaveRoom(prevRoomRef.current);
     }
-    prevRoomRef.current = id;
-    setMessages([]);
-    setHistoryTotal(0);
-    joinRoom(id);
+    prevRoomRef.current = room.id;
+    setActiveRoom(room);
+  }
+
+  // Xona o'zgarganda: REST dan tarix ol + socket join
+  useEffect(() => {
+    if (!activeRoom) return;
+    loadHistory(activeRoom.id);
+    joinRoom(activeRoom.id); // real-time uchun
   }, [activeRoom?.id]);
 
-  // Socket hodisalarini qayta ishlash
+  // ─── SOCKET HODISALARI ─────────────────────────────────────────────────────
   useEffect(() => {
     if (!lastEvent || !activeRoom) return;
 
     switch (lastEvent.type) {
-      case 'room_history':
-        if (lastEvent.roomId === activeRoom.id) {
-          // Eski xabarlarni bosh qo'shish (load more)
-          setMessages(prev =>
-            loadingMore
-              ? [...lastEvent.messages, ...prev]
-              : lastEvent.messages
-          );
-          setHistoryTotal(lastEvent.total);
-          setLoadingMore(false);
-          if (!loadingMore) scrollToBottom();
-        }
+      case 'new_message': {
+        const msg = lastEvent.message;
+        if (msg.roomId !== activeRoom.id) break;
+        // Takroriyligini oldini olish (optimistic update bo'lmagan holda)
+        setMessages(prev => {
+          if (prev.some(m => m.id === msg.id)) return prev;
+          return [...prev, msg];
+        });
+        scrollToBottom();
+        markRead(activeRoom.id, msg.id);
+        qc.invalidateQueries({ queryKey: ['chat-rooms'] });
         break;
-
-      case 'new_message':
-        if (lastEvent.message.roomId === activeRoom.id) {
-          setMessages(prev => [...prev, lastEvent.message]);
-          scrollToBottom();
-          // Oxirgi xabarni o'qildi deb belgilash
-          markRead(activeRoom.id, lastEvent.message.id);
-          // Xonalar ro'yxatini yangilash
-          qc.invalidateQueries({ queryKey: ['chat-rooms'] });
-        }
-        break;
+      }
 
       case 'message_deleted':
         setMessages(prev =>
-          prev.map(m =>
-            m.id === lastEvent.messageId ? { ...m, isDeleted: true } : m
-          )
+          prev.map(m => m.id === lastEvent.messageId ? { ...m, isDeleted: true } : m),
         );
         break;
 
@@ -86,8 +119,8 @@ export default function ChatPage() {
           prev.map(m =>
             m.id === lastEvent.messageId && !m.readBy.includes(lastEvent.userId)
               ? { ...m, readBy: [...m.readBy, lastEvent.userId] }
-              : m
-          )
+              : m,
+          ),
         );
         break;
 
@@ -110,10 +143,6 @@ export default function ChatPage() {
     setTimeout(() => setToast(null), 4000);
   }
 
-  function handleRoomSelect(room: ChatRoom) {
-    setActiveRoom(room);
-  }
-
   function handleSend(payload: object) {
     sendMessage(payload as { roomId: string; type: string; content?: string });
   }
@@ -123,27 +152,18 @@ export default function ChatPage() {
     deleteMsg(activeRoom.id, messageId);
   }
 
-  async function handleLoadMore() {
-    if (!activeRoom || loadingMore || messages.length >= historyTotal) return;
-    setLoadingMore(true);
-    joinRoom(activeRoom.id); // backend offset ni ko'radi
-  }
-
   const roomTyping = typingUsers.filter(u => u.roomId === activeRoom?.id && u.userId !== user?.id);
   const readOnly   = activeRoom ? isReadOnly(activeRoom.type, user?.role ?? 'student') : false;
   const roomMeta   = activeRoom ? ROOM_META[activeRoom.type] : null;
 
-  // Xabar guruhini aniqlash (bir xil yuboruvchi ketma-ket xabarlar)
   function shouldShowName(index: number): boolean {
     if (index === 0) return true;
-    const cur  = messages[index];
-    const prev = messages[index - 1];
-    return cur.senderId !== prev.senderId;
+    return messages[index].senderId !== messages[index - 1].senderId;
   }
 
   return (
     <div className="flex h-[calc(100vh-4rem)] bg-gray-50">
-      {/* ─── Xonalar ro'yxati (chap panel) ─── */}
+      {/* ─── Xonalar ro'yxati ─── */}
       <div className="w-72 shrink-0">
         <RoomList
           activeRoomId={activeRoom?.id ?? null}
@@ -177,7 +197,7 @@ export default function ChatPage() {
                 </div>
               </div>
 
-              {/* Memberlar soni */}
+              {/* A'zolar soni */}
               {activeRoom.members && (
                 <div className="flex items-center gap-1.5 shrink-0">
                   <div className="flex -space-x-1">
@@ -191,30 +211,33 @@ export default function ChatPage() {
                       </div>
                     ))}
                   </div>
-                  <span className="text-xs text-gray-400">
-                    {activeRoom.members.length} a'zo
-                  </span>
+                  <span className="text-xs text-gray-400">{activeRoom.members.length} a'zo</span>
                 </div>
               )}
             </div>
 
             {/* Xabarlar maydoni */}
             <div className="flex-1 overflow-y-auto px-6 py-4 space-y-0.5 relative">
-              {/* Ko'proq yuklash */}
-              {messages.length > 0 && messages.length < historyTotal && (
+              {/* Eski xabarlar yuklash */}
+              {hasMore && (
                 <div className="flex justify-center mb-4">
                   <button
                     onClick={handleLoadMore}
                     disabled={loadingMore}
                     className="text-xs text-emerald-600 hover:text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-4 py-1.5 rounded-full transition-colors disabled:opacity-50"
                   >
-                    {loadingMore ? 'Yuklanmoqda...' : `⬆ Oldingi xabarlar (${historyTotal - messages.length} ta)`}
+                    {loadingMore ? 'Yuklanmoqda...' : '⬆ Oldingi xabarlar'}
                   </button>
                 </div>
               )}
 
-              {/* Xabarlar */}
-              {messages.length === 0 ? (
+              {/* Yuklash holati */}
+              {loadingHist ? (
+                <div className="flex flex-col items-center justify-center h-full gap-3">
+                  <div className="w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+                  <p className="text-sm text-gray-400">Xabarlar yuklanmoqda...</p>
+                </div>
+              ) : messages.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full text-gray-400 gap-3">
                   <div className="text-5xl">{roomMeta.icon}</div>
                   <p className="text-sm font-medium text-gray-500">
@@ -267,7 +290,6 @@ export default function ChatPage() {
             </div>
           </>
         ) : (
-          // Xona tanlanmagan holat
           <div className="flex-1 flex flex-col items-center justify-center text-gray-400 gap-4">
             <div className="w-20 h-20 rounded-3xl bg-gray-100 flex items-center justify-center text-4xl">
               💬
@@ -282,7 +304,7 @@ export default function ChatPage() {
 
       {/* Toast */}
       {toast && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-sm px-5 py-2.5 rounded-2xl shadow-xl z-50 flex items-center gap-2">
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-sm px-5 py-2.5 rounded-2xl shadow-xl z-50">
           {toast}
         </div>
       )}
