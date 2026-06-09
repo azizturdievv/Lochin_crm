@@ -165,13 +165,30 @@ export default function RoomList({ activeRoomId, onSelect, connected }: Props) {
             </div>
           ))
         ) : filtered.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-48 text-gray-400">
-            <div className="text-4xl mb-2">💬</div>
-            <p className="text-sm">Xonalar topilmadi</p>
-            <button onClick={() => setNewChat(true)}
-              className="mt-3 text-xs text-emerald-600 hover:text-emerald-700 font-medium">
-              + Yangi chat boshlash
-            </button>
+          <div className="flex flex-col items-center justify-center h-64 text-gray-400 px-4">
+            {user?.role === 'student' ? (
+              <>
+                <div className="text-4xl mb-3">🏫</div>
+                <p className="text-sm font-medium text-gray-600 text-center">Guruhingiz yo'q</p>
+                <p className="text-xs text-gray-400 mt-1 text-center leading-relaxed">
+                  Siz hali hech qaysi guruhga qo'shilmagansiz.
+                  Manager yoki Super Admin dan guruhga qo'shishni so'rang.
+                </p>
+                <button onClick={() => setNewChat(true)}
+                  className="mt-4 text-xs text-emerald-600 hover:text-emerald-700 font-medium bg-emerald-50 px-4 py-2 rounded-xl transition">
+                  + Ustoz bilan chat boshlash
+                </button>
+              </>
+            ) : (
+              <>
+                <div className="text-4xl mb-2">💬</div>
+                <p className="text-sm">Xonalar topilmadi</p>
+                <button onClick={() => setNewChat(true)}
+                  className="mt-3 text-xs text-emerald-600 hover:text-emerald-700 font-medium">
+                  + Yangi chat boshlash
+                </button>
+              </>
+            )}
           </div>
         ) : (
           <>

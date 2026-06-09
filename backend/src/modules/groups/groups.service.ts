@@ -9,6 +9,7 @@ import { Repository } from 'typeorm';
 import { Group } from '../../entities/group.entity';
 import { Subject } from '../../entities/subject.entity';
 import { User } from '../../entities/user.entity';
+import { ChatRoom, ChatRoomType } from '../../entities/chat-room.entity';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { CreateGroupDto, UpdateGroupDto, QueryGroupDto } from './dto/group.dto';
 import { Role } from '../../common/enums/role.enum';
@@ -22,6 +23,8 @@ export class GroupsService {
     private subjectRepo: Repository<Subject>,
     @InjectRepository(User)
     private userRepo: Repository<User>,
+    @InjectRepository(ChatRoom)
+    private chatRoomRepo: Repository<ChatRoom>,
     private auditLog: AuditLogService,
   ) {}
 
@@ -123,6 +126,9 @@ export class GroupsService {
 
     await this.groupRepo.save(group);
 
+    // Guruh uchun avtomatik chat xonasi yaratish
+    await this.ensureGroupChatRoom(group.id, group.name, teacher ?? null);
+
     await this.auditLog.log({
       userId: actorId,
       userRole: actorRole,
@@ -176,6 +182,19 @@ export class GroupsService {
 
     await this.groupRepo.update(id, updateData);
 
+    // Ustoz o'zgarganda chat xonasi a'zolarini sinxronizatsiya
+    if (dto.teacherId !== undefined && dto.teacherId !== group.teacherId) {
+      await this.syncGroupChatRoomTeacher(id, group.teacherId, dto.teacherId ?? null);
+    }
+
+    // Guruh nomi o'zgarganda chat xona nomini ham yangilash
+    if (dto.name && dto.name !== group.name) {
+      await this.chatRoomRepo.update(
+        { groupId: id, type: ChatRoomType.GROUP_CLASS },
+        { name: `${dto.name} sinfxonasi` },
+      );
+    }
+
     await this.auditLog.log({
       userId: actorId,
       userRole: actorRole,
@@ -213,6 +232,51 @@ export class GroupsService {
       select: { id: true, firstName: true, lastName: true, email: true },
       order: { lastName: 'ASC' },
     });
+  }
+
+  // ─── CHAT XONA SINXRONIZATSIYA ────────────────────────────────────────────
+
+  // Guruh uchun chat xonasi mavjud bo'lmasa yaratish
+  async ensureGroupChatRoom(groupId: string, groupName: string, teacher: User | null) {
+    const existing = await this.chatRoomRepo.findOne({
+      where: { groupId, type: ChatRoomType.GROUP_CLASS },
+      relations: { members: true },
+    });
+    if (existing) return existing;
+
+    const room = this.chatRoomRepo.create({
+      type: ChatRoomType.GROUP_CLASS,
+      name: `${groupName} sinfxonasi`,
+      groupId,
+      isActive: true,
+      members: teacher ? [teacher] : [],
+    });
+    await this.chatRoomRepo.save(room);
+    return room;
+  }
+
+  // Ustoz o'zgarganda chat xonasi a'zolarini yangilash
+  private async syncGroupChatRoomTeacher(
+    groupId: string,
+    oldTeacherId: string | null,
+    newTeacherId: string | null,
+  ) {
+    const room = await this.chatRoomRepo.findOne({
+      where: { groupId, type: ChatRoomType.GROUP_CLASS },
+      relations: { members: true },
+    });
+    if (!room) return;
+
+    if (oldTeacherId) {
+      room.members = room.members.filter((m) => m.id !== oldTeacherId);
+    }
+    if (newTeacherId) {
+      const teacher = await this.userRepo.findOne({ where: { id: newTeacherId } });
+      if (teacher && !room.members.some((m) => m.id === newTeacherId)) {
+        room.members.push(teacher);
+      }
+    }
+    await this.chatRoomRepo.save(room);
   }
 
   // Format: BigInt → number

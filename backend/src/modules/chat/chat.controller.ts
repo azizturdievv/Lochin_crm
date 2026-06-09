@@ -227,4 +227,12 @@ export class ChatController {
     this.moderationService.addToBlocklist(word);
     return { message: `"${word}" qora ro'yxatga qo'shildi` };
   }
+
+  // ─── MIGRATION: MAVJUD GURUHLAR UCHUN CHAT XONALARI YARATISH (SA) ─────────
+  @Post('admin/migrate-group-rooms')
+  @Roles(Role.SUPER_ADMIN)
+  @HttpCode(HttpStatus.OK)
+  migrateGroupRooms() {
+    return this.chatService.migrateGroupRooms();
+  }
 }

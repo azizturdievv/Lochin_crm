@@ -10,6 +10,7 @@ import { Payment } from '../../entities/payment.entity';
 import { Attendance } from '../../entities/attendance.entity';
 import { TestResult } from '../../entities/test-result.entity';
 import { PointsLog } from '../../entities/points-log.entity';
+import { ChatRoom } from '../../entities/chat-room.entity';
 import { AuditLogModule } from '../audit-log/audit-log.module';
 
 @Module({
@@ -23,6 +24,7 @@ import { AuditLogModule } from '../audit-log/audit-log.module';
       Attendance,
       TestResult,
       PointsLog,
+      ChatRoom,
     ]),
     AuditLogModule,
   ],

@@ -501,4 +501,66 @@ export class ChatService {
     if (!room) throw new NotFoundException('Xona topilmadi');
     return room;
   }
+
+  // ─── MAVJUD GURUHLAR UCHUN MIGRATION ──────────────────────────────────────
+  async migrateGroupRooms(): Promise<{
+    message: string;
+    created: number;
+    skipped: number;
+    membersAdded: number;
+  }> {
+    const groups = await this.groupRepo.find({
+      where: { isActive: true },
+    });
+
+    let created = 0;
+    let skipped = 0;
+    let membersAdded = 0;
+
+    for (const group of groups) {
+      // Chat xonasi mavjudmi?
+      const existing = await this.roomRepo.findOne({
+        where: { groupId: group.id, type: ChatRoomType.GROUP_CLASS },
+        relations: { members: true },
+      });
+
+      if (existing) {
+        skipped++;
+        continue;
+      }
+
+      // Yangi chat xonasi yaratish
+      const room = this.roomRepo.create({
+        type: ChatRoomType.GROUP_CLASS,
+        name: `${group.name} sinfxonasi`,
+        groupId: group.id,
+        isActive: true,
+        members: [],
+      });
+      await this.roomRepo.save(room);
+      created++;
+
+      // O'quvchilar va ustoz qo'shish
+      const enrollments = await this.enrollmentRepo.find({
+        where: { groupId: group.id, status: EnrollmentStatus.ACTIVE },
+        select: { studentId: true },
+      });
+      const memberIds = enrollments.map((e) => e.studentId);
+      if (group.teacherId) memberIds.push(group.teacherId);
+
+      if (memberIds.length > 0) {
+        const members = await this.userRepo.findBy({ id: In(memberIds) });
+        room.members = members;
+        await this.roomRepo.save(room);
+        membersAdded += members.length;
+      }
+    }
+
+    return {
+      message: `Migration tugadi: ${created} ta yangi xona, ${skipped} ta o'tkazib yuborildi, ${membersAdded} ta a'zo qo'shildi`,
+      created,
+      skipped,
+      membersAdded,
+    };
+  }
 }

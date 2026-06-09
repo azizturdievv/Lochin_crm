@@ -16,6 +16,7 @@ import { Payment } from '../../entities/payment.entity';
 import { Attendance } from '../../entities/attendance.entity';
 import { TestResult } from '../../entities/test-result.entity';
 import { PointsLog } from '../../entities/points-log.entity';
+import { ChatRoom, ChatRoomType } from '../../entities/chat-room.entity';
 import { Role } from '../../common/enums/role.enum';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { CreateStudentDto } from './dto/create-student.dto';
@@ -42,6 +43,8 @@ export class StudentsService {
     private testResultRepository: Repository<TestResult>,
     @InjectRepository(PointsLog)
     private pointsLogRepository: Repository<PointsLog>,
+    @InjectRepository(ChatRoom)
+    private chatRoomRepo: Repository<ChatRoom>,
     private dataSource: DataSource,
     private auditLogService: AuditLogService,
   ) {}
@@ -136,6 +139,11 @@ export class StudentsService {
       }
 
       await queryRunner.commitTransaction();
+
+      // Guruh chat xonalariga qo'shish (transaction tashqarida)
+      for (const gid of allGroupIds) {
+        await this.addStudentToGroupChatRoom(student.id, gid).catch(() => {});
+      }
 
       await this.auditLogService.log({
         userId: actorId,
@@ -462,6 +470,9 @@ export class StudentsService {
 
       await queryRunner.commitTransaction();
 
+      // Guruh chat xonasiga qo'shish
+      await this.addStudentToGroupChatRoom(studentId, dto.groupId).catch(() => {});
+
       await this.auditLogService.log({
         userId: actorId,
         userRole: actorRole,
@@ -513,6 +524,9 @@ export class StudentsService {
       );
 
       await queryRunner.commitTransaction();
+
+      // Guruh chat xonasidan chiqarish
+      await this.removeStudentFromGroupChatRoom(studentId, enrollment.groupId).catch(() => {});
 
       await this.auditLogService.log({
         userId: actorId,
@@ -678,5 +692,36 @@ export class StudentsService {
     if (!enrollment) {
       throw new ForbiddenException('Bu o\'quvchi sizning guruhingizda emas');
     }
+  }
+
+  // ─── CHAT XONA SINXRONIZATSIYA ────────────────────────────────────────────
+
+  // Guruh chat xonasiga o'quvchini qo'shish
+  private async addStudentToGroupChatRoom(studentId: string, groupId: string): Promise<void> {
+    const room = await this.chatRoomRepo.findOne({
+      where: { groupId, type: ChatRoomType.GROUP_CLASS },
+      relations: { members: true },
+    });
+    if (!room) return;
+
+    if (room.members.some((m) => m.id === studentId)) return;
+
+    const student = await this.userRepository.findOne({ where: { id: studentId } });
+    if (!student) return;
+
+    room.members.push(student);
+    await this.chatRoomRepo.save(room);
+  }
+
+  // Guruh chat xonasidan o'quvchini chiqarish
+  private async removeStudentFromGroupChatRoom(studentId: string, groupId: string): Promise<void> {
+    const room = await this.chatRoomRepo.findOne({
+      where: { groupId, type: ChatRoomType.GROUP_CLASS },
+      relations: { members: true },
+    });
+    if (!room) return;
+
+    room.members = room.members.filter((m) => m.id !== studentId);
+    await this.chatRoomRepo.save(room);
   }
 }
