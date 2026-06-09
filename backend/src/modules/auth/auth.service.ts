@@ -40,11 +40,20 @@ export class AuthService {
   }
 
   async login(dto: LoginDto, ipAddress?: string, userAgent?: string) {
+    // identifier | email | username — qaysi field yuborilgan bo'lsa ishlatamiz
+    const loginValue = dto.identifier ?? dto.email ?? dto.username;
+
+    if (!loginValue || loginValue.trim() === '') {
+      throw new UnauthorizedException('Login yoki parol noto\'g\'ri');
+    }
+
+    const val = loginValue.trim();
+
     // Email yoki username bo'yicha qidirish
     const user = await this.userRepository.findOne({
       where: [
-        { email: dto.identifier, isActive: true },
-        { username: dto.identifier, isActive: true },
+        { email: val, isActive: true },
+        { username: val, isActive: true },
       ],
     });
 
@@ -92,7 +101,8 @@ export class AuthService {
       });
 
       return {
-        requiresTwoFa: true,
+        requires2FA: true,
+        twoFAType: user.twoFaSecret ? 'totp' : 'sms',
         userId: user.id,
         message: '2FA kodi kiritilishi kerak',
       };

@@ -1,9 +1,20 @@
 import { IsString, MinLength, IsOptional } from 'class-validator';
 
 export class LoginDto {
-  // Email yoki username qabul qiladi
+  // Asosiy login field — email yoki username qabul qiladi
+  @IsOptional()
   @IsString({ message: 'Email yoki username kiritilmagan' })
-  identifier: string;
+  identifier?: string;
+
+  // Backwards compat: "email" field yuborilsa ham ishlaydi
+  @IsOptional()
+  @IsString()
+  email?: string;
+
+  // Backwards compat: "username" field yuborilsa ham ishlaydi
+  @IsOptional()
+  @IsString()
+  username?: string;
 
   @IsString()
   @MinLength(8, { message: 'Parol kamida 8 belgi bo\'lishi kerak' })
