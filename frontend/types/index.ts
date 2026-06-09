@@ -6,11 +6,13 @@ export interface User {
   id: string;
   firstName: string;
   lastName: string;
-  email: string;
+  email: string | null;
+  username?: string | null;
   role: Role;
   avatarUrl?: string | null;
   phone?: string | null;
   isActive: boolean;
+  twoFaEnabled?: boolean;
 }
 
 // ─── AUTH ─────────────────────────────────────────────────────────────────────

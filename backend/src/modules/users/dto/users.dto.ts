@@ -104,3 +104,69 @@ export class ResetPasswordDto {
   @MinLength(8, { message: 'Parol kamida 8 ta belgi bo\'lishi kerak' })
   newPassword: string;
 }
+
+// Foydalanuvchi o'z profilini yangilashi uchun
+export class UpdateProfileDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  firstName?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  lastName?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  middleName?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  phone?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  address?: string;
+
+  @IsOptional()
+  @IsString()
+  birthDate?: string;
+
+  // Username (o'quvchilar va boshqalar uchun)
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  @Matches(/^[a-z0-9_]+$/, { message: "Username faqat kichik harf, raqam va _ bo'lishi mumkin" })
+  username?: string;
+
+  // Email ixtiyoriy
+  @IsOptional()
+  @IsEmail()
+  @Transform(({ value }) => (value === '' ? undefined : value?.toLowerCase().trim()))
+  email?: string;
+
+  // Xodimlar uchun (ustoz/manager)
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  telegramUsername?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  bio?: string;
+}
+
+// O'z parolini o'zgartirish uchun
+export class ChangeOwnPasswordDto {
+  @IsString()
+  oldPassword: string;
+
+  @IsString()
+  @MinLength(8, { message: 'Yangi parol kamida 8 belgi bo\'lishi kerak' })
+  newPassword: string;
+}

@@ -14,6 +14,7 @@ interface NavItem {
 }
 
 const NAV_ITEMS: NavItem[] = [
+  { label: 'Profil',           href: '/dashboard/profile',           icon: '👤', roles: ['super_admin','manager','ustoz','student'] },
   { label: 'Dashboard',       href: '/dashboard',                   icon: '📊', roles: ['super_admin','manager','ustoz','student'] },
   { label: "O'quvchilar",     href: '/dashboard/students',          icon: '👥', roles: ['super_admin','manager'] },
   { label: "To'lovlar",       href: '/dashboard/payments',          icon: '💳', roles: ['super_admin','manager'] },
@@ -105,21 +106,32 @@ export default function Sidebar() {
         })}
       </nav>
 
-      {/* Footer */}
+      {/* Footer — profil havolasi */}
       <div className="px-3 py-3 border-t border-gray-100">
-        <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-gray-50">
-          <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center shrink-0">
-            <span className="text-emerald-700 text-xs font-bold">
-              {user?.firstName?.charAt(0)}{user?.lastName?.charAt(0)}
-            </span>
+        <Link href="/dashboard/profile"
+          className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors ${
+            pathname === '/dashboard/profile'
+              ? 'bg-emerald-50 text-emerald-700'
+              : 'bg-gray-50 hover:bg-gray-100'
+          }`}>
+          <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center shrink-0 overflow-hidden">
+            {user?.avatarUrl ? (
+              <img src={user.avatarUrl} alt="avatar" className="w-full h-full object-cover" />
+            ) : (
+              <span className="text-emerald-700 text-xs font-bold">
+                {user?.firstName?.charAt(0)}{user?.lastName?.charAt(0)}
+              </span>
+            )}
           </div>
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <p className="text-sm font-medium text-gray-900 truncate">
               {user?.firstName} {user?.lastName}
             </p>
-            <p className="text-xs text-gray-400 truncate">{user?.email}</p>
+            <p className="text-xs text-gray-400 truncate">
+              {user?.username ? `@${user.username}` : user?.email ?? ''}
+            </p>
           </div>
-        </div>
+        </Link>
       </div>
     </aside>
   );
