@@ -24,9 +24,10 @@ export class CreateUserDto {
   @MaxLength(100)
   lastName: string;
 
+  @IsOptional()
   @IsEmail()
-  @Transform(({ value }) => value?.toLowerCase().trim())
-  email: string;
+  @Transform(({ value }) => (value === '' ? undefined : value?.toLowerCase().trim()))
+  email?: string;
 
   @IsString()
   @MinLength(8, { message: 'Parol kamida 8 ta belgi bo\'lishi kerak' })

@@ -128,24 +128,51 @@ export class UsersService {
 
   // Yangi xodim qo'shish
   async create(dto: CreateUserDto, actorId: string, actorRole: string) {
-    // Email tekshiruvi
-    const existing = await this.userRepository.findOne({
-      where: { email: dto.email },
-      withDeleted: true,
-    });
+    // Email takrorlanmasligini tekshirish
+    if (dto.email) {
+      const existingEmail = await this.userRepository.findOne({
+        where: { email: dto.email.toLowerCase().trim() },
+        withDeleted: true,
+      });
+      if (existingEmail) {
+        throw new ConflictException('Bu email allaqachon ro\'yxatdan o\'tgan');
+      }
+    }
 
-    if (existing) {
-      throw new ConflictException('Bu email allaqachon ro\'yxatdan o\'tgan');
+    // Telefon takrorlanmasligini tekshirish
+    if (dto.phone) {
+      const existingPhone = await this.userRepository.findOne({
+        where: { phone: dto.phone },
+        withDeleted: true,
+      });
+      if (existingPhone) {
+        throw new ConflictException('Bu telefon raqam allaqachon ro\'yxatdan o\'tgan');
+      }
     }
 
     const passwordHash = await bcrypt.hash(dto.password, 12);
+
+    // Username avtomatik generatsiya: firstName.lower + random 3 raqam
+    const baseUsername = dto.firstName
+      .toLowerCase()
+      .replace(/[^a-z]/g, '')
+      .slice(0, 10);
+    const randomSuffix = String(Math.floor(Math.random() * 900) + 100);
+    let username = `${baseUsername}_${randomSuffix}`;
+
+    // Username takrorlanmasligini tekshirish
+    const usernameExists = await this.userRepository.findOne({ where: { username } });
+    if (usernameExists) {
+      username = `${baseUsername}_${Date.now().toString().slice(-4)}`;
+    }
 
     const user = this.userRepository.create({
       firstName:  dto.firstName,
       lastName:   dto.lastName,
       middleName: dto.middleName ?? null,
-      email:      dto.email,
+      email:      dto.email ? dto.email.toLowerCase().trim() : null,
       phone:      dto.phone ?? null,
+      username,
       passwordHash,
       role:       dto.role,
       isActive:   true,
