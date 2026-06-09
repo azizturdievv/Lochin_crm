@@ -52,11 +52,15 @@ export class AttendanceController {
     return this.attendanceService.markManual(dto, user.id, user.role);
   }
 
-  // ─── BUGUNGI DAVOMAT ─────────────────────────────────────────────────────
+  // ─── BUGUNGI / TANLANGAN SANA DAVOMATI ──────────────────────────────────
   @Get('today')
   @Roles(Role.SUPER_ADMIN, Role.MANAGER, Role.USTOZ, Role.STUDENT)
-  getToday(@CurrentUser() user: User) {
-    return this.attendanceService.getToday(user.id, user.role);
+  getToday(
+    @Query('date')    date:    string | undefined,
+    @Query('groupId') groupId: string | undefined,
+    @CurrentUser() user: User,
+  ) {
+    return this.attendanceService.getToday(user.id, user.role, date, groupId);
   }
 
   // ─── DARS DAVOMATI ───────────────────────────────────────────────────────

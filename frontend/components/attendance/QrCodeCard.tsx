@@ -30,12 +30,12 @@ export default function QrCodeCard({ lessonId, connected }: Props) {
 
   const { data: qr, isLoading } = useQuery({
     queryKey: ['lesson-qr', lessonId],
-    queryFn:  () => api.get<QrData>(`/attendance/${lessonId}/qr`).then(r => r.data),
+    queryFn:  () => api.get<QrData>(`/lessons/${lessonId}/qr`).then(r => r.data),
     staleTime: 5 * 60 * 1000,
   });
 
   const refreshMut = useMutation({
-    mutationFn: () => api.post<QrData>(`/attendance/${lessonId}/qr/refresh`).then(r => r.data),
+    mutationFn: () => api.post<QrData>(`/lessons/${lessonId}/qr/refresh`).then(r => r.data),
     onSuccess:  (data) => qc.setQueryData(['lesson-qr', lessonId], data),
   });
 

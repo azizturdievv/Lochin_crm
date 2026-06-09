@@ -248,53 +248,120 @@ export class AttendanceService {
     return { message: 'Sabab muvaffaqiyatli kiritildi', attendanceId };
   }
 
-  // ─── BUGUNGI DAVOMAT ──────────────────────────────────────────────────────
-  async getToday(actorId: string, actorRole: string) {
-    const today = new Date().toISOString().slice(0, 10);
+  // ─── BUGUNGI / TANLANGAN SANA DAVOMATI ───────────────────────────────────
+  async getToday(actorId: string, actorRole: string, date?: string, groupId?: string) {
+    const targetDate = date ?? new Date().toISOString().slice(0, 10);
 
-    // Raw SQL — TypeORM query builder ambiguous column muammosidan qochish
-    const params: unknown[] = [today];
+    // Darslar ro'yxatini raw SQL bilan olish (TypeORM addSelect muammosi)
+    const params: unknown[] = [targetDate];
     let sql = `
       SELECT
-        a.id, a.status, a.late_minutes AS "lateMinutes", a.scanned_at AS "scannedAt",
-        a.parent_notified AS "parentNotified", a.student_id AS "studentId",
-        l.id AS "lessonId", l.start_time AS "startTime", l.end_time AS "endTime",
-        g.id AS "groupId", g.name AS "groupName",
-        u."firstName", u.last_name AS "lastName"
-      FROM attendance a
-      INNER JOIN lessons l ON l.id = a.lesson_id
-      INNER JOIN groups g ON g.id = l.group_id
-      LEFT JOIN users u ON u.id = a.student_id
-      WHERE l.lesson_date = $1`;
+        l.id, l.group_id AS "groupId", l.teacher_id AS "teacherId",
+        l.lesson_date AS "lessonDate", l.start_time AS "startTime",
+        l.end_time AS "endTime", l.status, l.qr_code AS "qrCode",
+        l.qr_expires_at AS "qrExpiresAt",
+        g.name AS "groupName",
+        s.id AS "subjectId", s.name AS "subjectName",
+        t."firstName" AS "teacherFirst", t.last_name AS "teacherLast"
+      FROM lessons l
+      INNER JOIN groups g ON g.id = l.group_id AND g.deleted_at IS NULL
+      LEFT JOIN subjects s ON s.id = g.subject_id AND s.deleted_at IS NULL
+      INNER JOIN users t ON t.id = l.teacher_id AND t.deleted_at IS NULL
+      WHERE l.lesson_date = $1 AND l.deleted_at IS NULL`;
 
     if (actorRole === Role.USTOZ) {
       params.push(actorId);
       sql += ` AND l.teacher_id = $${params.length}`;
     }
-    if (actorRole === Role.STUDENT) {
-      params.push(actorId);
-      sql += ` AND a.student_id = $${params.length}`;
+    if (groupId) {
+      params.push(groupId);
+      sql += ` AND l.group_id = $${params.length}`;
     }
     sql += ' ORDER BY l.start_time ASC';
 
-    return this.attendanceRepo.query(sql, params);
+    const rows = (await this.lessonRepo.query(sql, params)) as Record<string, unknown>[];
+    if (!rows.length) return [];
+
+    // Har dars uchun: yozilgan o'quvchilar soni + davomat statistikasi
+    return Promise.all(
+      rows.map(async (row) => {
+        const lessonId = row.id as string;
+        const gId      = row.groupId as string;
+
+        const [enrolledCount, attStats] = await Promise.all([
+          this.enrollmentRepo.count({
+            where: { groupId: gId, status: EnrollmentStatus.ACTIVE },
+          }),
+          this.attendanceRepo.query(
+            `SELECT
+              COALESCE(SUM(CASE WHEN status = 'present'   THEN 1 ELSE 0 END), 0)::int AS present,
+              COALESCE(SUM(CASE WHEN status = 'late'      THEN 1 ELSE 0 END), 0)::int AS late,
+              COALESCE(SUM(CASE WHEN status = 'absent'    THEN 1 ELSE 0 END), 0)::int AS absent,
+              COALESCE(SUM(CASE WHEN status = 'excused'   THEN 1 ELSE 0 END), 0)::int AS excused,
+              COALESCE(SUM(CASE WHEN status = 'unexcused' THEN 1 ELSE 0 END), 0)::int AS unexcused,
+              COUNT(*)::int AS total_att
+             FROM attendance WHERE lesson_id = $1 AND deleted_at IS NULL`,
+            [lessonId],
+          ),
+        ]);
+
+        const s         = (attStats[0] as Record<string, number>) ?? {};
+        const present   = s.present   ?? 0;
+        const late      = s.late      ?? 0;
+        const excused   = s.excused   ?? 0;
+        const unexcused = s.unexcused ?? 0;
+        const absentRec = s.absent    ?? 0;
+        const totalAtt  = s.total_att ?? 0;
+        // Yozuvsiz o'quvchilar = kelmagan hisoblanadi
+        const absent = absentRec + Math.max(0, enrolledCount - totalAtt);
+        const rate   = enrolledCount > 0
+          ? Math.round(((present + late) / enrolledCount) * 100)
+          : 0;
+
+        return {
+          lesson: {
+            id:          lessonId,
+            groupId:     gId,
+            group: {
+              name:    (row.groupName    as string) ?? '',
+              subject: {
+                id:   (row.subjectId   as string) ?? '',
+                name: (row.subjectName as string) ?? '',
+              },
+            },
+            teacherId: row.teacherId as string,
+            teacher: {
+              firstName: (row.teacherFirst as string) ?? '',
+              lastName:  (row.teacherLast  as string) ?? '',
+            },
+            lessonDate:  row.lessonDate,
+            startTime:   (row.startTime  as string) ?? null,
+            endTime:     (row.endTime    as string) ?? null,
+            status:      row.status,
+            qrCode:      row.qrCode      ?? null,
+            qrExpiresAt: row.qrExpiresAt ?? null,
+          },
+          attendance: [] as [],
+          stats: { total: enrolledCount, present, late, absent, excused, unexcused, rate },
+        };
+      }),
+    );
   }
 
-  // ─── DARS DAVOMATI ────────────────────────────────────────────────────────
+  // ─── DARS DAVOMATI (to'liq) ──────────────────────────────────────────────
   async getLessonAttendance(lessonId: string, actorId: string, actorRole: string) {
     const lesson = await this.lessonRepo.findOne({
       where: { id: lessonId },
-      relations: { group: { subject: true } },
+      relations: { group: { subject: true }, teacher: true },
     });
 
     if (!lesson) throw new NotFoundException('Dars topilmadi');
 
-    // Ustoz faqat o'z darsini ko'radi
     if (actorRole === Role.USTOZ && lesson.teacherId !== actorId) {
       throw new ForbiddenException('Bu dars sizniki emas');
     }
 
-    // Guruh o'quvchilari
+    // Guruh o'quvchilari — faol yozuvlar
     const students = await this.userRepo
       .createQueryBuilder('u')
       .innerJoin('enrollments', 'e', 'e.student_id = u.id AND e.group_id = :gid AND e.status = :es', {
@@ -302,51 +369,82 @@ export class AttendanceService {
         es: EnrollmentStatus.ACTIVE,
       })
       .select(['u.id', 'u.firstName', 'u.lastName', 'u.phone'])
+      .orderBy('u.last_name', 'ASC')
       .getMany();
 
     // Mavjud davomat yozuvlari
-    const attendances = await this.attendanceRepo.find({
-      where: { lessonId },
-    });
-
-    const attendanceMap = new Map(attendances.map((a) => [a.studentId, a]));
+    const existingAtts = await this.attendanceRepo.find({ where: { lessonId } });
+    const attMap       = new Map(existingAtts.map((a) => [a.studentId, a]));
 
     // Statistika
     const stats = {
-      total: students.length,
-      present: 0,
-      late: 0,
-      absent: 0,
-      excused: 0,
+      total:     students.length,
+      present:   0, late:      0,
+      absent:    0, excused:   0,
+      unexcused: 0, rate:      0,
     };
 
-    const studentList = students.map((student) => {
-      const att = attendanceMap.get(student.id);
-      const status = att?.status ?? AttendanceStatus.ABSENT;
+    // Frontend AttendanceRecord formatida ro'yxat
+    const attendance = students.map((student) => {
+      const att    = attMap.get(student.id);
+      const status = (att?.status ?? AttendanceStatus.ABSENT) as AttendanceStatus;
 
-      if (status === AttendanceStatus.PRESENT) stats.present++;
-      else if (status === AttendanceStatus.LATE) stats.late++;
-      else if (status === AttendanceStatus.EXCUSED) stats.excused++;
-      else stats.absent++;
+      if      (status === AttendanceStatus.PRESENT)   stats.present++;
+      else if (status === AttendanceStatus.LATE)      stats.late++;
+      else if (status === AttendanceStatus.EXCUSED)   stats.excused++;
+      else if (status === AttendanceStatus.UNEXCUSED) stats.unexcused++;
+      else                                            stats.absent++;
 
       return {
-        student: { id: student.id, firstName: student.firstName, lastName: student.lastName },
-        attendance: att ?? null,
+        id:             att?.id ?? '',
+        lessonId,
+        studentId:      student.id,
+        student: {
+          firstName: student.firstName,
+          lastName:  student.lastName,
+          phone:     student.phone ?? null,
+        },
         status,
+        lateMinutes:    att?.lateMinutes    ?? null,
+        scannedAt:      att?.scannedAt      ? (att.scannedAt as unknown as Date).toISOString() : null,
+        excuseReason:   att?.excuseReason   ?? null,
+        excuseByParent: att?.excuseByParent ?? false,
+        parentNotified: att?.parentNotified ?? false,
+        createdAt:      att?.createdAt
+          ? (att.createdAt as unknown as Date).toISOString()
+          : new Date().toISOString(),
       };
     });
 
+    if (stats.total > 0) {
+      stats.rate = Math.round(((stats.present + stats.late) / stats.total) * 100);
+    }
+
     return {
       lesson: {
-        id: lesson.id,
-        date: lesson.lessonDate,
-        startTime: lesson.startTime,
-        endTime: lesson.endTime,
-        group: lesson.group?.name,
-        subject: lesson.group?.subject?.name,
+        id:        lesson.id,
+        groupId:   lesson.groupId,
+        group: {
+          name:    lesson.group?.name    ?? '',
+          subject: {
+            id:   lesson.group?.subject?.id   ?? '',
+            name: lesson.group?.subject?.name ?? '',
+          },
+        },
+        teacherId: lesson.teacherId,
+        teacher: {
+          firstName: lesson.teacher?.firstName ?? '',
+          lastName:  lesson.teacher?.lastName  ?? '',
+        },
+        lessonDate:  lesson.lessonDate,
+        startTime:   lesson.startTime,
+        endTime:     lesson.endTime,
+        status:      lesson.status,
+        qrCode:      lesson.qrCode,
+        qrExpiresAt: lesson.qrExpiresAt,
       },
+      attendance,
       stats,
-      students: studentList,
     };
   }
 
