@@ -42,10 +42,11 @@ interface Props {
 // ─── YARATISH FORMASI DEFAULT ─────────────────────────────────────────────────
 const EMPTY_CREATE: CreateStudentForm = {
   firstName: '', lastName: '', middleName: '',
-  email: '', phone: '', password: '',
+  username: '', email: '', phone: '', password: '',
   birthDate: '', address: '',
   schoolName: '', schoolGrade: undefined,
-  groupId: '', enrollmentDate: '',
+  groupIds: [],
+  enrollmentDate: '',
   referralSource: '', referralPerson: '',
   notes: '',
   parents: [],
@@ -68,9 +69,6 @@ export default function StudentModal({ open, onClose, student }: Props) {
         .then(r => r.data.data),
     enabled: open && !isEdit,
   });
-
-  // Tanlangan guruh ma'lumotlari
-  const selectedGroup = groups?.find(g => g.id === form.groupId);
 
   // ─── MUTATSIYALAR ───────────────────────────────────────────────────────────
   const createMut = useMutation({
@@ -101,7 +99,7 @@ export default function StudentModal({ open, onClose, student }: Props) {
           firstName:   student.firstName,
           lastName:    student.lastName,
           middleName:  student.middleName ?? '',
-          email:       student.email,
+          email:       student.email ?? '',
           phone:       student.phone ?? '',
           isActive:    student.isActive,
           address:     student.address ?? '',
@@ -110,7 +108,7 @@ export default function StudentModal({ open, onClose, student }: Props) {
           notes:       student.notes ?? '',
         });
       } else {
-        setForm({ ...EMPTY_CREATE, parents: [] });
+        setForm({ ...EMPTY_CREATE, parents: [], groupIds: [] });
       }
       setTab('main');
     }
@@ -177,7 +175,6 @@ export default function StudentModal({ open, onClose, student }: Props) {
                 tab={tab}
                 setTab={setTab}
                 groups={groups}
-                selectedGroup={selectedGroup}
                 mut={createMut}
                 onClose={onClose}
               />
@@ -189,7 +186,7 @@ export default function StudentModal({ open, onClose, student }: Props) {
 }
 
 // ─── YARATISH KONTENTI ────────────────────────────────────────────────────────
-function CreateContent({ form, setForm, tab, setTab, groups, selectedGroup, mut, onClose }: {
+function CreateContent({ form, setForm, tab, setTab, groups, mut, onClose }: {
   form: CreateStudentForm;
   setForm: (f: CreateStudentForm) => void;
   tab: Tab;
@@ -202,12 +199,47 @@ function CreateContent({ form, setForm, tab, setTab, groups, selectedGroup, mut,
   const set = (key: keyof CreateStudentForm, val: unknown) =>
     setForm({ ...form, [key]: val });
 
+  // Username avtomatik generatsiya
+  function autoUsername(firstName: string, lastName: string) {
+    const base = (firstName + (lastName ? lastName[0] : ''))
+      .toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 10) || 'user';
+    // Raqam qo'shimcha siz qaytaramiz — backend o'zi _001 qo'shadi
+    return base;
+  }
+
+  function handleFirstNameBlur() {
+    if (!form.username && form.firstName) {
+      set('username', autoUsername(form.firstName, form.lastName));
+    }
+  }
+
+  // Ko'p guruh: qo'shish
+  function addGroup() {
+    const gids = form.groupIds ?? [];
+    if (gids.length >= 5) return;
+    set('groupIds', [...gids, '']);
+  }
+
+  // Ko'p guruh: o'chirish
+  function removeGroup(idx: number) {
+    const gids = (form.groupIds ?? []).filter((_, i) => i !== idx);
+    set('groupIds', gids);
+  }
+
+  // Ko'p guruh: o'zgartirish
+  function updateGroup(idx: number, val: string) {
+    const gids = [...(form.groupIds ?? [])];
+    gids[idx] = val;
+    set('groupIds', gids);
+  }
+
   function handleSubmit() {
     if (!form.firstName.trim()) { setTab('main'); return; }
     if (!form.lastName.trim())  { setTab('main'); return; }
-    if (!form.email.trim())     { setTab('main'); return; }
     if (!form.password)         { setTab('main'); return; }
-    mut.mutate(form);
+    // Bo'sh guruh IDlarini tozalash
+    const cleaned = { ...form, groupIds: (form.groupIds ?? []).filter(Boolean) };
+    mut.mutate(cleaned);
   }
 
   return (
@@ -224,7 +256,9 @@ function CreateContent({ form, setForm, tab, setTab, groups, selectedGroup, mut,
             </div>
             <div>
               <label className={LABEL}>Ism *</label>
-              <input value={form.firstName} onChange={e => set('firstName', e.target.value)}
+              <input value={form.firstName}
+                onChange={e => set('firstName', e.target.value)}
+                onBlur={handleFirstNameBlur}
                 className={INPUT} placeholder="Jasur" />
             </div>
           </div>
@@ -233,11 +267,21 @@ function CreateContent({ form, setForm, tab, setTab, groups, selectedGroup, mut,
             <input value={form.middleName ?? ''} onChange={e => set('middleName', e.target.value)}
               className={INPUT} placeholder="Ixtiyoriy" />
           </div>
+
+          {/* Username */}
           <div>
-            <label className={LABEL}>Email *</label>
-            <input value={form.email} onChange={e => set('email', e.target.value)}
-              type="email" className={INPUT} placeholder="jasur@example.com" />
+            <label className={LABEL}>
+              Username
+              <span className="ml-1 text-gray-400 font-normal">(avtomatik, o'zgartirish mumkin)</span>
+            </label>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">@</span>
+              <input value={form.username ?? ''} onChange={e => set('username', e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
+                className={INPUT + ' pl-7'} placeholder="jasur yoki jasur_001" />
+            </div>
+            <p className="text-xs text-gray-400 mt-0.5">Faqat kichik harf, raqam va _ belgisi</p>
           </div>
+
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className={LABEL}>Telefon</label>
@@ -249,6 +293,11 @@ function CreateContent({ form, setForm, tab, setTab, groups, selectedGroup, mut,
               <input value={form.birthDate ?? ''} onChange={e => set('birthDate', e.target.value)}
                 type="date" className={INPUT} />
             </div>
+          </div>
+          <div>
+            <label className={LABEL}>Email (ixtiyoriy)</label>
+            <input value={form.email ?? ''} onChange={e => set('email', e.target.value)}
+              type="email" className={INPUT} placeholder="jasur@example.com" />
           </div>
           <div>
             <label className={LABEL}>Parol *</label>
@@ -271,51 +320,60 @@ function CreateContent({ form, setForm, tab, setTab, groups, selectedGroup, mut,
       {/* ── TAB: O'QUV ── */}
       {tab === 'academic' && (
         <>
-          {/* Guruh tanlash */}
-          <div>
-            <label className={LABEL}>Guruh (ixtiyoriy)</label>
-            <select value={form.groupId ?? ''} onChange={e => set('groupId', e.target.value)}
-              className={INPUT}>
-              <option value="">Guruhsiz qo'shish</option>
-              {groups?.map(g => (
-                <option key={g.id} value={g.id}
-                  disabled={g.currentStudents >= g.maxStudents}>
-                  {g.name}
-                  {g.currentStudents >= g.maxStudents ? ' (to\'liq)' : ''}
-                </option>
-              ))}
-            </select>
+          {/* Ko'p guruh tanlash */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <label className={LABEL + ' mb-0'}>Guruhlar (ixtiyoriy)</label>
+              {(form.groupIds ?? []).length < 5 && (
+                <button type="button" onClick={addGroup}
+                  className="text-xs text-emerald-600 hover:text-emerald-700 font-medium">
+                  + Yana fan qo'sh
+                </button>
+              )}
+            </div>
+
+            {(form.groupIds ?? []).length === 0 ? (
+              <button type="button" onClick={addGroup}
+                className="w-full py-3 border-2 border-dashed border-gray-200 text-gray-400 rounded-xl text-sm hover:border-emerald-300 hover:text-emerald-600 transition">
+                + Guruh qo'shish
+              </button>
+            ) : (
+              (form.groupIds ?? []).map((gid, idx) => {
+                const sel = groups?.find(g => g.id === gid);
+                return (
+                  <div key={idx} className="flex gap-2 items-start">
+                    <div className="flex-1">
+                      <select value={gid} onChange={e => updateGroup(idx, e.target.value)}
+                        className={INPUT}>
+                        <option value="">Guruh tanlang</option>
+                        {groups?.map(g => (
+                          <option key={g.id} value={g.id}
+                            disabled={g.currentStudents >= g.maxStudents || ((form.groupIds ?? []).includes(g.id) && g.id !== gid)}>
+                            {g.name}
+                            {g.subject ? ` — ${g.subject.name}` : ''}
+                            {g.currentStudents >= g.maxStudents ? ' (to\'liq)' : ` (${g.currentStudents}/${g.maxStudents})`}
+                          </option>
+                        ))}
+                      </select>
+                      {sel && (
+                        <div className="flex gap-3 mt-1 px-1 text-xs text-gray-500">
+                          {sel.subject && <span>{sel.subject.name}</span>}
+                          {sel.teacher && <span>{sel.teacher.lastName} {sel.teacher.firstName}</span>}
+                          {sel.lessonTime && <span>{sel.lessonTime.start}–{sel.lessonTime.end}</span>}
+                        </div>
+                      )}
+                    </div>
+                    <button type="button" onClick={() => removeGroup(idx)}
+                      className="mt-2 w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50 transition shrink-0">
+                      ✕
+                    </button>
+                  </div>
+                );
+              })
+            )}
           </div>
 
-          {/* Guruh ma'lumotlari */}
-          {selectedGroup && (
-            <div className="bg-emerald-50 rounded-xl p-3 space-y-1.5 text-sm">
-              <div className="flex justify-between">
-                <span className="text-gray-500 text-xs">Fan</span>
-                <span className="font-medium text-gray-800">{selectedGroup.subject?.name ?? '—'}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-500 text-xs">Ustoz</span>
-                <span className="font-medium text-gray-800">
-                  {selectedGroup.teacher
-                    ? `${selectedGroup.teacher.lastName} ${selectedGroup.teacher.firstName}`
-                    : <span className="text-gray-400">Belgilanmagan</span>}
-                </span>
-              </div>
-              {selectedGroup.lessonTime && (
-                <div className="flex justify-between">
-                  <span className="text-gray-500 text-xs">Vaqt</span>
-                  <span className="text-gray-800">{selectedGroup.lessonTime.start}–{selectedGroup.lessonTime.end}</span>
-                </div>
-              )}
-              <div className="flex justify-between">
-                <span className="text-gray-500 text-xs">O'quvchilar</span>
-                <span className="text-gray-800">{selectedGroup.currentStudents}/{selectedGroup.maxStudents}</span>
-              </div>
-            </div>
-          )}
-
-          {form.groupId && (
+          {(form.groupIds ?? []).some(Boolean) && (
             <div>
               <label className={LABEL}>O'qishga kirgan sana</label>
               <input value={form.enrollmentDate ?? ''} onChange={e => set('enrollmentDate', e.target.value)}

@@ -11,8 +11,9 @@ import { Role } from '../common/enums/role.enum';
 import { Session } from './session.entity';
 
 @Entity('users')
-@Index(['email'], { unique: true, where: '"deleted_at" IS NULL' })
+@Index(['email'], { unique: true, where: '"deleted_at" IS NULL AND email IS NOT NULL' })
 @Index(['phone'], { unique: true, where: '"deleted_at" IS NULL' })
+@Index(['username'], { unique: true, where: '"deleted_at" IS NULL AND username IS NOT NULL' })
 export class User extends BaseEntity {
   @Column({ length: 100 })
   firstName: string;
@@ -23,8 +24,12 @@ export class User extends BaseEntity {
   @Column({ type: 'varchar', nullable: true, length: 100, name: 'middle_name' })
   middleName: string | null;
 
-  @Column({ unique: true })
-  email: string;
+  // Username — o'quvchilar uchun asosiy login identifikatori
+  @Column({ type: 'varchar', nullable: true, length: 50 })
+  username: string | null;
+
+  @Column({ type: 'varchar', nullable: true })
+  email: string | null;
 
   @Column({ type: 'varchar', nullable: true })
   phone: string | null;

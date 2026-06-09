@@ -1,8 +1,9 @@
-import { IsEmail, IsString, MinLength, IsOptional } from 'class-validator';
+import { IsString, MinLength, IsOptional } from 'class-validator';
 
 export class LoginDto {
-  @IsEmail({}, { message: 'Email noto\'g\'ri formatda' })
-  email: string;
+  // Email yoki username qabul qiladi
+  @IsString({ message: 'Email yoki username kiritilmagan' })
+  identifier: string;
 
   @IsString()
   @MinLength(8, { message: 'Parol kamida 8 belgi bo\'lishi kerak' })

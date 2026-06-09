@@ -122,7 +122,7 @@ export default function StudentDetailPage({ params }: { params: Promise<{ id: st
 
         {/* Kontaktlar */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6 pt-5 border-t border-gray-100">
-          <InfoItem icon="📧" label="Email"  value={student.email} />
+          <InfoItem icon="📧" label="Email"  value={student.email ?? '—'} />
           <InfoItem icon="📱" label="Telefon" value={student.phone ?? '—'} />
           <InfoItem icon="🎂" label="Tug'ilgan"
             value={student.birthDate ? new Date(student.birthDate).toLocaleDateString('uz-UZ') : '—'} />

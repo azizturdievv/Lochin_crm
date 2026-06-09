@@ -47,19 +47,32 @@ export class StudentsService {
   ) {}
 
   async create(dto: CreateStudentDto, actorId: string, actorRole: string) {
-    // Email takrorlanmasligini tekshirish
-    const existing = await this.userRepository.findOne({
-      where: { email: dto.email },
-      withDeleted: true,
-    });
-
-    if (existing) {
-      throw new ConflictException('Bu email allaqachon ro\'yxatdan o\'tgan');
+    // Email berilgan bo'lsa takrorlanmasligini tekshirish
+    if (dto.email) {
+      const existing = await this.userRepository.findOne({
+        where: { email: dto.email },
+        withDeleted: true,
+      });
+      if (existing) {
+        throw new ConflictException('Bu email allaqachon ro\'yxatdan o\'tgan');
+      }
     }
+
+    // Username: berilmagan bo'lsa avtomatik generatsiya
+    const username = dto.username
+      ? await this.validateAndReserveUsername(dto.username)
+      : await this.generateUsername(dto.firstName);
 
     const passwordHash = await bcrypt.hash(dto.password, 12);
 
-    // Transaction: user + parents bir vaqtda saqlanadi
+    // Ko'p guruh: groupIds ustuvor, groupId fallback
+    const allGroupIds = dto.groupIds?.length
+      ? dto.groupIds
+      : dto.groupId
+      ? [dto.groupId]
+      : [];
+
+    // Transaction: user + parents + enrollments
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
@@ -69,8 +82,8 @@ export class StudentsService {
         firstName:      dto.firstName,
         lastName:       dto.lastName,
         middleName:     dto.middleName     || null,
-        email:          dto.email,
-        // Bo'sh string → null (unique constraint xatosini oldini oladi)
+        username,
+        email:          dto.email          || null,
         phone:          dto.phone          || null,
         passwordHash,
         role:           Role.STUDENT,
@@ -103,23 +116,23 @@ export class StudentsService {
         await queryRunner.manager.save(parents);
       }
 
-      // Guruhga darhol yozish (ixtiyoriy)
-      if (dto.groupId) {
+      // Bir yoki bir nechta guruhga yozish
+      for (const gid of allGroupIds) {
         const group = await queryRunner.manager.findOne(Group, {
-          where: { id: dto.groupId, isActive: true },
+          where: { id: gid, isActive: true },
         });
-        if (group && group.currentStudents < group.maxStudents) {
-          const enrollment = queryRunner.manager.create(Enrollment, {
-            studentId:       student.id,
-            groupId:         dto.groupId,
-            status:          EnrollmentStatus.ACTIVE,
-            enrolledAt:      dto.enrollmentDate ? new Date(dto.enrollmentDate) : new Date(),
-            discountPercent: 0,
-            referralStudentId: dto.referralStudentId ?? null,
-          });
-          await queryRunner.manager.save(enrollment);
-          await queryRunner.manager.increment(Group, { id: dto.groupId }, 'currentStudents', 1);
-        }
+        if (!group || group.currentStudents >= group.maxStudents) continue;
+
+        const enrollment = queryRunner.manager.create(Enrollment, {
+          studentId:         student.id,
+          groupId:           gid,
+          status:            EnrollmentStatus.ACTIVE,
+          enrolledAt:        dto.enrollmentDate ? new Date(dto.enrollmentDate) : new Date(),
+          discountPercent:   0,
+          referralStudentId: dto.referralStudentId ?? null,
+        });
+        await queryRunner.manager.save(enrollment);
+        await queryRunner.manager.increment(Group, { id: gid }, 'currentStudents', 1);
       }
 
       await queryRunner.commitTransaction();
@@ -130,13 +143,12 @@ export class StudentsService {
         action: 'STUDENT_CREATED',
         entityName: 'users',
         entityId: student.id,
-        newValues: { email: student.email, firstName: student.firstName, lastName: student.lastName },
+        newValues: { username, email: student.email, firstName: student.firstName, lastName: student.lastName },
       });
 
       return this.findOne(student.id, actorId, actorRole);
     } catch (err: unknown) {
       await queryRunner.rollbackTransaction();
-      // PostgreSQL unique constraint (23505) — 500 o'rniga 409 qaytarish
       const pgErr = err as { code?: string; detail?: string };
       if (pgErr?.code === '23505') {
         if (pgErr?.detail?.includes('phone')) {
@@ -145,12 +157,35 @@ export class StudentsService {
         if (pgErr?.detail?.includes('email')) {
           throw new ConflictException("Bu email allaqachon ro'yxatdan o'tgan");
         }
+        if (pgErr?.detail?.includes('username')) {
+          throw new ConflictException("Bu username allaqachon band");
+        }
         throw new ConflictException("Bu ma'lumot allaqachon mavjud");
       }
       throw err;
     } finally {
       await queryRunner.release();
     }
+  }
+
+  // Username unikal ekanligini tekshirish
+  private async validateAndReserveUsername(username: string): Promise<string> {
+    const exists = await this.userRepository.findOne({ where: { username } });
+    if (exists) {
+      throw new ConflictException(`"${username}" username allaqachon band`);
+    }
+    return username;
+  }
+
+  // Username avtomatik generatsiya: jasur_001
+  private async generateUsername(firstName: string): Promise<string> {
+    const base = firstName.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 10) || 'user';
+    for (let i = 1; i <= 999; i++) {
+      const candidate = `${base}_${String(i).padStart(3, '0')}`;
+      const exists = await this.userRepository.findOne({ where: { username: candidate } });
+      if (!exists) return candidate;
+    }
+    throw new BadRequestException('Username generatsiya qilishda xatolik');
   }
 
   async findAll(query: QueryStudentDto, actorId: string, actorRole: string) {
@@ -239,6 +274,7 @@ export class StudentsService {
         'u.lastName',
         'u.middleName',
         'u.email',
+        'u.username',
         'u.phone',
         'u.avatarUrl',
         'u.isActive',

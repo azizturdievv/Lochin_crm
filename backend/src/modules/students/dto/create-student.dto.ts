@@ -13,6 +13,7 @@ import {
   Max,
   IsUUID,
   IsIn,
+  Matches,
 } from 'class-validator';
 import { Type, Transform } from 'class-transformer';
 
@@ -58,8 +59,19 @@ export class CreateStudentDto {
   @MaxLength(100)
   middleName?: string;
 
+  // Username — ixtiyoriy, avtomatik generatsiya qilinadi
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  @Matches(/^[a-z0-9_]+$/, { message: "Username faqat kichik harf, raqam va _ bo'lishi mumkin" })
+  @Transform(({ value }) => (value === '' ? undefined : value))
+  username?: string;
+
+  // Email ixtiyoriy — o'quvchilar username bilan ham kira oladi
+  @IsOptional()
   @IsEmail({}, { message: "Email noto'g'ri formatda" })
-  email: string;
+  @Transform(({ value }) => (value === '' ? undefined : value))
+  email?: string;
 
   // Bo'sh string → null (unique constraint xatosini oldini oladi)
   @IsOptional()
@@ -72,7 +84,6 @@ export class CreateStudentDto {
   password: string;
 
   // ── Shaxsiy ──────────────────────────────────────────────────────────────────
-  // Bo'sh string → undefined (IsDateString xatosini oldini oladi)
   @IsOptional()
   @IsDateString()
   @Transform(({ value }) => (value === '' ? undefined : value))
@@ -96,8 +107,13 @@ export class CreateStudentDto {
   @Type(() => Number)
   schoolGrade?: number;
 
-  // ── O'quv ─────────────────────────────────────────────────────────────────────
-  // O'quvchini yaratishda darhol guruhga yozish (ixtiyoriy)
+  // ── O'quv: bir yoki bir nechta guruh ─────────────────────────────────────────
+  @IsOptional()
+  @IsArray()
+  @IsUUID(4, { each: true })
+  groupIds?: string[];
+
+  // Orqaga moslik uchun — bitta groupId ham qabul qilinadi
   @IsOptional()
   @IsUUID()
   groupId?: string;

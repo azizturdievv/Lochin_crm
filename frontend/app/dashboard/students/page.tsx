@@ -351,7 +351,9 @@ function StudentRow({ student, onEdit, onDelete, onEnroll }: {
             <p className="font-medium text-gray-900 hover:text-emerald-600 transition-colors truncate">
               {student.lastName} {student.firstName}
             </p>
-            <p className="text-gray-400 text-xs truncate">{student.email}</p>
+            <p className="text-gray-400 text-xs truncate">
+              {student.username ? `@${student.username}` : student.email ?? '—'}
+            </p>
           </div>
         </Link>
       </td>

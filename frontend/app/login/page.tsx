@@ -11,8 +11,8 @@ import type { LoginResponse, TwoFAResponse } from '@/types';
 
 // ─── VALIDATSIYA SXEMALARI ────────────────────────────────────────────────────
 const loginSchema = z.object({
-  email:    z.string().email('Noto\'g\'ri email'),
-  password: z.string().min(8, 'Kamida 8 belgi'),
+  identifier: z.string().min(3, 'Email yoki username kiriting'),
+  password:   z.string().min(8, 'Kamida 8 belgi'),
 });
 
 const twoFASchema = z.object({
@@ -20,7 +20,7 @@ const twoFASchema = z.object({
 });
 
 type LoginForm = z.infer<typeof loginSchema>;
-type TwoFAForm = z.infer<typeof twoFASchema>;
+type TwoFAForm  = z.infer<typeof twoFASchema>;
 
 // ─── LOGIN SAHIFASI ───────────────────────────────────────────────────────────
 export default function LoginPage() {
@@ -35,7 +35,7 @@ export default function LoginPage() {
   // Login forma
   const loginForm = useForm<LoginForm>({
     resolver: zodResolver(loginSchema),
-    defaultValues: { email: '', password: '' },
+    defaultValues: { identifier: '', password: '' },
   });
 
   // 2FA forma
@@ -48,7 +48,7 @@ export default function LoginPage() {
   async function onLogin(data: LoginForm) {
     setApiError('');
     try {
-      const res = await api.post<LoginResponse>('/auth/login', data);
+      const res = await api.post<LoginResponse>('/auth/login', { identifier: data.identifier, password: data.password, deviceInfo: navigator.userAgent });
       const body = res.data;
 
       if (body.requires2FA && body.userId) {
@@ -112,18 +112,18 @@ export default function LoginPage() {
             <form onSubmit={loginForm.handleSubmit(onLogin)} className="space-y-5">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                  Email
+                  Email yoki username
                 </label>
                 <input
-                  {...loginForm.register('email')}
-                  type="email"
-                  autoComplete="email"
-                  placeholder="admin@ilmacademy.uz"
+                  {...loginForm.register('identifier')}
+                  type="text"
+                  autoComplete="username"
+                  placeholder="admin@ilmacademy.uz yoki aziz_001"
                   className="w-full px-4 py-2.5 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent text-sm transition"
                 />
-                {loginForm.formState.errors.email && (
+                {loginForm.formState.errors.identifier && (
                   <p className="text-red-500 text-xs mt-1">
-                    {loginForm.formState.errors.email.message}
+                    {loginForm.formState.errors.identifier.message}
                   </p>
                 )}
               </div>

@@ -40,13 +40,17 @@ export class AuthService {
   }
 
   async login(dto: LoginDto, ipAddress?: string, userAgent?: string) {
+    // Email yoki username bo'yicha qidirish
     const user = await this.userRepository.findOne({
-      where: { email: dto.email, isActive: true },
+      where: [
+        { email: dto.identifier, isActive: true },
+        { username: dto.identifier, isActive: true },
+      ],
     });
 
     // Xavfsizlik: user topilmasa ham bir xil xato
     if (!user) {
-      throw new UnauthorizedException('Email yoki parol noto\'g\'ri');
+      throw new UnauthorizedException('Login yoki parol noto\'g\'ri');
     }
 
     // Bloklangan hisobni tekshirish
@@ -63,7 +67,7 @@ export class AuthService {
 
     if (!isPasswordValid) {
       await this.handleFailedLogin(user);
-      throw new UnauthorizedException('Email yoki parol noto\'g\'ri');
+      throw new UnauthorizedException('Login yoki parol noto\'g\'ri');
     }
 
     // Muvaffaqiyatli kirish — urinishlarni tozalash
@@ -81,7 +85,7 @@ export class AuthService {
       await this.auditLogService.log({
         userId: user.id,
         userRole: user.role,
-        userEmail: user.email,
+        userEmail: user.email ?? user.username ?? undefined,
         action: 'LOGIN_2FA_REQUIRED',
         ipAddress,
         userAgent,
@@ -229,7 +233,7 @@ export class AuthService {
   ) {
     const payload = {
       sub: user.id,
-      email: user.email,
+      email: user.email ?? user.username,
       role: user.role,
     };
 
@@ -277,6 +281,7 @@ export class AuthService {
         firstName: user.firstName,
         lastName: user.lastName,
         email: user.email,
+        username: user.username,
         role: user.role,
         twoFaEnabled: user.twoFaEnabled,
       },

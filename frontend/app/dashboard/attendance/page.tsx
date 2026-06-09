@@ -7,6 +7,7 @@ import { useAuthStore } from '@/store/auth.store';
 import { useAttendanceSocket } from '@/hooks/useAttendanceSocket';
 import QrCodeCard from '@/components/attendance/QrCodeCard';
 import ManualMarkModal from '@/components/attendance/ManualMarkModal';
+import BulkManualModal from '@/components/attendance/BulkManualModal';
 import ExcuseModal from '@/components/attendance/ExcuseModal';
 import AttendanceStats from '@/components/attendance/AttendanceStats';
 import { STATUS_META } from '@/types/attendance';
@@ -64,6 +65,7 @@ export default function AttendancePage() {
   const [searchQ,          setSearchQ]          = useState('');
   const [markTarget,       setMarkTarget]       = useState<AttendanceRecord | null>(null);
   const [excuseTarget,     setExcuseTarget]     = useState<AttendanceRecord | null>(null);
+  const [bulkOpen,         setBulkOpen]         = useState(false);
 
   // Real-time socket
   const { lastEvent, connected } = useAttendanceSocket(selectedLessonId);
@@ -195,12 +197,22 @@ export default function AttendancePage() {
                   {selectedLesson?.lesson.teacher.lastName} {selectedLesson?.lesson.teacher.firstName}
                 </p>
               </div>
-              <button
-                onClick={() => lessonData && exportCsv(lessonData.attendance, selectedLesson?.lesson.group.name ?? 'dars')}
-                className="flex items-center gap-2 px-3 py-2 text-sm border border-gray-200 rounded-xl text-gray-600 hover:bg-gray-50 transition"
-              >
-                📥 CSV
-              </button>
+              <div className="flex items-center gap-2">
+                {canMark && (
+                  <button
+                    onClick={() => setBulkOpen(true)}
+                    className="flex items-center gap-2 px-3 py-2 text-sm bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition font-medium"
+                  >
+                    ✏️ Qo'lda kiritish
+                  </button>
+                )}
+                <button
+                  onClick={() => lessonData && exportCsv(lessonData.attendance, selectedLesson?.lesson.group.name ?? 'dars')}
+                  className="flex items-center gap-2 px-3 py-2 text-sm border border-gray-200 rounded-xl text-gray-600 hover:bg-gray-50 transition"
+                >
+                  📥 CSV
+                </button>
+              </div>
             </div>
 
             {/* ── QR + STATISTIKA ──────────────────────────────────── */}
@@ -319,6 +331,11 @@ export default function AttendancePage() {
         record={excuseTarget}
         lessonId={selectedLessonId ?? ''}
         onClose={() => setExcuseTarget(null)}
+      />
+      <BulkManualModal
+        open={bulkOpen}
+        onClose={() => setBulkOpen(false)}
+        todayLessons={todayLessons ?? []}
       />
     </div>
   );

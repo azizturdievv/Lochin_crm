@@ -4,14 +4,14 @@ export interface Student {
   firstName:       string;
   lastName:        string;
   middleName:      string | null;
-  email:           string;
+  email:           string | null;
+  username:        string | null;
   phone:           string | null;
   birthDate:       string | null;
   isActive:        boolean;
   totalPoints:     number;
   avatarUrl:       string | null;
   createdAt:       string;
-  // Yangi maydonlar
   address:         string | null;
   schoolName:      string | null;
   schoolGrade:     number | null;
@@ -56,14 +56,15 @@ export interface CreateStudentForm {
   firstName:       string;
   lastName:        string;
   middleName?:     string;
-  email:           string;
+  username?:       string;
+  email?:          string;
   phone?:          string;
   password:        string;
   birthDate?:      string;
   address?:        string;
   schoolName?:     string;
   schoolGrade?:    number;
-  groupId?:        string;
+  groupIds?:       string[];
   enrollmentDate?: string;
   referralSource?: string;
   referralPerson?: string;
