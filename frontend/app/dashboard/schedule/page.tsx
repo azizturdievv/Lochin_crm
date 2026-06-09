@@ -8,8 +8,28 @@ import LessonCard from '@/components/schedule/LessonCard';
 import CreateLessonModal from '@/components/schedule/CreateLessonModal';
 import SubstituteModal from '@/components/schedule/SubstituteModal';
 import AnalysisPanel from '@/components/schedule/AnalysisPanel';
-import { ROOMS, TIME_SLOTS, DAYS_UZ, DAYS_FULL } from '@/types/schedule';
+import { DAYS_UZ } from '@/types/schedule';
 import type { WeekScheduleResponse, ScheduleLesson, ConflictResult } from '@/types/schedule';
+
+// ─── SANA FORMATI ─────────────────────────────────────────────────────────────
+const MONTHS = ['Yan','Fev','Mar','Apr','May','Iyu','Iul','Avg','Sen','Okt','Noy','Dek'];
+
+function formatDate(dateStr: string): string {
+  const d = new Date(dateStr);
+  return `${d.getDate()}-${MONTHS[d.getMonth()]}`;
+}
+
+function formatWeekRange(start: string, end: string): string {
+  const s = new Date(start);
+  const e = new Date(end);
+  const yr = e.getFullYear();
+  const sm = MONTHS[s.getMonth()];
+  const em = MONTHS[e.getMonth()];
+  if (s.getMonth() === e.getMonth()) {
+    return `${s.getDate()}–${e.getDate()} ${em} ${yr}`;
+  }
+  return `${s.getDate()} ${sm} – ${e.getDate()} ${em} ${yr}`;
+}
 
 // ─── HAFTA HISOBLASH ──────────────────────────────────────────────────────────
 function getMondayOf(date: Date): string {
@@ -26,9 +46,9 @@ function addDays(dateStr: string, n: number): string {
   return d.toISOString().slice(0, 10);
 }
 
-function formatDate(dateStr: string): string {
-  return new Date(dateStr).toLocaleDateString('uz-UZ', { month: 'short', day: 'numeric' });
-}
+// ─── API TURLARI ──────────────────────────────────────────────────────────────
+interface ApiTimeSlot { id: string; name: string; startTime: string; endTime: string; isActive: boolean; orderIndex: number; }
+interface ApiRoom     { id: string; name: string; number: string; capacity: number; isActive: boolean; orderIndex: number; }
 
 // ─── API ──────────────────────────────────────────────────────────────────────
 const fetchWeek = (params: object) =>
@@ -57,6 +77,18 @@ export default function SchedulePage() {
   const [dragId,     setDragId]     = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<{ day: string; room: string } | null>(null);
   const [conflictDrop, setConflictDrop] = useState<boolean>(false);
+
+  // Paralar va xonalar DB dan
+  const { data: timeSlots } = useQuery({
+    queryKey: ['time-slots'],
+    queryFn:  () => api.get<ApiTimeSlot[]>('/schedule/time-slots?active=true').then(r => r.data),
+    staleTime: 5 * 60_000,
+  });
+  const { data: rooms } = useQuery({
+    queryKey: ['rooms'],
+    queryFn:  () => api.get<ApiRoom[]>('/schedule/rooms?active=true').then(r => r.data),
+    staleTime: 5 * 60_000,
+  });
 
   // API
   const { data, isLoading } = useQuery({
@@ -158,7 +190,7 @@ export default function SchedulePage() {
               ›
             </button>
             <span className="text-sm font-medium text-gray-700 ml-1">
-              {formatDate(weekDays[0])} – {formatDate(weekDays[6])}
+              {formatWeekRange(weekDays[0], weekDays[6])}
             </span>
           </div>
 
@@ -167,7 +199,9 @@ export default function SchedulePage() {
             <select value={filterRoom} onChange={e => setFilterRoom(e.target.value)}
               className="px-3 py-1.5 text-xs border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white">
               <option value="">Barcha xona</option>
-              {ROOMS.map(r => <option key={r.number} value={r.number}>Xona {r.number}</option>)}
+              {(rooms ?? []).map(r => (
+                <option key={r.number} value={r.number}>{r.name}</option>
+              ))}
             </select>
 
             <button onClick={() => setShowAnalysis(s => !s)}
@@ -219,14 +253,32 @@ export default function SchedulePage() {
                     ))}
                   </div>
                 ))
-              : TIME_SLOTS.map((slot, slotIdx) =>
-                  ROOMS.map((room, roomIdx) => {
+              : !timeSlots?.length ? (
+                  <div className="flex flex-col items-center justify-center py-16 text-gray-400">
+                    <div className="text-4xl mb-3">⏰</div>
+                    <p className="text-sm font-medium text-gray-500">Paralar sozlanmagan</p>
+                    <p className="text-xs text-gray-400 mt-1">
+                      Sozlamalar → Paralar bo'limidan qo'shing
+                    </p>
+                  </div>
+                )
+              : !rooms?.length ? (
+                  <div className="flex flex-col items-center justify-center py-16 text-gray-400">
+                    <div className="text-4xl mb-3">🏫</div>
+                    <p className="text-sm font-medium text-gray-500">Xonalar sozlanmagan</p>
+                    <p className="text-xs text-gray-400 mt-1">
+                      Sozlamalar → Xonalar bo'limidan qo'shing
+                    </p>
+                  </div>
+                )
+              : (timeSlots ?? []).map((slot, slotIdx) =>
+                  (rooms ?? []).map((room, roomIdx) => {
                     const isFirstInSlot = roomIdx === 0;
-                    const isLastInSlot  = roomIdx === ROOMS.length - 1;
+                    const isLastInSlot  = roomIdx === (rooms ?? []).length - 1;
 
                     return (
                       <div
-                        key={`${slot.start}-${room.number}`}
+                        key={`${slot.startTime}-${room.number}`}
                         className={`grid border-b ${isLastInSlot ? 'border-gray-200' : 'border-gray-50'}`}
                         style={{ gridTemplateColumns: '80px 64px repeat(7, 1fr)' }}
                       >
@@ -234,9 +286,9 @@ export default function SchedulePage() {
                         <div className={`px-2 py-2 flex items-start ${isFirstInSlot ? '' : 'border-t-0'}`}>
                           {isFirstInSlot && (
                             <div className="sticky top-12">
-                              <p className="text-[10px] font-bold text-gray-500 uppercase">{slot.label}</p>
-                              <p className="text-[9px] text-gray-400 leading-tight">{slot.start}</p>
-                              <p className="text-[9px] text-gray-400 leading-tight">{slot.end}</p>
+                              <p className="text-[10px] font-bold text-gray-500 uppercase">{slot.name}</p>
+                              <p className="text-[9px] text-gray-400 leading-tight">{slot.startTime}</p>
+                              <p className="text-[9px] text-gray-400 leading-tight">{slot.endTime}</p>
                             </div>
                           )}
                         </div>
@@ -252,14 +304,13 @@ export default function SchedulePage() {
                         {/* Kunlar × xona katakchasi */}
                         {weekDays.map(day => {
                           const lessonsInCell = (data?.grid[day]?.[room.number] ?? [])
-                            .filter(l => l.startTime === slot.start);
+                            .filter(l => l.startTime === slot.startTime);
                           const isTarget  = dropTarget?.day === day && dropTarget?.room === room.number;
                           const isToday   = day === today;
-                          const isEmpty   = lessonsInCell.length === 0;
 
                           return (
                             <div
-                              key={`${day}-${room.number}-${slot.start}`}
+                              key={`${day}-${room.number}-${slot.startTime}`}
                               className={`min-h-[64px] p-1.5 border-l border-gray-50 transition-colors
                                 ${isToday ? 'bg-emerald-50/30' : ''}
                                 ${isTarget && !conflictDrop ? 'bg-emerald-100 ring-2 ring-emerald-400 ring-inset' : ''}
@@ -285,7 +336,7 @@ export default function SchedulePage() {
                               ) : (
                                 canEdit ? (
                                   <button
-                                    onClick={() => setCreateModal({ open: true, day, room: room.number, slot })}
+                                    onClick={() => setCreateModal({ open: true, day, room: room.number, slot: { start: slot.startTime, end: slot.endTime } })}
                                     className={`w-full h-full min-h-[52px] rounded-xl border-2 border-dashed text-xs transition-all flex items-center justify-center gap-1
                                       ${dragId ? 'border-transparent' : 'border-gray-200 text-gray-300 hover:border-emerald-400 hover:text-emerald-500 hover:bg-emerald-50'}
                                     `}

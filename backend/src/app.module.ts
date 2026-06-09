@@ -24,6 +24,7 @@ import { QualityModule } from './modules/quality/quality.module';
 import { UsersModule } from './modules/users/users.module';
 import { GroupsModule } from './modules/groups/groups.module';
 import { ReportsModule } from './modules/reports/reports.module';
+import { ScheduleSettingsModule } from './modules/schedule-settings/schedule-settings.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
 
@@ -97,6 +98,9 @@ import { RolesGuard } from './common/guards/roles.guard';
 
     // Hisobotlar moduli (dashboard, rol bo'yicha)
     ReportsModule,
+
+    // Jadval sozlamalari (paralar, xonalar)
+    ScheduleSettingsModule,
   ],
   controllers: [AppController],
   providers: [

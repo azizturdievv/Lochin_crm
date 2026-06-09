@@ -5,7 +5,17 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { useAuthStore } from '@/store/auth.store';
 
-type Tab = 'profile' | 'security' | 'notifications' | 'system';
+type Tab = 'profile' | 'security' | 'notifications' | 'system' | 'time_slots' | 'rooms';
+
+// ─── JADVAL SOZLAMA TURLARI ───────────────────────────────────────────────────
+interface TimeSlot {
+  id: string; name: string; startTime: string; endTime: string;
+  isActive: boolean; orderIndex: number;
+}
+interface Room {
+  id: string; name: string; number: string; capacity: number;
+  isActive: boolean; orderIndex: number;
+}
 
 interface Profile {
   firstName:  string;
@@ -15,11 +25,13 @@ interface Profile {
   email:      string;
 }
 
-const TABS: Array<{ id: Tab; label: string; icon: string }> = [
+const BASE_TABS: Array<{ id: Tab; label: string; icon: string; adminOnly?: boolean }> = [
   { id: 'profile',       label: 'Profil',          icon: '👤' },
   { id: 'security',      label: 'Xavfsizlik',       icon: '🔒' },
   { id: 'notifications', label: 'Bildirishnomalar', icon: '🔔' },
-  { id: 'system',        label: 'Tizim',            icon: '⚙️' },
+  { id: 'time_slots',    label: 'Paralar',          icon: '⏰', adminOnly: true },
+  { id: 'rooms',         label: 'Xonalar',          icon: '🏫', adminOnly: true },
+  { id: 'system',        label: 'Tizim',            icon: '⚙️', adminOnly: true },
 ];
 
 const INPUT = 'w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500';
@@ -30,6 +42,8 @@ export default function SettingsPage() {
   const setUser = useAuthStore(s => s.setUser);
   const qc    = useQueryClient();
   const [tab, setTab] = useState<Tab>('profile');
+  const isSA  = user?.role === 'super_admin';
+  const TABS  = BASE_TABS.filter(t => !t.adminOnly || isSA);
 
   // ── Profil holati ────────────────────────────────────────────────────────
   const [profile, setProfile] = useState<Profile>({
@@ -52,6 +66,54 @@ export default function SettingsPage() {
   const [notifSms,     setNotifSms]     = useState(true);
   const [notifTelegram,setNotifTelegram]= useState(true);
   const [notifPush,    setNotifPush]    = useState(true);
+
+  // ── Paralar holati ───────────────────────────────────────────────────────
+  const [slotForm, setSlotForm] = useState({ name:'', startTime:'', endTime:'', orderIndex: 0 });
+  const [editSlot, setEditSlot] = useState<TimeSlot | null>(null);
+
+  const { data: timeSlots, refetch: refetchSlots } = useQuery({
+    queryKey: ['time-slots-settings'],
+    queryFn:  () => api.get<TimeSlot[]>('/schedule/time-slots').then(r => r.data),
+    enabled:  isSA,
+  });
+
+  const createSlotMut = useMutation({
+    mutationFn: (d: typeof slotForm) => api.post('/schedule/time-slots', d),
+    onSuccess:  () => { refetchSlots(); setSlotForm({ name:'', startTime:'', endTime:'', orderIndex: 0 }); },
+  });
+  const updateSlotMut = useMutation({
+    mutationFn: ({ id, d }: { id: string; d: Partial<TimeSlot> }) =>
+      api.patch(`/schedule/time-slots/${id}`, d),
+    onSuccess: () => { refetchSlots(); setEditSlot(null); qc.invalidateQueries({ queryKey: ['time-slots'] }); },
+  });
+  const deleteSlotMut = useMutation({
+    mutationFn: (id: string) => api.delete(`/schedule/time-slots/${id}`),
+    onSuccess:  () => { refetchSlots(); qc.invalidateQueries({ queryKey: ['time-slots'] }); },
+  });
+
+  // ── Xonalar holati ────────────────────────────────────────────────────────
+  const [roomForm, setRoomForm] = useState({ name:'', number:'', capacity: 20, orderIndex: 0 });
+  const [editRoom, setEditRoom] = useState<Room | null>(null);
+
+  const { data: rooms, refetch: refetchRooms } = useQuery({
+    queryKey: ['rooms-settings'],
+    queryFn:  () => api.get<Room[]>('/schedule/rooms').then(r => r.data),
+    enabled:  isSA,
+  });
+
+  const createRoomMut = useMutation({
+    mutationFn: (d: typeof roomForm) => api.post('/schedule/rooms', d),
+    onSuccess:  () => { refetchRooms(); setRoomForm({ name:'', number:'', capacity: 20, orderIndex: 0 }); },
+  });
+  const updateRoomMut = useMutation({
+    mutationFn: ({ id, d }: { id: string; d: Partial<Room> }) =>
+      api.patch(`/schedule/rooms/${id}`, d),
+    onSuccess: () => { refetchRooms(); setEditRoom(null); qc.invalidateQueries({ queryKey: ['rooms'] }); },
+  });
+  const deleteRoomMut = useMutation({
+    mutationFn: (id: string) => api.delete(`/schedule/rooms/${id}`),
+    onSuccess:  () => { refetchRooms(); qc.invalidateQueries({ queryKey: ['rooms'] }); },
+  });
 
   // ── Mutatsiyalar ─────────────────────────────────────────────────────────
   const profileMut = useMutation({
@@ -314,6 +376,201 @@ export default function SettingsPage() {
               <button className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium rounded-xl transition-colors">
                 💾 Saqlash
               </button>
+            </div>
+          )}
+
+          {/* ── PARALAR TAB ─── */}
+          {tab === 'time_slots' && (
+            <div className="space-y-4">
+              {/* Yangi para qo'shish */}
+              <div className="bg-white border border-gray-100 rounded-2xl p-5 space-y-3">
+                <h2 className="text-sm font-semibold text-gray-900">⏰ Yangi para qo'shish</h2>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className={LABEL}>Para nomi</label>
+                    <input className={INPUT} value={slotForm.name}
+                      onChange={e => setSlotForm(f => ({ ...f, name: e.target.value }))}
+                      placeholder="1-para" />
+                  </div>
+                  <div>
+                    <label className={LABEL}>Tartib #</label>
+                    <input className={INPUT} type="number" min={0}
+                      value={slotForm.orderIndex}
+                      onChange={e => setSlotForm(f => ({ ...f, orderIndex: +e.target.value }))} />
+                  </div>
+                  <div>
+                    <label className={LABEL}>Boshlanish</label>
+                    <input className={INPUT} type="time" value={slotForm.startTime}
+                      onChange={e => setSlotForm(f => ({ ...f, startTime: e.target.value }))} />
+                  </div>
+                  <div>
+                    <label className={LABEL}>Tugash</label>
+                    <input className={INPUT} type="time" value={slotForm.endTime}
+                      onChange={e => setSlotForm(f => ({ ...f, endTime: e.target.value }))} />
+                  </div>
+                </div>
+                <button
+                  onClick={() => createSlotMut.mutate(slotForm)}
+                  disabled={createSlotMut.isPending || !slotForm.name || !slotForm.startTime || !slotForm.endTime}
+                  className="w-full py-2.5 bg-emerald-600 text-white text-sm font-medium rounded-xl hover:bg-emerald-700 disabled:opacity-50 transition-colors"
+                >
+                  {createSlotMut.isPending ? 'Saqlanmoqda...' : '+ Qo\'shish'}
+                </button>
+              </div>
+
+              {/* Paralar ro'yxati */}
+              <div className="bg-white border border-gray-100 rounded-2xl overflow-hidden">
+                <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
+                  <h3 className="text-sm font-semibold text-gray-900">Paralar ro'yxati</h3>
+                  <span className="text-xs text-gray-400">{timeSlots?.length ?? 0} ta</span>
+                </div>
+                {!timeSlots?.length ? (
+                  <div className="p-8 text-center text-gray-400 text-sm">Hali paralar qo'shilmagan</div>
+                ) : (
+                  <div className="divide-y divide-gray-50">
+                    {timeSlots.map(slot => (
+                      <div key={slot.id} className="px-5 py-3 flex items-center gap-3">
+                        {editSlot?.id === slot.id ? (
+                          <div className="flex-1 grid grid-cols-2 gap-2">
+                            <input className={INPUT} value={editSlot.name}
+                              onChange={e => setEditSlot(s => s && ({ ...s, name: e.target.value }))}
+                              placeholder="Nom" />
+                            <input className={INPUT} type="number" min={0} value={editSlot.orderIndex}
+                              onChange={e => setEditSlot(s => s && ({ ...s, orderIndex: +e.target.value }))} />
+                            <input className={INPUT} type="time" value={editSlot.startTime}
+                              onChange={e => setEditSlot(s => s && ({ ...s, startTime: e.target.value }))} />
+                            <input className={INPUT} type="time" value={editSlot.endTime}
+                              onChange={e => setEditSlot(s => s && ({ ...s, endTime: e.target.value }))} />
+                            <button onClick={() => updateSlotMut.mutate({ id: slot.id, d: editSlot })}
+                              disabled={updateSlotMut.isPending}
+                              className="px-3 py-1.5 bg-emerald-600 text-white text-xs rounded-xl hover:bg-emerald-700 disabled:opacity-50">
+                              Saqlash
+                            </button>
+                            <button onClick={() => setEditSlot(null)}
+                              className="px-3 py-1.5 border border-gray-200 text-gray-600 text-xs rounded-xl hover:bg-gray-50">
+                              Bekor
+                            </button>
+                          </div>
+                        ) : (
+                          <>
+                            <div className="flex-1">
+                              <p className="text-sm font-medium text-gray-900">{slot.name}</p>
+                              <p className="text-xs text-gray-400">{slot.startTime} – {slot.endTime}</p>
+                            </div>
+                            <span className={`text-xs px-2 py-0.5 rounded-full ${slot.isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-500'}`}>
+                              {slot.isActive ? 'Faol' : 'Nofaol'}
+                            </span>
+                            <button onClick={() => setEditSlot(slot)}
+                              className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 text-sm">✏️</button>
+                            <button onClick={() => { if (confirm('Para o\'chirilsinmi?')) deleteSlotMut.mutate(slot.id); }}
+                              disabled={deleteSlotMut.isPending}
+                              className="p-1.5 rounded-lg hover:bg-red-50 text-red-500 text-sm disabled:opacity-50">🗑️</button>
+                          </>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* ── XONALAR TAB ─── */}
+          {tab === 'rooms' && (
+            <div className="space-y-4">
+              {/* Yangi xona qo'shish */}
+              <div className="bg-white border border-gray-100 rounded-2xl p-5 space-y-3">
+                <h2 className="text-sm font-semibold text-gray-900">🏫 Yangi xona qo'shish</h2>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className={LABEL}>Xona nomi</label>
+                    <input className={INPUT} value={roomForm.name}
+                      onChange={e => setRoomForm(f => ({ ...f, name: e.target.value }))}
+                      placeholder="Xona 101" />
+                  </div>
+                  <div>
+                    <label className={LABEL}>Raqami (identifikator)</label>
+                    <input className={INPUT} value={roomForm.number}
+                      onChange={e => setRoomForm(f => ({ ...f, number: e.target.value }))}
+                      placeholder="101" />
+                  </div>
+                  <div>
+                    <label className={LABEL}>Sig'im (o'rinlar)</label>
+                    <input className={INPUT} type="number" min={1} max={500}
+                      value={roomForm.capacity}
+                      onChange={e => setRoomForm(f => ({ ...f, capacity: +e.target.value }))} />
+                  </div>
+                  <div>
+                    <label className={LABEL}>Tartib #</label>
+                    <input className={INPUT} type="number" min={0}
+                      value={roomForm.orderIndex}
+                      onChange={e => setRoomForm(f => ({ ...f, orderIndex: +e.target.value }))} />
+                  </div>
+                </div>
+                <button
+                  onClick={() => createRoomMut.mutate(roomForm)}
+                  disabled={createRoomMut.isPending || !roomForm.name || !roomForm.number}
+                  className="w-full py-2.5 bg-emerald-600 text-white text-sm font-medium rounded-xl hover:bg-emerald-700 disabled:opacity-50 transition-colors"
+                >
+                  {createRoomMut.isPending ? 'Saqlanmoqda...' : '+ Qo\'shish'}
+                </button>
+              </div>
+
+              {/* Xonalar ro'yxati */}
+              <div className="bg-white border border-gray-100 rounded-2xl overflow-hidden">
+                <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
+                  <h3 className="text-sm font-semibold text-gray-900">Xonalar ro'yxati</h3>
+                  <span className="text-xs text-gray-400">{rooms?.length ?? 0} ta</span>
+                </div>
+                {!rooms?.length ? (
+                  <div className="p-8 text-center text-gray-400 text-sm">Hali xonalar qo'shilmagan</div>
+                ) : (
+                  <div className="divide-y divide-gray-50">
+                    {rooms.map(room => (
+                      <div key={room.id} className="px-5 py-3 flex items-center gap-3">
+                        {editRoom?.id === room.id ? (
+                          <div className="flex-1 grid grid-cols-2 gap-2">
+                            <input className={INPUT} value={editRoom.name}
+                              onChange={e => setEditRoom(r => r && ({ ...r, name: e.target.value }))}
+                              placeholder="Xona nomi" />
+                            <input className={INPUT} value={editRoom.number}
+                              onChange={e => setEditRoom(r => r && ({ ...r, number: e.target.value }))}
+                              placeholder="Raqam" />
+                            <input className={INPUT} type="number" min={1} value={editRoom.capacity}
+                              onChange={e => setEditRoom(r => r && ({ ...r, capacity: +e.target.value }))} />
+                            <input className={INPUT} type="number" min={0} value={editRoom.orderIndex}
+                              onChange={e => setEditRoom(r => r && ({ ...r, orderIndex: +e.target.value }))} />
+                            <button onClick={() => updateRoomMut.mutate({ id: room.id, d: editRoom })}
+                              disabled={updateRoomMut.isPending}
+                              className="px-3 py-1.5 bg-emerald-600 text-white text-xs rounded-xl hover:bg-emerald-700 disabled:opacity-50">
+                              Saqlash
+                            </button>
+                            <button onClick={() => setEditRoom(null)}
+                              className="px-3 py-1.5 border border-gray-200 text-gray-600 text-xs rounded-xl hover:bg-gray-50">
+                              Bekor
+                            </button>
+                          </div>
+                        ) : (
+                          <>
+                            <div className="flex-1">
+                              <p className="text-sm font-medium text-gray-900">{room.name}</p>
+                              <p className="text-xs text-gray-400">#{room.number} • {room.capacity} o'rin</p>
+                            </div>
+                            <span className={`text-xs px-2 py-0.5 rounded-full ${room.isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-500'}`}>
+                              {room.isActive ? 'Faol' : 'Nofaol'}
+                            </span>
+                            <button onClick={() => setEditRoom(room)}
+                              className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 text-sm">✏️</button>
+                            <button onClick={() => { if (confirm('Xona o\'chirilsinmi?')) deleteRoomMut.mutate(room.id); }}
+                              disabled={deleteRoomMut.isPending}
+                              className="p-1.5 rounded-lg hover:bg-red-50 text-red-500 text-sm disabled:opacity-50">🗑️</button>
+                          </>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
