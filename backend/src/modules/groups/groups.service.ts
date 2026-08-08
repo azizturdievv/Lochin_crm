@@ -10,6 +10,7 @@ import { Group } from '../../entities/group.entity';
 import { Subject } from '../../entities/subject.entity';
 import { User } from '../../entities/user.entity';
 import { ChatRoom, ChatRoomType } from '../../entities/chat-room.entity';
+import { Enrollment, EnrollmentStatus } from '../../entities/enrollment.entity';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { CreateGroupDto, UpdateGroupDto, QueryGroupDto } from './dto/group.dto';
 import { Role } from '../../common/enums/role.enum';
@@ -25,6 +26,8 @@ export class GroupsService {
     private userRepo: Repository<User>,
     @InjectRepository(ChatRoom)
     private chatRoomRepo: Repository<ChatRoom>,
+    @InjectRepository(Enrollment)
+    private enrollmentRepo: Repository<Enrollment>,
     private auditLog: AuditLogService,
   ) {}
 
@@ -48,6 +51,14 @@ export class GroupsService {
     // Ustoz faqat o'z guruhlarini ko'radi
     if (actorRole === Role.USTOZ) {
       qb.andWhere('g.teacher_id = :tid', { tid: actorId });
+    } else if (actorRole === Role.STUDENT) {
+      // O'quvchi faqat o'zi qatnashadigan (aktiv) guruhlarni ko'radi
+      qb.innerJoin(
+        'enrollments',
+        'enr',
+        'enr.group_id = g.id AND enr.student_id = :sid AND enr.status = :estatus AND enr.deleted_at IS NULL',
+        { sid: actorId, estatus: EnrollmentStatus.ACTIVE },
+      );
     } else if (teacherId) {
       qb.andWhere('g.teacher_id = :tid', { tid: teacherId });
     }
@@ -88,6 +99,32 @@ export class GroupsService {
 
     if (!group) throw new NotFoundException('Guruh topilmadi');
     return this.formatGroup(group);
+  }
+
+  // Guruhdagi o'quvchilar ro'yxati
+  async getStudents(groupId: string) {
+    const group = await this.groupRepo.findOne({ where: { id: groupId } });
+    if (!group) throw new NotFoundException('Guruh topilmadi');
+
+    const enrollments = await this.enrollmentRepo
+      .createQueryBuilder('e')
+      .withDeleted() // arxivlangan (soft-deleted) o'quvchi ismi ham ko'rinishi uchun
+      .leftJoinAndSelect('e.student', 'student')
+      .where('e.deleted_at IS NULL')
+      .andWhere('e.group_id = :groupId', { groupId })
+      .andWhere('e.status = :status', { status: EnrollmentStatus.ACTIVE })
+      .orderBy('e.enrolled_at', 'ASC')
+      .getMany();
+
+    return enrollments.map((e) => ({
+      enrollmentId: e.id,
+      studentId: e.studentId,
+      firstName: e.student.firstName,
+      lastName: e.student.lastName,
+      phone: e.student.phone,
+      enrolledAt: e.enrolledAt,
+      discountPercent: Number(e.discountPercent),
+    }));
   }
 
   // Guruh yaratish

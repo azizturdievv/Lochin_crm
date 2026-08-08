@@ -1,5 +1,6 @@
 'use client';
 
+import { BarChart3, TrendingDown, TrendingUp } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -41,7 +42,7 @@ export default function ProgressTab({ userId, userName }: Props) {
   if (!userId) {
     return (
       <div className="flex flex-col items-center justify-center h-48 text-gray-400 gap-2">
-        <div className="text-4xl">📊</div>
+        <div className="text-4xl"><BarChart3 size={36} /></div>
         <p className="text-sm">O'quvchi tanlanmagan</p>
       </div>
     );
@@ -59,7 +60,7 @@ export default function ProgressTab({ userId, userName }: Props) {
   if (!data || data.snapshots.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-48 text-gray-400 gap-2">
-        <div className="text-4xl">📈</div>
+        <div className="text-4xl"><TrendingUp size={36} /></div>
         <p className="text-sm">Progress ma'lumotlari hali yo'q</p>
         <p className="text-xs text-gray-300">Testlar topshirilgach ma'lumot paydo bo'ladi</p>
       </div>
@@ -98,7 +99,7 @@ export default function ProgressTab({ userId, userName }: Props) {
     <div className="space-y-6">
       {/* ─── Sarlavha ─── */}
       <div className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-2xl bg-blue-50 flex items-center justify-center text-xl shrink-0">📈</div>
+        <div className="w-10 h-10 rounded-2xl bg-blue-50 flex items-center justify-center text-xl shrink-0"><TrendingUp size={16} /></div>
         <div>
           <h3 className="text-sm font-semibold text-gray-900">
             {userName ? `${userName} — Oʻsish grafigi` : "Oʻsish grafigi"}
@@ -109,7 +110,7 @@ export default function ProgressTab({ userId, userName }: Props) {
           <div className={`ml-auto px-3 py-1.5 rounded-xl text-sm font-bold ${
             improvement >= 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'
           }`}>
-            {improvement >= 0 ? '↑' : '↓'} {Math.abs(improvement).toFixed(1)}%
+            {improvement >= 0 ? <TrendingUp size={12} className="inline" /> : <TrendingDown size={12} className="inline" />} {Math.abs(improvement).toFixed(1)}%
           </div>
         )}
       </div>
@@ -164,7 +165,7 @@ export default function ProgressTab({ userId, userName }: Props) {
 
       {/* ─── Fan bo'yicha hozirgi holat ─── */}
       <div>
-        <h3 className="text-sm font-semibold text-gray-900 mb-3">📚 Fan bo'yicha holat</h3>
+        <h3 className="text-sm font-semibold text-gray-900 mb-3">Fan bo'yicha holat</h3>
         <div className="space-y-2">
           {Array.from(latestBySubject.entries()).map(([name, snap], i) => {
             const color  = SUBJECT_COLORS[i % SUBJECT_COLORS.length];

@@ -226,7 +226,7 @@ export class StudentsService {
 
     if (search) {
       qb.andWhere(
-        '(u.first_name ILIKE :s OR u.last_name ILIKE :s OR u.email ILIKE :s OR u.phone ILIKE :s)',
+        '(u.firstName ILIKE :s OR u.last_name ILIKE :s OR u.email ILIKE :s OR u.phone ILIKE :s)',
         { s: `%${search}%` },
       );
     }
@@ -267,7 +267,7 @@ export class StudentsService {
 
     const allowedSortFields: Record<string, string> = {
       createdAt: 'u.created_at',
-      firstName: 'u.first_name',
+      firstName: 'u.firstName',
       lastName: 'u.last_name',
       totalPoints: 'u.total_points',
     };

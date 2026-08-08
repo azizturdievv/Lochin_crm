@@ -40,15 +40,19 @@ export class LeaderboardService {
     private notifService: NotificationService,
   ) {}
 
-  // ─── REYTING (o'quvchi yoki xodim) ────────────────────────────────────────
+  // ─── REYTING (o'quvchi va/yoki xodim) ──────────────────────────────────────
   async getLeaderboard(opts: {
-    role?: 'student' | 'staff';
+    role?: 'all' | 'student' | 'ustoz' | 'manager';
     period?: 'weekly' | 'monthly' | 'all';
     limit?: number;
   }) {
-    const { role = 'student', period = 'monthly', limit = 10 } = opts;
+    const { role = 'all', period = 'monthly', limit = 10 } = opts;
 
-    const userRole = role === 'student' ? Role.STUDENT : [Role.USTOZ, Role.MANAGER];
+    const roleFilter: Role[] =
+      role === 'student' ? [Role.STUDENT]
+      : role === 'ustoz' ? [Role.USTOZ]
+      : role === 'manager' ? [Role.MANAGER]
+      : [Role.STUDENT, Role.USTOZ, Role.MANAGER];
 
     // Davr boshlanish vaqti
     const now = new Date();
@@ -59,17 +63,22 @@ export class LeaderboardService {
       since = new Date(now.getFullYear(), now.getMonth(), 1);
     }
 
+    let rows: Array<{
+      user_id: string;
+      first_name: string;
+      last_name: string;
+      avatar_url: string | null;
+      role: string;
+      total_points: number | string;
+      period_points: number | string;
+    }>;
+
     if (since) {
       // Davr ichida eng ko'p ball yig'gan foydalanuvchilar
-      const rows = await this.pointsRepo
+      rows = await this.pointsRepo
         .createQueryBuilder('p')
         .innerJoin('users', 'u', 'u.id = p.user_id')
-        .where(
-          Array.isArray(userRole)
-            ? 'u.role IN (:...roles)'
-            : 'u.role = :role',
-          Array.isArray(userRole) ? { roles: userRole } : { role: userRole },
-        )
+        .where('u.role IN (:...roles)', { roles: roleFilter })
         .andWhere('u.is_active = true')
         .andWhere('u.deleted_at IS NULL')
         .andWhere('p.points > 0')
@@ -79,43 +88,62 @@ export class LeaderboardService {
           'u.id AS user_id',
           'u.firstName AS first_name',
           'u.last_name AS last_name',
+          'u.avatar_url AS avatar_url',
           'u.total_points AS total_points',
           'u.role AS role',
           'SUM(p.points) AS period_points',
         ])
-        .groupBy('u.id, u.firstName, u.last_name, u.total_points, u.role')
+        .groupBy('u.id, u.firstName, u.last_name, u.avatar_url, u.total_points, u.role')
         .orderBy('period_points', 'DESC')
         .limit(limit)
         .getRawMany();
+    } else {
+      // all-time: user.totalPoints bo'yicha
+      const users = await this.userRepo.find({
+        where: roleFilter.map((r) => ({ role: r, isActive: true })),
+        order: { totalPoints: 'DESC' },
+        take: limit,
+        select: { id: true, firstName: true, lastName: true, avatarUrl: true, role: true, totalPoints: true },
+      });
 
-      return rows.map((r, i) => ({
-        rank: i + 1,
-        userId: r.user_id,
-        name: `${r.first_name} ${r.last_name}`,
-        role: r.role,
-        totalPoints: Number(r.total_points),
-        periodPoints: Number(r.period_points),
+      rows = users.map((u) => ({
+        user_id: u.id,
+        first_name: u.firstName,
+        last_name: u.lastName,
+        avatar_url: u.avatarUrl,
+        role: u.role,
+        total_points: u.totalPoints,
+        period_points: u.totalPoints,
       }));
     }
 
-    // all-time: user.totalPoints bo'yicha
-    const users = await this.userRepo.find({
-      where: Array.isArray(userRole)
-        ? userRole.map((r) => ({ role: r, isActive: true }))
-        : [{ role: userRole as Role, isActive: true }],
-      order: { totalPoints: 'DESC' },
-      take: limit,
-      select: { id: true, firstName: true, lastName: true, role: true, totalPoints: true },
-    });
+    // Badge soni — barcha foydalanuvchilar uchun bitta so'rovda
+    const userIds = rows.map((r) => r.user_id);
+    const badgeCounts = userIds.length
+      ? await this.badgeRepo
+          .createQueryBuilder('b')
+          .select('b.user_id', 'user_id')
+          .addSelect('COUNT(*)', 'count')
+          .where('b.user_id IN (:...ids)', { ids: userIds })
+          .groupBy('b.user_id')
+          .getRawMany()
+      : [];
+    const badgeCountByUser = new Map(badgeCounts.map((b) => [b.user_id, Number(b.count)]));
 
-    return users.map((u, i) => ({
-      rank: i + 1,
-      userId: u.id,
-      name: `${u.firstName} ${u.lastName}`,
-      role: u.role,
-      totalPoints: u.totalPoints,
-      periodPoints: u.totalPoints,
-    }));
+    return Promise.all(
+      rows.map(async (r, i) => ({
+        rank: i + 1,
+        userId: r.user_id,
+        firstName: r.first_name,
+        lastName: r.last_name,
+        avatarUrl: r.avatar_url,
+        role: r.role,
+        totalPoints: Number(r.total_points),
+        thisMonthPoints: Number(r.period_points),
+        streak: await this.pointsService.calculateStreak(r.user_id),
+        badgeCount: badgeCountByUser.get(r.user_id) ?? 0,
+      })),
+    );
   }
 
   // ─── OYLIK MUKOFOT BERISH (SA ishga tushiradi) ─────────────────────────────
@@ -244,10 +272,10 @@ export class LeaderboardService {
       .innerJoin('lessons', 'l', 'l.id = a.lesson_id')
       .where('a.student_id = :sid', { sid: studentId })
       .andWhere('l.lesson_date BETWEEN :start AND :end', { start, end })
-      .getRawOne();
+      .getRawOne<{ total?: string | number; present?: string | number }>();
 
-    const total = Number((attendanceData as any)?.total ?? 0);
-    const present = Number((attendanceData as any)?.present ?? 0);
+    const total = Number(attendanceData?.total ?? 0);
+    const present = Number(attendanceData?.present ?? 0);
     const attendanceRate = total > 0 ? Math.round((present / total) * 100) : 0;
 
     // O'rtacha test bali
@@ -258,9 +286,9 @@ export class LeaderboardService {
       .where('tr.student_id = :sid', { sid: studentId })
       .andWhere('tr.created_at BETWEEN :start AND :end', { start, end })
       .andWhere('tr.deleted_at IS NULL')
-      .getRawOne();
+      .getRawOne<{ avg_score?: string | number }>();
 
-    const avgTestScore = Math.round(Number((testData as any)?.avg_score ?? 0) * 10) / 10;
+    const avgTestScore = Math.round(Number(testData?.avg_score ?? 0) * 10) / 10;
 
     // Oylik ball
     const totalPoints = await this.pointsService.getMonthlyEarned(studentId, month);

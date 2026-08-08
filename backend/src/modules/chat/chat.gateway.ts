@@ -173,7 +173,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
     if (result.blocked) {
       client.emit('message_blocked', {
-        reason: result.reason ?? 'Xabar moderatsiya tomonidan bloklandi',
+        message: result.reason ?? 'Xabar moderatsiya tomonidan bloklandi',
       });
       return;
     }

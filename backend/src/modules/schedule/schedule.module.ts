@@ -9,12 +9,14 @@ import { Enrollment } from '../../entities/enrollment.entity';
 import { Payment } from '../../entities/payment.entity';
 import { AuditLogModule } from '../audit-log/audit-log.module';
 import { AttendanceModule } from '../attendance/attendance.module';
+import { ScheduleSettingsModule } from '../schedule-settings/schedule-settings.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Lesson, Group, User, Enrollment, Payment]),
     AuditLogModule,
     AttendanceModule, // QrService uchun
+    ScheduleSettingsModule, // Xona/para ro'yxati uchun
   ],
   controllers: [ScheduleController],
   providers: [ScheduleService],

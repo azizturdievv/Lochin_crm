@@ -10,6 +10,7 @@ import {
   ParseUUIDPipe,
   HttpCode,
   HttpStatus,
+  ForbiddenException,
 } from '@nestjs/common';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -55,14 +56,20 @@ export class EventsController {
 
   @Get()
   @Roles(Role.SUPER_ADMIN, Role.MANAGER, Role.USTOZ, Role.STUDENT)
-  findAll(@Query() query: QueryEventDto) {
-    return this.eventsService.findAll(query);
+  findAll(
+    @Query() query: QueryEventDto,
+    @CurrentUser() user: { id: string; role: string },
+  ) {
+    return this.eventsService.findAll(query, user.id, user.role);
   }
 
   @Get(':id')
   @Roles(Role.SUPER_ADMIN, Role.MANAGER, Role.USTOZ, Role.STUDENT)
-  findOne(@Param('id', ParseUUIDPipe) id: string) {
-    return this.eventsService.findOne(id);
+  findOne(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: { id: string; role: string },
+  ) {
+    return this.eventsService.findOne(id, user.id, user.role);
   }
 
   @Patch(':id')
@@ -89,7 +96,20 @@ export class EventsController {
   // RO'YXAT VA RUXSATNOMA (PERMIT)
   // ══════════════════════════════════════════════════════════════════════════
 
-  // Ishtirokchi ro'yxatdan o'tkazish
+  // O'quvchi/ustoz o'zini-o'zi ro'yxatdan o'tkazadi (frontend "Ro'yxatdan
+  // o'tish" tugmasi shu yerni chaqiradi — studentId har doim joriy
+  // foydalanuvchidan olinadi, boshqa birovni ro'yxatga qo'yib bo'lmaydi)
+  @Post(':id/register')
+  @Roles(Role.STUDENT, Role.USTOZ)
+  @HttpCode(HttpStatus.CREATED)
+  selfRegister(
+    @Param('id', ParseUUIDPipe) eventId: string,
+    @CurrentUser() user: { id: string; role: string },
+  ) {
+    return this.permitService.register(eventId, { studentId: user.id }, user.id, user.role);
+  }
+
+  // Ishtirokchini SA/manager ro'yxatdan o'tkazadi (qo'lda, telefon/maktab/sinf bilan)
   @Post(':id/participants')
   @Roles(Role.SUPER_ADMIN, Role.MANAGER)
   register(
@@ -267,10 +287,23 @@ export class EventsController {
     return this.certificateService.verify(code);
   }
 
-  // O'quvchi sertifikatlari
+  // O'quvchi sertifikatlari — student o'zgasinikini so'rasa taqiqlanadi
   @Get('certificates/student/:studentId')
   @Roles(Role.SUPER_ADMIN, Role.MANAGER, Role.USTOZ, Role.STUDENT)
-  getStudentCertificates(@Param('studentId', ParseUUIDPipe) studentId: string) {
+  getStudentCertificates(
+    @Param('studentId', ParseUUIDPipe) studentId: string,
+    @CurrentUser() user: { id: string; role: string },
+  ) {
+    if (user.role === Role.STUDENT && studentId !== user.id) {
+      throw new ForbiddenException('Faqat o\'z sertifikatlaringizni ko\'rishingiz mumkin');
+    }
     return this.certificateService.findByStudent(studentId);
+  }
+
+  // Tadbir uchun barcha sertifikatlar (admin ro'yxati)
+  @Get(':id/certificates')
+  @Roles(Role.SUPER_ADMIN, Role.MANAGER)
+  getEventCertificates(@Param('id', ParseUUIDPipe) eventId: string) {
+    return this.certificateService.findByEvent(eventId);
   }
 }

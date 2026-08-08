@@ -1,5 +1,6 @@
 'use client';
 
+import { X } from 'lucide-react';
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
@@ -74,9 +75,7 @@ export default function EnrollModal({ studentId, studentName, onClose }: Props) 
             <p className="text-sm text-gray-500 mt-0.5">{studentName}</p>
           </div>
           <button onClick={onClose}
-            className="w-8 h-8 rounded-xl flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition">
-            ✕
-          </button>
+            className="w-8 h-8 rounded-xl flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition"><X size={16} /></button>
         </div>
 
         <div className="px-6 py-5 space-y-4">
@@ -92,7 +91,7 @@ export default function EnrollModal({ studentId, studentName, onClose }: Props) 
               <select
                 value={selectedGroupId}
                 onChange={e => { setSelectedGroupId(e.target.value); setError(''); }}
-                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500"
               >
                 <option value="">Guruh tanlang</option>
                 {groups?.map(g => (
@@ -166,7 +165,7 @@ export default function EnrollModal({ studentId, studentName, onClose }: Props) 
               type="number"
               value={discountPercent}
               onChange={e => setDiscountPercent(e.target.value)}
-              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500"
               placeholder="0"
               min={0}
               max={100}
@@ -190,7 +189,7 @@ export default function EnrollModal({ studentId, studentName, onClose }: Props) 
                 enrollMut.mutate();
               }}
               disabled={enrollMut.isPending || !selectedGroupId}
-              className="flex-1 py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-medium hover:bg-emerald-700 disabled:opacity-60 transition"
+              className="flex-1 py-2.5 bg-primary-600 text-white rounded-xl text-sm font-medium hover:bg-primary-700 disabled:opacity-60 transition"
             >
               {enrollMut.isPending ? 'Yozilmoqda...' : 'Guruhga yozish'}
             </button>

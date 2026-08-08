@@ -1,26 +1,79 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #f8fafc;
+  --foreground: #202c4b;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-geist);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* To'g'ridan-to'g'ri qiymatlar oddiy @theme'da bo'lishi kerak — @theme inline
+   ichida bo'lsa Tailwind bu ranglar uchun utility klass generatsiya qilmaydi
+   (bg-primary-600 va h.k. shaffof bo'lib chiqar edi) */
+@theme {
+  /* PreSkool asosidagi brend palitra (indigo) */
+  --color-primary-50:  #F2F5FF;
+  --color-primary-100: #E5EAFB;
+  --color-primary-200: #C9D4F6;
+  --color-primary-300: #A9BAF0;
+  --color-primary-400: #8AA0EB;
+  --color-primary-500: #778EEA;
+  --color-primary-600: #3D5EE1;
+  --color-primary-700: #3552C9;
+  --color-primary-800: #2C44A9;
+  --color-primary-900: #253A8F;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist), ui-sans-serif, system-ui, sans-serif;
+}
+
+/* Rol bo'yicha urg'u rangi — mobil ilova palitrasi bilan bir xil
+   (CLAUDE.md: O'quvchi=sariq, Ustoz=ko'k, Manager=Admin bilan bir xil yashil).
+   `bg-primary-*`/`text-primary-*` butun ilova bo'ylab ishlatilgani uchun,
+   shu o'zgaruvchilarni qayta belgilash biror komponentga tegmasdan
+   avtomatik qayta ranglaydi. Super Admin joriy indigo standartda qoladi. */
+:root[data-role="student"] {
+  --color-primary-50:  #FFFBEB;
+  --color-primary-100: #FEF3C7;
+  --color-primary-200: #FDE68A;
+  --color-primary-300: #FCD34D;
+  --color-primary-400: #FBBF24;
+  --color-primary-500: #F59E0B;
+  --color-primary-600: #D97706;
+  --color-primary-700: #B45309;
+  --color-primary-800: #92400E;
+  --color-primary-900: #78350F;
+}
+
+:root[data-role="ustoz"] {
+  --color-primary-50:  #EFF6FF;
+  --color-primary-100: #DBEAFE;
+  --color-primary-200: #BFDBFE;
+  --color-primary-300: #93C5FD;
+  --color-primary-400: #60A5FA;
+  --color-primary-500: #3B82F6;
+  --color-primary-600: #2563EB;
+  --color-primary-700: #1D4ED8;
+  --color-primary-800: #1E40AF;
+  --color-primary-900: #1E3A8A;
+}
+
+:root[data-role="manager"] {
+  --color-primary-50:  #ECFDF5;
+  --color-primary-100: #D1FAE5;
+  --color-primary-200: #A7F3D0;
+  --color-primary-300: #6EE7B7;
+  --color-primary-400: #34D399;
+  --color-primary-500: #10B981;
+  --color-primary-600: #059669;
+  --color-primary-700: #047857;
+  --color-primary-800: #065F46;
+  --color-primary-900: #064E3B;
 }

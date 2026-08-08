@@ -1,11 +1,15 @@
 'use client';
 
+import { Bell, Clock, Eye, EyeOff, Lock, Pencil, School, Settings, ShieldCheck, Trash2, User } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { useAuthStore } from '@/store/auth.store';
+import PermissionsMatrixTab from '@/components/settings/PermissionsMatrixTab';
+import TwoFaSetupModal from '@/components/settings/TwoFaSetupModal';
 
-type Tab = 'profile' | 'security' | 'notifications' | 'system' | 'time_slots' | 'rooms';
+type Tab = 'profile' | 'security' | 'notifications' | 'system' | 'time_slots' | 'rooms' | 'permissions';
 
 // ─── JADVAL SOZLAMA TURLARI ───────────────────────────────────────────────────
 interface TimeSlot {
@@ -25,16 +29,17 @@ interface Profile {
   email:      string;
 }
 
-const BASE_TABS: Array<{ id: Tab; label: string; icon: string; adminOnly?: boolean }> = [
-  { id: 'profile',       label: 'Profil',          icon: '👤' },
-  { id: 'security',      label: 'Xavfsizlik',       icon: '🔒' },
-  { id: 'notifications', label: 'Bildirishnomalar', icon: '🔔' },
-  { id: 'time_slots',    label: 'Paralar',          icon: '⏰', adminOnly: true },
-  { id: 'rooms',         label: 'Xonalar',          icon: '🏫', adminOnly: true },
-  { id: 'system',        label: 'Tizim',            icon: '⚙️', adminOnly: true },
+const BASE_TABS: Array<{ id: Tab; label: string; icon: LucideIcon; adminOnly?: boolean }> = [
+  { id: 'profile',       label: 'Profil',          icon: User },
+  { id: 'security',      label: 'Xavfsizlik',       icon: Lock },
+  { id: 'notifications', label: 'Bildirishnomalar', icon: Bell },
+  { id: 'time_slots',    label: 'Paralar',          icon: Clock, adminOnly: true },
+  { id: 'rooms',         label: 'Xonalar',          icon: School, adminOnly: true },
+  { id: 'permissions',   label: 'Ruxsatlar',        icon: ShieldCheck, adminOnly: true },
+  { id: 'system',        label: 'Tizim',            icon: Settings, adminOnly: true },
 ];
 
-const INPUT = 'w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500';
+const INPUT = 'w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500';
 const LABEL = 'text-xs font-medium text-gray-600 mb-1 block';
 
 export default function SettingsPage() {
@@ -42,6 +47,7 @@ export default function SettingsPage() {
   const setUser = useAuthStore(s => s.setUser);
   const qc    = useQueryClient();
   const [tab, setTab] = useState<Tab>('profile');
+  const [show2fa, setShow2fa] = useState(false);
   const isSA  = user?.role === 'super_admin';
   const TABS  = BASE_TABS.filter(t => !t.adminOnly || isSA);
 
@@ -123,29 +129,29 @@ export default function SettingsPage() {
       phone:      profile.phone || undefined,
     }),
     onSuccess: (res) => {
-      setProfileMsg('✅ Profil yangilandi');
+      setProfileMsg('Profil yangilandi');
       if (user) setUser({ ...user, firstName: profile.firstName, lastName: profile.lastName });
       setTimeout(() => setProfileMsg(''), 3000);
     },
-    onError: () => setProfileMsg('❌ Xatolik yuz berdi'),
+    onError: () => setProfileMsg('Xatolik yuz berdi'),
   });
 
   const passMut = useMutation({
     mutationFn: () => api.post('/auth/change-password', { oldPassword: oldPass, newPassword: newPass }),
     onSuccess: () => {
-      setPassMsg('✅ Parol o\'zgartirildi');
+      setPassMsg('Parol o\'zgartirildi');
       setOldPass(''); setNewPass(''); setConfPass('');
       setTimeout(() => setPassMsg(''), 3000);
     },
     onError: (e: { response?: { data?: { message?: string } } }) =>
-      setPassMsg(`❌ ${e.response?.data?.message ?? 'Xatolik'}`),
+      setPassMsg(`${e.response?.data?.message ?? 'Xatolik'}`),
   });
 
   function handlePassSubmit() {
     setPassMsg('');
-    if (!oldPass) { setPassMsg('❌ Eski parol kiritilishi shart'); return; }
-    if (newPass.length < 8) { setPassMsg('❌ Yangi parol kamida 8 ta belgi'); return; }
-    if (newPass !== confPass) { setPassMsg('❌ Parollar mos emas'); return; }
+    if (!oldPass) { setPassMsg('Eski parol kiritilishi shart'); return; }
+    if (newPass.length < 8) { setPassMsg('Yangi parol kamida 8 ta belgi'); return; }
+    if (newPass !== confPass) { setPassMsg('Parollar mos emas'); return; }
     passMut.mutate();
   }
 
@@ -156,7 +162,7 @@ export default function SettingsPage() {
       {/* Sarlavha */}
       <div className="px-6 pt-6 pb-0 bg-white border-b border-gray-100 shrink-0">
         <div className="flex items-center gap-3 pb-4">
-          <div className="w-10 h-10 rounded-2xl bg-gray-600 flex items-center justify-center text-white text-xl shrink-0">⚙️</div>
+          <div className="w-10 h-10 rounded-2xl bg-gray-600 flex items-center justify-center text-white text-xl shrink-0"><Settings size={16} /></div>
           <div>
             <h1 className="text-lg font-bold text-gray-900">Sozlamalar</h1>
             <p className="text-xs text-gray-400">Profil va tizim sozlamalari</p>
@@ -164,18 +170,18 @@ export default function SettingsPage() {
         </div>
 
         {/* Tab nav */}
-        <div className="flex gap-1">
+        <div className="flex gap-1 overflow-x-auto">
           {TABS.map(t => (
             <button
               key={t.id}
               onClick={() => setTab(t.id)}
-              className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+              className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap shrink-0 transition-colors ${
                 tab === t.id
-                  ? 'border-emerald-600 text-emerald-700'
+                  ? 'border-primary-600 text-primary-700'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
               }`}
             >
-              {t.icon} {t.label}
+              <t.icon size={14} className="shrink-0" /> {t.label}
             </button>
           ))}
         </div>
@@ -183,12 +189,12 @@ export default function SettingsPage() {
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto p-6">
-        <div className="max-w-xl space-y-5">
+        <div className={`space-y-5 ${tab === 'permissions' ? 'max-w-3xl' : 'max-w-xl'}`}>
 
           {/* ── PROFIL TAB ─── */}
           {tab === 'profile' && (
             <div className="bg-white border border-gray-100 rounded-2xl p-6 space-y-4">
-              <h2 className="text-sm font-semibold text-gray-900">👤 Shaxsiy ma'lumotlar</h2>
+              <h2 className="text-sm font-semibold text-gray-900">Shaxsiy ma'lumotlar</h2>
 
               {/* Avatar */}
               <div className="flex items-center gap-4">
@@ -241,9 +247,9 @@ export default function SettingsPage() {
               <button
                 onClick={() => profileMut.mutate()}
                 disabled={profileMut.isPending}
-                className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium rounded-xl disabled:opacity-50 transition-colors"
+                className="w-full py-2.5 bg-primary-600 hover:bg-primary-700 text-white text-sm font-medium rounded-xl disabled:opacity-50 transition-colors"
               >
-                {profileMut.isPending ? 'Saqlanmoqda...' : '💾 Saqlash'}
+                {profileMut.isPending ? 'Saqlanmoqda...' : 'Saqlash'}
               </button>
             </div>
           )}
@@ -252,7 +258,7 @@ export default function SettingsPage() {
           {tab === 'security' && (
             <div className="space-y-4">
               <div className="bg-white border border-gray-100 rounded-2xl p-6 space-y-4">
-                <h2 className="text-sm font-semibold text-gray-900">🔑 Parol o'zgartirish</h2>
+                <h2 className="text-sm font-semibold text-gray-900">Parol o'zgartirish</h2>
 
                 <div>
                   <label className={LABEL}>Eski parol</label>
@@ -265,7 +271,7 @@ export default function SettingsPage() {
                     />
                     <button type="button" onClick={() => setShowPass(v => !v)}
                       className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                      {showPass ? '🙈' : '👁'}
+                      {showPass ? <EyeOff size={14} className="inline" /> : <Eye size={14} className="inline" />}
                     </button>
                   </div>
                 </div>
@@ -315,9 +321,9 @@ export default function SettingsPage() {
                 <button
                   onClick={handlePassSubmit}
                   disabled={passMut.isPending}
-                  className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium rounded-xl disabled:opacity-50 transition-colors"
+                  className="w-full py-2.5 bg-primary-600 hover:bg-primary-700 text-white text-sm font-medium rounded-xl disabled:opacity-50 transition-colors"
                 >
-                  {passMut.isPending ? "O'zgartirilyapti..." : '🔑 Parolni o\'zgartirish'}
+                  {passMut.isPending ? "O'zgartirilyapti..." : 'Parolni o\'zgartirish'}
                 </button>
               </div>
 
@@ -325,7 +331,7 @@ export default function SettingsPage() {
               <div className="bg-white border border-gray-100 rounded-2xl p-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <h3 className="text-sm font-semibold text-gray-900">🔐 Ikki faktorli autentifikatsiya</h3>
+                    <h3 className="text-sm font-semibold text-gray-900">Ikki faktorli autentifikatsiya</h3>
                     <p className="text-xs text-gray-400 mt-0.5">
                       {user?.role === 'super_admin' || user?.role === 'manager'
                         ? 'SA va Manager uchun MAJBURIY'
@@ -333,14 +339,23 @@ export default function SettingsPage() {
                     </p>
                   </div>
                   <span className={`text-xs font-medium px-3 py-1 rounded-full ${
-                    false ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-500'
+                    user?.twoFaEnabled ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-500'
                   }`}>
-                    Yoqilmagan
+                    {user?.twoFaEnabled ? 'Yoqilgan' : 'Yoqilmagan'}
                   </span>
                 </div>
-                <p className="text-xs text-gray-400 mt-3">
-                  2FA sozlash uchun Super Admin bilan bog'laning yoki /api/v1/auth/2fa/setup endpointidan foydalaning.
-                </p>
+                {user?.twoFaEnabled ? (
+                  <p className="text-xs text-emerald-600 mt-3">
+                    Google Authenticator orqali himoyalangan. Har safar kirishda 6 xonali kod so'raladi.
+                  </p>
+                ) : (
+                  <button
+                    onClick={() => setShow2fa(true)}
+                    className="w-full mt-3 py-2.5 bg-primary-600 hover:bg-primary-700 text-white text-sm font-medium rounded-xl transition-colors"
+                  >
+                    2FA'ni yoqish
+                  </button>
+                )}
               </div>
             </div>
           )}
@@ -348,7 +363,7 @@ export default function SettingsPage() {
           {/* ── BILDIRISHNOMALAR TAB ─── */}
           {tab === 'notifications' && (
             <div className="bg-white border border-gray-100 rounded-2xl p-6 space-y-4">
-              <h2 className="text-sm font-semibold text-gray-900">🔔 Bildirishnoma sozlamalari</h2>
+              <h2 className="text-sm font-semibold text-gray-900">Bildirishnoma sozlamalari</h2>
 
               {[
                 { label: 'SMS bildirishnomalar',      sub: 'Davomat, to\'lov eslatma, test natijasi', val: notifSms,      set: setNotifSms     },
@@ -373,8 +388,8 @@ export default function SettingsPage() {
                 </label>
               ))}
 
-              <button className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium rounded-xl transition-colors">
-                💾 Saqlash
+              <button className="w-full py-2.5 bg-primary-600 hover:bg-primary-700 text-white text-sm font-medium rounded-xl transition-colors">
+                Saqlash
               </button>
             </div>
           )}
@@ -412,7 +427,7 @@ export default function SettingsPage() {
                 <button
                   onClick={() => createSlotMut.mutate(slotForm)}
                   disabled={createSlotMut.isPending || !slotForm.name || !slotForm.startTime || !slotForm.endTime}
-                  className="w-full py-2.5 bg-emerald-600 text-white text-sm font-medium rounded-xl hover:bg-emerald-700 disabled:opacity-50 transition-colors"
+                  className="w-full py-2.5 bg-primary-600 text-white text-sm font-medium rounded-xl hover:bg-primary-700 disabled:opacity-50 transition-colors"
                 >
                   {createSlotMut.isPending ? 'Saqlanmoqda...' : '+ Qo\'shish'}
                 </button>
@@ -443,7 +458,7 @@ export default function SettingsPage() {
                               onChange={e => setEditSlot(s => s && ({ ...s, endTime: e.target.value }))} />
                             <button onClick={() => updateSlotMut.mutate({ id: slot.id, d: editSlot })}
                               disabled={updateSlotMut.isPending}
-                              className="px-3 py-1.5 bg-emerald-600 text-white text-xs rounded-xl hover:bg-emerald-700 disabled:opacity-50">
+                              className="px-3 py-1.5 bg-primary-600 text-white text-xs rounded-xl hover:bg-primary-700 disabled:opacity-50">
                               Saqlash
                             </button>
                             <button onClick={() => setEditSlot(null)}
@@ -461,10 +476,10 @@ export default function SettingsPage() {
                               {slot.isActive ? 'Faol' : 'Nofaol'}
                             </span>
                             <button onClick={() => setEditSlot(slot)}
-                              className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 text-sm">✏️</button>
+                              className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 text-sm"><Pencil size={16} /></button>
                             <button onClick={() => { if (confirm('Para o\'chirilsinmi?')) deleteSlotMut.mutate(slot.id); }}
                               disabled={deleteSlotMut.isPending}
-                              className="p-1.5 rounded-lg hover:bg-red-50 text-red-500 text-sm disabled:opacity-50">🗑️</button>
+                              className="p-1.5 rounded-lg hover:bg-red-50 text-red-500 text-sm disabled:opacity-50"><Trash2 size={16} /></button>
                           </>
                         )}
                       </div>
@@ -480,7 +495,7 @@ export default function SettingsPage() {
             <div className="space-y-4">
               {/* Yangi xona qo'shish */}
               <div className="bg-white border border-gray-100 rounded-2xl p-5 space-y-3">
-                <h2 className="text-sm font-semibold text-gray-900">🏫 Yangi xona qo'shish</h2>
+                <h2 className="text-sm font-semibold text-gray-900">Yangi xona qo'shish</h2>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className={LABEL}>Xona nomi</label>
@@ -510,7 +525,7 @@ export default function SettingsPage() {
                 <button
                   onClick={() => createRoomMut.mutate(roomForm)}
                   disabled={createRoomMut.isPending || !roomForm.name || !roomForm.number}
-                  className="w-full py-2.5 bg-emerald-600 text-white text-sm font-medium rounded-xl hover:bg-emerald-700 disabled:opacity-50 transition-colors"
+                  className="w-full py-2.5 bg-primary-600 text-white text-sm font-medium rounded-xl hover:bg-primary-700 disabled:opacity-50 transition-colors"
                 >
                   {createRoomMut.isPending ? 'Saqlanmoqda...' : '+ Qo\'shish'}
                 </button>
@@ -542,7 +557,7 @@ export default function SettingsPage() {
                               onChange={e => setEditRoom(r => r && ({ ...r, orderIndex: +e.target.value }))} />
                             <button onClick={() => updateRoomMut.mutate({ id: room.id, d: editRoom })}
                               disabled={updateRoomMut.isPending}
-                              className="px-3 py-1.5 bg-emerald-600 text-white text-xs rounded-xl hover:bg-emerald-700 disabled:opacity-50">
+                              className="px-3 py-1.5 bg-primary-600 text-white text-xs rounded-xl hover:bg-primary-700 disabled:opacity-50">
                               Saqlash
                             </button>
                             <button onClick={() => setEditRoom(null)}
@@ -560,10 +575,10 @@ export default function SettingsPage() {
                               {room.isActive ? 'Faol' : 'Nofaol'}
                             </span>
                             <button onClick={() => setEditRoom(room)}
-                              className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 text-sm">✏️</button>
+                              className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 text-sm"><Pencil size={16} /></button>
                             <button onClick={() => { if (confirm('Xona o\'chirilsinmi?')) deleteRoomMut.mutate(room.id); }}
                               disabled={deleteRoomMut.isPending}
-                              className="p-1.5 rounded-lg hover:bg-red-50 text-red-500 text-sm disabled:opacity-50">🗑️</button>
+                              className="p-1.5 rounded-lg hover:bg-red-50 text-red-500 text-sm disabled:opacity-50"><Trash2 size={16} /></button>
                           </>
                         )}
                       </div>
@@ -574,11 +589,14 @@ export default function SettingsPage() {
             </div>
           )}
 
+          {/* ── RUXSATLAR TAB (faqat SA) ─── */}
+          {tab === 'permissions' && <PermissionsMatrixTab />}
+
           {/* ── TIZIM TAB (faqat SA) ─── */}
           {tab === 'system' && (
             <div className="space-y-4">
               <div className="bg-white border border-gray-100 rounded-2xl p-6 space-y-3">
-                <h2 className="text-sm font-semibold text-gray-900">⚙️ Tizim ma'lumotlari</h2>
+                <h2 className="text-sm font-semibold text-gray-900">Tizim ma'lumotlari</h2>
 
                 {[
                   { label: 'Versiya',        value: 'v1.0.0'           },
@@ -596,7 +614,7 @@ export default function SettingsPage() {
 
               {user?.role === 'super_admin' && (
                 <div className="bg-red-50 border border-red-100 rounded-2xl p-6 space-y-3">
-                  <h2 className="text-sm font-semibold text-red-800">⚠️ Xavfli zonа</h2>
+                  <h2 className="text-sm font-semibold text-red-800">Xavfli zona</h2>
                   <p className="text-xs text-red-600">
                     Bu amallar qaytarib bo'lmaydi. Ehtiyotkorlik bilan bajaring.
                   </p>
@@ -605,7 +623,7 @@ export default function SettingsPage() {
                       onClick={() => confirm("Keshni tozalashni tasdiqlaysizmi?") && api.post('/admin/cache/clear').catch(() => {})}
                       className="w-full py-2 text-sm text-red-700 border border-red-200 hover:bg-red-100 rounded-xl transition-colors"
                     >
-                      🗑️ Keshni tozalash
+                      Keshni tozalash
                     </button>
                   </div>
                 </div>
@@ -614,6 +632,16 @@ export default function SettingsPage() {
           )}
         </div>
       </div>
+
+      {show2fa && user && (
+        <TwoFaSetupModal
+          onClose={() => setShow2fa(false)}
+          onSuccess={() => {
+            setUser({ ...user, twoFaEnabled: true });
+            setShow2fa(false);
+          }}
+        />
+      )}
     </div>
   );
 }

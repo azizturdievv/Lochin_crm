@@ -1,4 +1,6 @@
 // ─── KPI ──────────────────────────────────────────────────────────────────────
+import type { LucideIcon } from 'lucide-react';
+import { Briefcase, Building2, Lightbulb, Megaphone, Monitor, Package, Pin } from 'lucide-react';
 export interface KpiData {
   month:              string;
   totalIncome:        number;
@@ -87,14 +89,14 @@ export interface QuarterBonus {
 }
 
 // ─── KONSTANTALAR ─────────────────────────────────────────────────────────────
-export const EXPENSE_CATEGORIES: Record<ExpenseCategory, { label: string; icon: string; color: string }> = {
-  salary:    { label: 'Ish haqi',    icon: '👔', color: 'bg-blue-100 text-blue-700'    },
-  rent:      { label: 'Ijara',       icon: '🏢', color: 'bg-purple-100 text-purple-700'},
-  utilities: { label: 'Kommunal',    icon: '💡', color: 'bg-amber-100 text-amber-700'  },
-  supplies:  { label: 'Material',    icon: '📦', color: 'bg-orange-100 text-orange-700'},
-  marketing: { label: 'Marketing',   icon: '📢', color: 'bg-pink-100 text-pink-700'    },
-  equipment: { label: 'Jihozlar',    icon: '🖥️', color: 'bg-teal-100 text-teal-700'   },
-  other:     { label: 'Boshqa',      icon: '📌', color: 'bg-gray-100 text-gray-700'    },
+export const EXPENSE_CATEGORIES: Record<ExpenseCategory, { label: string; icon: LucideIcon; color: string }> = {
+  salary:    { label: 'Ish haqi',    icon: Briefcase, color: 'bg-blue-100 text-blue-700'    },
+  rent:      { label: 'Ijara',       icon: Building2, color: 'bg-purple-100 text-purple-700'},
+  utilities: { label: 'Kommunal',    icon: Lightbulb, color: 'bg-amber-100 text-amber-700'  },
+  supplies:  { label: 'Material',    icon: Package, color: 'bg-orange-100 text-orange-700'},
+  marketing: { label: 'Marketing',   icon: Megaphone, color: 'bg-pink-100 text-pink-700'    },
+  equipment: { label: 'Jihozlar',    icon: Monitor, color: 'bg-teal-100 text-teal-700'   },
+  other:     { label: 'Boshqa',      icon: Pin, color: 'bg-gray-100 text-gray-700'    },
 };
 
 export const SALARY_STATUS: Record<SalaryStatus, { label: string; cls: string }> = {

@@ -1,18 +1,21 @@
 'use client';
 
+import { Package, Pencil, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
+import { useAuthStore } from '@/store/auth.store';
 import { EXPENSE_CATEGORIES, fmtM } from '@/types/finance';
 import type { Expense, ExpenseCategory } from '@/types/finance';
 
 interface Props { month: string }
 
 const CATS = Object.keys(EXPENSE_CATEGORIES) as ExpenseCategory[];
-const INPUT = 'w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white';
+const INPUT = 'w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white';
 
 export default function ExpensesTab({ month }: Props) {
   const qc = useQueryClient();
+  const canDelete = useAuthStore(s => s.user?.role) === 'super_admin';
 
   const [showForm, setShowForm]       = useState(false);
   const [editTarget, setEditTarget]   = useState<Expense | null>(null);
@@ -75,9 +78,9 @@ export default function ExpensesTab({ month }: Props) {
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-3 flex-wrap">
           <select value={filterCat} onChange={e => setFilterCat(e.target.value as ExpenseCategory | '')}
-            className="px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white">
+            className="px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white">
             <option value="">Barcha kategoriya</option>
-            {CATS.map(c => <option key={c} value={c}>{EXPENSE_CATEGORIES[c].icon} {EXPENSE_CATEGORIES[c].label}</option>)}
+            {CATS.map(c => <option key={c} value={c}>{EXPENSE_CATEGORIES[c].label}</option>)}
           </select>
           <span className="text-sm text-gray-500">
             Jami: <strong>{fmtM(totalShown)} so'm</strong>
@@ -85,9 +88,9 @@ export default function ExpensesTab({ month }: Props) {
         </div>
         <button onClick={() => { resetForm(); setShowForm(s => !s); }}
           className={`px-4 py-2 text-sm font-medium rounded-xl transition-colors ${
-            showForm ? 'bg-gray-100 text-gray-700' : 'bg-emerald-600 text-white hover:bg-emerald-700'
+            showForm ? 'bg-gray-100 text-gray-700' : 'bg-primary-600 text-white hover:bg-primary-700'
           }`}>
-          {showForm ? '✕ Yopish' : '+ Xarajat qo\'shish'}
+          {showForm ? 'Yopish' : '+ Xarajat qo\'shish'}
         </button>
       </div>
 
@@ -95,7 +98,7 @@ export default function ExpensesTab({ month }: Props) {
       {showForm && (
         <form onSubmit={handleSubmit} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-4">
           <h3 className="text-sm font-semibold text-gray-700">
-            {editTarget ? '✏️ Xarajatni tahrirlash' : '+ Yangi xarajat'}
+            {editTarget ? 'Xarajatni tahrirlash' : '+ Yangi xarajat'}
           </h3>
           <div className="grid grid-cols-2 gap-3">
             <div className="col-span-2 sm:col-span-1">
@@ -105,7 +108,7 @@ export default function ExpensesTab({ month }: Props) {
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Kategoriya</label>
               <select value={category} onChange={e => setCategory(e.target.value as ExpenseCategory)} className={INPUT}>
-                {CATS.map(c => <option key={c} value={c}>{EXPENSE_CATEGORIES[c].icon} {EXPENSE_CATEGORIES[c].label}</option>)}
+                {CATS.map(c => <option key={c} value={c}>{EXPENSE_CATEGORIES[c].label}</option>)}
               </select>
             </div>
             <div>
@@ -122,8 +125,8 @@ export default function ExpensesTab({ month }: Props) {
             </div>
           </div>
           <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
-            <input type="checkbox" checked={confidential} onChange={e => setConfidential(e.target.checked)} className="w-4 h-4 accent-emerald-600" />
-            🔒 Maxfiy (faqat SA ko'radi)
+            <input type="checkbox" checked={confidential} onChange={e => setConfidential(e.target.checked)} className="w-4 h-4 accent-primary-600" />
+            Maxfiy (faqat SA ko'radi)
           </label>
           <div className="flex gap-3">
             <button type="button" onClick={resetForm}
@@ -131,8 +134,8 @@ export default function ExpensesTab({ month }: Props) {
               Bekor
             </button>
             <button type="submit" disabled={createMut.isPending || editMut.isPending}
-              className="flex-1 py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-medium hover:bg-emerald-700 disabled:opacity-60 transition">
-              {(createMut.isPending || editMut.isPending) ? 'Saqlanmoqda...' : editTarget ? '✓ Saqlash' : '+ Qo\'shish'}
+              className="flex-1 py-2.5 bg-primary-600 text-white rounded-xl text-sm font-medium hover:bg-primary-700 disabled:opacity-60 transition">
+              {(createMut.isPending || editMut.isPending) ? 'Saqlanmoqda...' : editTarget ? 'Saqlash' : '+ Qo\'shish'}
             </button>
           </div>
         </form>
@@ -164,7 +167,7 @@ export default function ExpensesTab({ month }: Props) {
                 ? (
                     <tr>
                       <td colSpan={5} className="px-6 py-16 text-center text-gray-400">
-                        <div className="text-5xl mb-3">📦</div>
+                        <div className="text-5xl mb-3"><Package size={16} /></div>
                         <p>Xarajatlar topilmadi</p>
                       </td>
                     </tr>
@@ -176,11 +179,11 @@ export default function ExpensesTab({ month }: Props) {
                         <td className="px-5 py-3.5">
                           <p className="font-medium text-gray-900">{e.title}</p>
                           {e.description && <p className="text-xs text-gray-400 truncate max-w-[200px]">{e.description}</p>}
-                          {e.isConfidential && <span className="text-xs text-gray-400">🔒 Maxfiy</span>}
+                          {e.isConfidential && <span className="text-xs text-gray-400">Maxfiy</span>}
                         </td>
                         <td className="px-4 py-3.5">
                           <span className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full ${meta.color}`}>
-                            {meta.icon} {meta.label}
+                            <meta.icon size={14} className="shrink-0" /> {meta.label}
                           </span>
                         </td>
                         <td className="px-4 py-3.5 text-right font-semibold text-red-600">
@@ -192,9 +195,11 @@ export default function ExpensesTab({ month }: Props) {
                         <td className="px-4 py-3.5 text-right">
                           <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                             <button onClick={() => startEdit(e)}
-                              className="p-1.5 rounded-lg hover:bg-amber-50 text-amber-500 transition-colors text-sm">✏️</button>
-                            <button onClick={() => setDeleteId(e.id)}
-                              className="p-1.5 rounded-lg hover:bg-red-50 text-red-400 transition-colors text-sm">🗑️</button>
+                              className="p-1.5 rounded-lg hover:bg-amber-50 text-amber-500 transition-colors text-sm"><Pencil size={16} /></button>
+                            {canDelete && (
+                              <button onClick={() => setDeleteId(e.id)}
+                                className="p-1.5 rounded-lg hover:bg-red-50 text-red-400 transition-colors text-sm"><Trash2 size={16} /></button>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -210,7 +215,7 @@ export default function ExpensesTab({ month }: Props) {
       {deleteId && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
           <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-sm w-full">
-            <div className="text-3xl mb-3">🗑️</div>
+            <div className="text-3xl mb-3"><Trash2 size={30} /></div>
             <h3 className="font-semibold text-gray-900 mb-1">Xarajatni o'chirish</h3>
             <p className="text-gray-500 text-sm mb-5">Bu amal bekor qilinmaydi.</p>
             <div className="flex gap-3">

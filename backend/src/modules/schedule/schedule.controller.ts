@@ -53,19 +53,11 @@ export class ScheduleController {
     );
   }
 
-  // ─── XONALAR RO'YXATI ─────────────────────────────────────────────────────
-  @Get('rooms')
-  @Roles(Role.SUPER_ADMIN, Role.MANAGER, Role.USTOZ)
-  getRooms() {
-    return this.scheduleService.getRooms();
-  }
-
-  // ─── VAQT SLOYLARI ────────────────────────────────────────────────────────
-  @Get('time-slots')
-  @Roles(Role.SUPER_ADMIN, Role.MANAGER, Role.USTOZ)
-  getTimeSlots() {
-    return this.scheduleService.getTimeSlots();
-  }
+  // XONALAR va VAQT SLOTLARI — endi alohida `schedule-settings` moduli
+  // (TimeSlotController/RoomController, /api/v1/schedule/rooms va
+  // /api/v1/schedule/time-slots) orqali DB-backed CRUD sifatida boshqariladi.
+  // Bu yerda takroriy qattiq-kodlangan GET route qoldirilsa, u yangi
+  // controller bilan bir xil yo'lga da'vogar bo'lib, uni "to'sib" qo'yardi.
 
   // ─── BO'SH SLOTLAR ────────────────────────────────────────────────────────
   @Get('free-slots')

@@ -1,5 +1,6 @@
 'use client';
 
+import { Briefcase, ChevronLeft, ChevronRight, KeyRound, Pencil, Plus, Search, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
@@ -83,9 +84,7 @@ export default function StaffPage() {
       <div className="px-6 pt-6 pb-4 bg-white border-b border-gray-100 shrink-0 space-y-4">
         <div className="flex items-center justify-between gap-4 flex-wrap">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-blue-600 flex items-center justify-center text-white text-xl shrink-0">
-              👔
-            </div>
+            <div className="w-10 h-10 rounded-2xl bg-blue-600 flex items-center justify-center text-white text-xl shrink-0"><Briefcase size={16} /></div>
             <div>
               <h1 className="text-lg font-bold text-gray-900">Xodimlar</h1>
               <p className="text-xs text-gray-400">{total} ta xodim</p>
@@ -94,9 +93,9 @@ export default function StaffPage() {
           {isSA && (
             <button
               onClick={() => setEditStaff(null)}
-              className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium px-4 py-2.5 rounded-xl transition-colors"
+              className="flex items-center gap-2 bg-primary-600 hover:bg-primary-700 text-white text-sm font-medium px-4 py-2.5 rounded-xl transition-colors"
             >
-              ➕ Yangi xodim
+              <Plus size={16} /> Yangi xodim
             </button>
           )}
         </div>
@@ -125,12 +124,12 @@ export default function StaffPage() {
         <div className="flex flex-wrap gap-2 items-center">
           {/* Qidiruv */}
           <div className="relative flex-1 min-w-[200px]">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">🔍</span>
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm"><Search size={16} /></span>
             <input
               value={search}
               onChange={e => { setSearch(e.target.value); setPage(1); }}
               placeholder="Ism, email, telefon bo'yicha..."
-              className="w-full pl-9 pr-4 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              className="w-full pl-9 pr-4 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500"
             />
           </div>
 
@@ -180,14 +179,14 @@ export default function StaffPage() {
           </div>
         ) : staff.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-64 text-gray-400 gap-3">
-            <div className="text-5xl">👔</div>
+            <div className="text-5xl"><Briefcase size={16} /></div>
             <p className="text-sm font-medium text-gray-500">Xodimlar topilmadi</p>
             {isSA && (
               <button
                 onClick={() => setEditStaff(null)}
                 className="text-sm text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-4 py-2 rounded-xl transition-colors"
               >
-                ➕ Birinchi xodimni qo'shish
+                <Plus size={16} /> Birinchi xodimni qo'shish
               </button>
             )}
           </div>
@@ -195,13 +194,14 @@ export default function StaffPage() {
           <>
             {/* Desktop jadval */}
             <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+              <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-gray-100 bg-gray-50">
                     <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500">Xodim</th>
                     <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500">Rol</th>
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500">Telefon</th>
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500">Oxirgi kirish</th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 hidden sm:table-cell">Telefon</th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 hidden md:table-cell">Oxirgi kirish</th>
                     <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500">Holat</th>
                     {isSA && <th className="text-right px-5 py-3 text-xs font-semibold text-gray-500">Amallar</th>}
                   </tr>
@@ -237,15 +237,15 @@ export default function StaffPage() {
                         </td>
 
                         {/* Telefon */}
-                        <td className="px-4 py-3.5 text-xs text-gray-500">
+                        <td className="px-4 py-3.5 text-xs text-gray-500 hidden sm:table-cell">
                           {s.phone ?? '—'}
                         </td>
 
                         {/* Oxirgi kirish */}
-                        <td className="px-4 py-3.5">
+                        <td className="px-4 py-3.5 hidden md:table-cell">
                           <div className="text-xs text-gray-500">{relTime(s.lastLoginAt)}</div>
                           {s.twoFaEnabled && (
-                            <div className="text-[10px] text-emerald-600 mt-0.5">🔒 2FA yoqilgan</div>
+                            <div className="text-[10px] text-emerald-600 mt-0.5">2FA yoqilgan</div>
                           )}
                         </td>
 
@@ -256,7 +256,7 @@ export default function StaffPage() {
                               ? 'bg-emerald-100 text-emerald-700'
                               : 'bg-gray-100 text-gray-500'
                           }`}>
-                            {s.isActive ? '● Faol' : '○ Nofaol'}
+                            {s.isActive ? 'Faol' : 'Nofaol'}
                           </span>
                         </td>
 
@@ -269,18 +269,14 @@ export default function StaffPage() {
                                 onClick={() => setEditStaff(s)}
                                 className="text-xs text-gray-500 hover:text-gray-700 w-7 h-7 rounded-lg hover:bg-gray-100 flex items-center justify-center transition-colors"
                                 title="Tahrirlash"
-                              >
-                                ✏️
-                              </button>
+                              ><Pencil size={16} /></button>
 
                               {/* Parol tiklash */}
                               <button
                                 onClick={() => setResetStaff(s)}
                                 className="text-xs text-gray-500 hover:text-amber-600 w-7 h-7 rounded-lg hover:bg-amber-50 flex items-center justify-center transition-colors"
                                 title="Parol tiklash"
-                              >
-                                🔑
-                              </button>
+                              ><KeyRound size={16} /></button>
 
                               {/* Faollashtirish / o'chirish toggle */}
                               <button
@@ -293,7 +289,7 @@ export default function StaffPage() {
                                 }`}
                                 title={s.isActive ? "O'chirish" : 'Faollashtirish'}
                               >
-                                {s.isActive ? '🔴' : '🟢'}
+                                {s.isActive ? '' : ''}
                               </button>
 
                               {/* Arxiv (soft delete) */}
@@ -302,9 +298,7 @@ export default function StaffPage() {
                                 disabled={deleteMut.isPending}
                                 className="text-xs text-gray-400 hover:text-red-600 w-7 h-7 rounded-lg hover:bg-red-50 flex items-center justify-center transition-colors"
                                 title="Arxivlash (soft delete)"
-                              >
-                                🗑️
-                              </button>
+                              ><Trash2 size={16} /></button>
                             </div>
                           </td>
                         )}
@@ -313,6 +307,7 @@ export default function StaffPage() {
                   })}
                 </tbody>
               </table>
+              </div>
             </div>
 
             {/* Pagination */}
@@ -327,7 +322,7 @@ export default function StaffPage() {
                     disabled={page === 1}
                     className="px-3 py-1.5 text-xs border border-gray-200 rounded-xl disabled:opacity-40 hover:bg-gray-50 transition-colors"
                   >
-                    ← Oldingi
+                    <ChevronLeft size={14} /> Oldingi
                   </button>
                   {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
                     const p = page <= 3 ? i + 1 : page - 2 + i;
@@ -338,7 +333,7 @@ export default function StaffPage() {
                         onClick={() => setPage(p)}
                         className={`w-8 h-8 text-xs rounded-xl transition-colors ${
                           page === p
-                            ? 'bg-emerald-600 text-white'
+                            ? 'bg-primary-600 text-white'
                             : 'border border-gray-200 hover:bg-gray-50'
                         }`}
                       >
@@ -351,7 +346,7 @@ export default function StaffPage() {
                     disabled={page === totalPages}
                     className="px-3 py-1.5 text-xs border border-gray-200 rounded-xl disabled:opacity-40 hover:bg-gray-50 transition-colors"
                   >
-                    Keyingi →
+                    Keyingi <ChevronRight size={14} />
                   </button>
                 </div>
               </div>

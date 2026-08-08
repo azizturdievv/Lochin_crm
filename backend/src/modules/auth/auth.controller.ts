@@ -14,6 +14,7 @@ import { AuthService } from './auth.service';
 import { LoginDto, Verify2faDto, RefreshTokenDto } from './dto/login.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { AllowWithout2FA } from '../../common/decorators/allow-without-2fa.decorator';
 import { User } from '../../entities/user.entity';
 import { SetMetadata } from '@nestjs/common';
 
@@ -49,6 +50,7 @@ export class AuthController {
   }
 
   @UseGuards(JwtAuthGuard)
+  @AllowWithout2FA()
   @Post('logout')
   @HttpCode(HttpStatus.OK)
   logout(
@@ -59,12 +61,14 @@ export class AuthController {
   }
 
   @UseGuards(JwtAuthGuard)
+  @AllowWithout2FA()
   @Get('2fa/setup')
   setup2fa(@CurrentUser() user: User) {
     return this.authService.setup2fa(user.id);
   }
 
   @UseGuards(JwtAuthGuard)
+  @AllowWithout2FA()
   @Post('2fa/confirm')
   @HttpCode(HttpStatus.OK)
   confirm2fa(
@@ -75,6 +79,7 @@ export class AuthController {
   }
 
   @UseGuards(JwtAuthGuard)
+  @AllowWithout2FA()
   @Get('me')
   getProfile(@CurrentUser() user: User) {
     const { passwordHash, twoFaSecret, ...profile } = user;

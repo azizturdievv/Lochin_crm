@@ -1,5 +1,6 @@
 'use client';
 
+import { BarChart3, Medal } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { fmtM } from '@/types/finance';
@@ -12,7 +13,7 @@ function getCurrentQuarter(month: string): { year: string; quarter: number } {
   return { year: String(y), quarter: Math.ceil(m / 3) };
 }
 
-const MEDAL: Record<number, string> = { 1: '🥇', 2: '🥈', 3: '🥉' };
+const MEDAL: Record<number, string> = { 1: '', 2: '', 3: '' };
 const ROLE_LABEL: Record<string, string> = { ustoz: 'Ustoz', manager: 'Manager', super_admin: 'SA' };
 
 export default function BonusTab({ month }: Props) {
@@ -49,12 +50,12 @@ export default function BonusTab({ month }: Props) {
       {/* Top 3 podium */}
       {!isLoading && topThree.length > 0 && (
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
-          <h3 className="text-sm font-semibold text-gray-700 mb-5">🏆 Top xodimlar</h3>
+          <h3 className="text-sm font-semibold text-gray-700 mb-5">Top xodimlar</h3>
           <div className="flex items-end justify-center gap-4">
             {/* 2-o'rin */}
             {topThree[1] && (
               <div className="flex flex-col items-center gap-2 flex-1">
-                <div className="text-3xl">🥈</div>
+                <div className="text-3xl"></div>
                 <div className="w-full bg-gray-100 rounded-t-xl p-3 text-center" style={{ height: '80px' }}>
                   <p className="text-xs font-semibold text-gray-700 truncate">{topThree[1].name}</p>
                   <p className="text-sm font-bold text-gray-900 mt-1">{fmtM(topThree[1].bonusAmount)}</p>
@@ -65,7 +66,7 @@ export default function BonusTab({ month }: Props) {
             {/* 1-o'rin */}
             {topThree[0] && (
               <div className="flex flex-col items-center gap-2 flex-1">
-                <div className="text-4xl">🥇</div>
+                <div className="text-4xl"><Medal size={36} /></div>
                 <div className="w-full bg-amber-50 border-2 border-amber-300 rounded-t-xl p-3 text-center" style={{ height: '100px' }}>
                   <p className="text-xs font-semibold text-amber-800 truncate">{topThree[0].name}</p>
                   <p className="text-base font-bold text-amber-900 mt-1">{fmtM(topThree[0].bonusAmount)}</p>
@@ -76,7 +77,7 @@ export default function BonusTab({ month }: Props) {
             {/* 3-o'rin */}
             {topThree[2] && (
               <div className="flex flex-col items-center gap-2 flex-1">
-                <div className="text-3xl">🥉</div>
+                <div className="text-3xl"></div>
                 <div className="w-full bg-orange-50 rounded-t-xl p-3 text-center" style={{ height: '65px' }}>
                   <p className="text-xs font-semibold text-orange-700 truncate">{topThree[2].name}</p>
                   <p className="text-sm font-bold text-orange-900 mt-1">{fmtM(topThree[2].bonusAmount)}</p>
@@ -114,7 +115,7 @@ export default function BonusTab({ month }: Props) {
                 ? (
                     <tr>
                       <td colSpan={5} className="px-6 py-16 text-center text-gray-400">
-                        <div className="text-5xl mb-3">📊</div>
+                        <div className="text-5xl mb-3"><BarChart3 size={16} /></div>
                         <p>Ma'lumot topilmadi</p>
                       </td>
                     </tr>
@@ -132,7 +133,7 @@ export default function BonusTab({ month }: Props) {
                         <span className="text-xs text-gray-400">{ROLE_LABEL[s.role] ?? s.role}</span>
                       </td>
                       <td className="px-4 py-3.5 text-right">
-                        <span className="font-semibold text-amber-700">⭐ {s.totalPoints}</span>
+                        <span className="font-semibold text-amber-700">{s.totalPoints}</span>
                       </td>
                       <td className="px-4 py-3.5 text-right text-gray-500 hidden sm:table-cell text-xs">
                         {data?.coefficientPerPoint} so'm/ball

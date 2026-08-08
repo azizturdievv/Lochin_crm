@@ -1,5 +1,6 @@
 'use client';
 
+import { X } from 'lucide-react';
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
@@ -11,11 +12,11 @@ interface Props {
 }
 
 const REASON_OPTIONS = [
-  { value: 'sick',     label: '🤒 Kasal' },
-  { value: 'personal', label: '👤 Shaxsiy sabab' },
-  { value: 'family',   label: '👪 Oilaviy' },
-  { value: 'training', label: '📚 Treening/Malaka oshirish' },
-  { value: 'other',    label: '📌 Boshqa' },
+  { value: 'sick',     label: 'Kasal' },
+  { value: 'personal', label: 'Shaxsiy sabab' },
+  { value: 'family',   label: 'Oilaviy' },
+  { value: 'training', label: 'Treening/Malaka oshirish' },
+  { value: 'other',    label: 'Boshqa' },
 ];
 
 export default function SubstituteModal({ lesson, onClose }: Props) {
@@ -65,12 +66,12 @@ export default function SubstituteModal({ lesson, onClose }: Props) {
 
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
           <div>
-            <h2 className="text-base font-semibold text-gray-900">🔄 O'rinbosar tayinlash</h2>
+            <h2 className="text-base font-semibold text-gray-900">O'rinbosar tayinlash</h2>
             <p className="text-xs text-gray-400 mt-0.5">
               {lesson.group.name} — {lesson.startTime}–{lesson.endTime}
             </p>
           </div>
-          <button onClick={onClose} className="w-8 h-8 rounded-xl flex items-center justify-center text-gray-400 hover:bg-gray-100">✕</button>
+          <button onClick={onClose} className="w-8 h-8 rounded-xl flex items-center justify-center text-gray-400 hover:bg-gray-100"><X size={16} /></button>
         </div>
 
         <form onSubmit={handleSubmit} className="px-6 py-5 space-y-4">
@@ -86,7 +87,7 @@ export default function SubstituteModal({ lesson, onClose }: Props) {
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">O'rinbosar ustoz *</label>
             <select value={substituteId} onChange={e => setSubstituteId(e.target.value)}
-              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white">
+              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white">
               <option value="">Tanlang...</option>
               {availableTeachers.map((t: { id: string; firstName: string; lastName: string }) => (
                 <option key={t.id} value={t.id}>{t.lastName} {t.firstName}</option>
@@ -115,13 +116,13 @@ export default function SubstituteModal({ lesson, onClose }: Props) {
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">Izoh (ixtiyoriy)</label>
             <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2}
-              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 resize-none"
+              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 resize-none"
               placeholder="Qo'shimcha ma'lumot..." />
           </div>
 
           {/* Maosh haqida info */}
           <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 text-xs text-blue-700">
-            💡 O'rinbosar maoshi avtomatik hisoblanadi va xodimlar ish haqiga qo'shiladi.
+            O'rinbosar maoshi avtomatik hisoblanadi va xodimlar ish haqiga qo'shiladi.
           </div>
 
           {error && <p className="text-red-500 text-sm bg-red-50 px-3 py-2 rounded-xl">{error}</p>}
@@ -133,7 +134,7 @@ export default function SubstituteModal({ lesson, onClose }: Props) {
             </button>
             <button type="submit" disabled={createMut.isPending}
               className="flex-1 py-2.5 bg-purple-600 text-white rounded-xl text-sm font-medium hover:bg-purple-700 disabled:opacity-60 transition">
-              {createMut.isPending ? 'Tayinlanmoqda...' : '✓ Tayinlash'}
+              {createMut.isPending ? 'Tayinlanmoqda...' : 'Tayinlash'}
             </button>
           </div>
         </form>

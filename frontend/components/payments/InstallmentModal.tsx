@@ -1,5 +1,6 @@
 'use client';
 
+import { AlertTriangle, Check, Circle, X } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
@@ -76,8 +77,8 @@ export default function InstallmentModal({ open, onClose }: Props) {
       <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl max-h-[90vh] flex flex-col">
 
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-          <h2 className="text-lg font-semibold text-gray-900">📅 Muddatli to'lov</h2>
-          <button onClick={onClose} className="w-8 h-8 rounded-xl flex items-center justify-center text-gray-400 hover:bg-gray-100">✕</button>
+          <h2 className="text-lg font-semibold text-gray-900">Muddatli to'lov</h2>
+          <button onClick={onClose} className="w-8 h-8 rounded-xl flex items-center justify-center text-gray-400 hover:bg-gray-100"><X size={16} /></button>
         </div>
 
         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
@@ -89,7 +90,7 @@ export default function InstallmentModal({ open, onClose }: Props) {
               value={studentName || studentSearch}
               onChange={e => { setStudentSearch(e.target.value); setStudentId(''); setStudentName(''); }}
               placeholder="Ism yoki telefon..."
-              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500"
             />
             {students?.length > 0 && !studentId && (
               <div className="mt-1 border border-gray-200 rounded-xl bg-white shadow-lg overflow-hidden">
@@ -113,7 +114,7 @@ export default function InstallmentModal({ open, onClose }: Props) {
               value={total}
               onChange={e => setTotal(e.target.value)}
               placeholder="0"
-              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500"
             />
           </div>
 
@@ -156,7 +157,7 @@ export default function InstallmentModal({ open, onClose }: Props) {
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">Izoh</label>
             <input value={description} onChange={e => setDescription(e.target.value)}
-              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500"
               placeholder="Ixtiyoriy" />
           </div>
 
@@ -168,8 +169,8 @@ export default function InstallmentModal({ open, onClose }: Props) {
               Bekor
             </button>
             <button type="submit" disabled={createMut.isPending}
-              className="flex-1 py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-medium hover:bg-emerald-700 disabled:opacity-60 transition">
-              {createMut.isPending ? 'Yaratilmoqda...' : '✓ Yaratish'}
+              className="flex-1 py-2.5 bg-primary-600 text-white rounded-xl text-sm font-medium hover:bg-primary-700 disabled:opacity-60 transition">
+              {createMut.isPending ? 'Yaratilmoqda...' : 'Yaratish'}
             </button>
           </div>
         </form>
@@ -199,7 +200,7 @@ export function InstallmentCard({ plan }: { plan: InstallmentPlan }) {
       </div>
 
       {overdue > 0 && (
-        <p className="text-xs text-red-600 font-medium">⚠️ {overdue} ta muddati o'tgan</p>
+        <p className="text-xs text-red-600 font-medium">{overdue} ta muddati o'tgan</p>
       )}
 
       {/* Qismlar */}
@@ -211,7 +212,7 @@ export function InstallmentCard({ plan }: { plan: InstallmentPlan }) {
               item.isPaid ? 'bg-emerald-50' : isOverdue ? 'bg-red-50' : 'bg-gray-50'
             }`}>
               <span className={item.isPaid ? 'text-emerald-600' : isOverdue ? 'text-red-600' : 'text-gray-600'}>
-                {item.isPaid ? '✓' : isOverdue ? '⚠' : '○'} {item.part}-qism
+                {item.isPaid ? <Check size={12} className="inline" /> : isOverdue ? <AlertTriangle size={12} className="inline" /> : <Circle size={10} className="inline" />} {item.part}-qism
               </span>
               <span className={`font-medium ${item.isPaid ? 'text-emerald-700' : isOverdue ? 'text-red-700' : 'text-gray-700'}`}>
                 {item.amount.toLocaleString('uz-UZ')} so'm

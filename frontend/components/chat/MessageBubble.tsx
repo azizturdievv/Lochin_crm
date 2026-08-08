@@ -1,5 +1,6 @@
 'use client';
 
+import { Check, CheckCheck, PenLine, Trash2, Video } from 'lucide-react';
 import Image from 'next/image';
 import type { ChatMessage } from '@/types/chat';
 
@@ -19,7 +20,7 @@ function ReadStatus({ readBy, isOwn }: { readBy: string[]; isOwn: boolean }) {
   const read = readBy.length > 0;
   return (
     <span className={`text-[10px] ml-1 ${read ? 'text-blue-500' : 'text-gray-400'}`}>
-      {read ? '✓✓' : '✓'}
+      {read ? <CheckCheck size={12} className="inline" /> : <Check size={12} className="inline" />}
     </span>
   );
 }
@@ -29,7 +30,7 @@ export default function MessageBubble({ message, isOwn, onDelete, showName }: Pr
     return (
       <div className={`flex ${isOwn ? 'justify-end' : 'justify-start'} mb-1`}>
         <div className="bg-gray-100 rounded-2xl px-3 py-2 text-xs text-gray-400 italic max-w-xs">
-          🗑️ Xabar o'chirildi
+          Xabar o'chirildi
         </div>
       </div>
     );
@@ -40,7 +41,7 @@ export default function MessageBubble({ message, isOwn, onDelete, showName }: Pr
     return (
       <div className={`flex ${isOwn ? 'justify-end' : 'justify-start'} mb-1`}>
         <div className="bg-red-100 border border-red-200 rounded-2xl px-3 py-2 text-xs text-red-600 max-w-xs">
-          🚫 Bu xabar AI moderatsiya tomonidan bloklandi
+          Bu xabar AI moderatsiya tomonidan bloklandi
         </div>
       </div>
     );
@@ -48,13 +49,29 @@ export default function MessageBubble({ message, isOwn, onDelete, showName }: Pr
 
   const isWarning = message.moderationFlag === 'warning';
   const bubbleCls = isOwn
-    ? 'bg-emerald-600 text-white rounded-br-sm'
+    ? 'bg-primary-600 text-white rounded-br-sm'
     : isWarning
     ? 'bg-amber-50 border border-amber-300 text-gray-900 rounded-bl-sm'
     : 'bg-white border border-gray-100 shadow-sm text-gray-900 rounded-bl-sm';
 
   return (
-    <div className={`flex ${isOwn ? 'justify-end' : 'justify-start'} mb-1 group`}>
+    <div className={`flex ${isOwn ? 'justify-end' : 'justify-start'} mb-1 group gap-2`}>
+      {/* Yuboruvchi avatari (boshqalar uchun, faqat guruh boshida) */}
+      {!isOwn && (
+        <div className="w-7 shrink-0 self-end mb-1">
+          {showName && (
+            <div className="w-7 h-7 rounded-full bg-emerald-100 flex items-center justify-center overflow-hidden">
+              {message.sender?.avatarUrl ? (
+                <img src={message.sender.avatarUrl} alt="" className="w-full h-full object-cover" />
+              ) : (
+                <span className="text-emerald-700 text-[10px] font-bold">
+                  {message.sender?.firstName?.charAt(0)}{message.sender?.lastName?.charAt(0)}
+                </span>
+              )}
+            </div>
+          )}
+        </div>
+      )}
       <div className="max-w-[72%]">
         {/* Yuboruvchi ismi (boshqalar uchun) */}
         {!isOwn && showName && message.sender && (
@@ -65,7 +82,7 @@ export default function MessageBubble({ message, isOwn, onDelete, showName }: Pr
 
         <div className={`rounded-2xl px-3 py-2 relative ${bubbleCls}`}>
           {isWarning && (
-            <p className="text-[9px] text-amber-600 mb-1">⚠️ Imlo xatolari aniqlandi</p>
+            <p className="text-[9px] text-amber-600 mb-1">Imlo xatolari aniqlandi</p>
           )}
 
           {/* Xabar turi bo'yicha kontent */}
@@ -76,7 +93,7 @@ export default function MessageBubble({ message, isOwn, onDelete, showName }: Pr
             <span className="text-[10px]">{formatTime(message.createdAt)}</span>
             <ReadStatus readBy={message.readBy} isOwn={isOwn} />
             {message.spellingErrors > 0 && (
-              <span className="text-[9px] ml-1 opacity-70">✍️{message.spellingErrors}</span>
+              <span className="text-[9px] ml-1 opacity-70"><PenLine size={10} className="inline" /> {message.spellingErrors}</span>
             )}
           </div>
         </div>
@@ -87,9 +104,7 @@ export default function MessageBubble({ message, isOwn, onDelete, showName }: Pr
             <button
               onClick={() => onDelete(message.id)}
               className="text-[10px] text-gray-400 hover:text-red-500 transition-colors px-1"
-            >
-              🗑️
-            </button>
+            ><Trash2 size={16} /></button>
           </div>
         )}
       </div>
@@ -127,7 +142,7 @@ function MessageContent({ message, isOwn }: { message: ChatMessage; isOwn: boole
     case 'audio':
       return (
         <div className="flex items-center gap-2 min-w-[160px]">
-          <span className="text-lg">🎵</span>
+          <span className="text-lg"></span>
           {message.fileUrl ? (
             <audio controls src={message.fileUrl} className="h-8 max-w-[180px]" />
           ) : (
@@ -142,7 +157,7 @@ function MessageContent({ message, isOwn }: { message: ChatMessage; isOwn: boole
     case 'video_circle':
       return (
         <div className="space-y-1">
-          <div className="text-xs opacity-70 mb-1">{isOwn ? 'text-emerald-100' : 'text-gray-400'} 🎥 Video doira</div>
+          <div className="text-xs opacity-70 mb-1">{isOwn ? 'text-emerald-100' : 'text-gray-400'} Video doira</div>
           {message.fileUrl ? (
             <video
               src={message.fileUrl}
@@ -150,7 +165,7 @@ function MessageContent({ message, isOwn }: { message: ChatMessage; isOwn: boole
               className="w-44 h-44 rounded-full object-cover border-4 border-white/30"
             />
           ) : (
-            <div className="w-44 h-44 rounded-full bg-black/20 flex items-center justify-center text-2xl">🎥</div>
+            <div className="w-44 h-44 rounded-full bg-black/20 flex items-center justify-center text-2xl"><Video size={24} /></div>
           )}
           {message.durationSeconds && (
             <span className={`text-[10px] opacity-70 ${textCls}`}>{message.durationSeconds}s</span>
@@ -165,7 +180,7 @@ function MessageContent({ message, isOwn }: { message: ChatMessage; isOwn: boole
             <video src={message.fileUrl} controls className="max-w-xs rounded-xl" />
           ) : (
             <div className="flex items-center gap-2">
-              <span className="text-lg">🎬</span>
+              <span className="text-lg"></span>
               <span className={`text-xs ${textCls}`}>Video</span>
             </div>
           )}
@@ -175,7 +190,7 @@ function MessageContent({ message, isOwn }: { message: ChatMessage; isOwn: boole
     case 'file':
       return (
         <div className="flex items-center gap-2">
-          <div className={`text-2xl`}>📎</div>
+          <div className={`text-2xl`}></div>
           <div>
             {message.fileUrl ? (
               <a

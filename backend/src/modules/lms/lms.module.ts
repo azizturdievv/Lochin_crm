@@ -21,6 +21,7 @@ import { TestResult } from '../../entities/test-result.entity';
 import { TestTimeExtension } from '../../entities/test-time-extension.entity';
 import { Homework } from '../../entities/homework.entity';
 import { HomeworkSubmission } from '../../entities/homework-submission.entity';
+import { Lesson } from '../../entities/lesson.entity';
 import { BaselineAssessment } from '../../entities/baseline-assessment.entity';
 import { Enrollment } from '../../entities/enrollment.entity';
 import { User } from '../../entities/user.entity';
@@ -34,6 +35,7 @@ import { AuditLogModule } from '../audit-log/audit-log.module';
       Subject, Material,
       Test, TestQuestion, TestResult, TestTimeExtension,
       Homework, HomeworkSubmission,
+      Lesson,
       BaselineAssessment,
       Enrollment, User, PointsLog, Notification,
     ]),

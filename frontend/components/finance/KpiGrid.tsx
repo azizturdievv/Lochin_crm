@@ -1,3 +1,5 @@
+import { AlertTriangle, Banknote, Percent, TrendingDown, TrendingUp, Upload, Users } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { fmtM } from '@/types/finance';
 import type { KpiData } from '@/types/finance';
 
@@ -19,13 +21,13 @@ function TrendBadge({ pct, invert = false }: { pct: number | null; invert?: bool
     <span className={`text-xs font-medium px-2 py-0.5 rounded-full ml-2 ${
       positive ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-600'
     }`}>
-      {pct > 0 ? '↑' : '↓'} {Math.abs(pct)}%
+      {pct > 0 ? <TrendingUp size={12} className="inline" /> : <TrendingDown size={12} className="inline" />} {Math.abs(pct)}%
     </span>
   );
 }
 
 interface CardProps {
-  icon:     string;
+  icon:     LucideIcon;
   label:    string;
   value:    string;
   sub?:     string;
@@ -36,10 +38,10 @@ interface CardProps {
   invertTrend?: boolean;
 }
 
-function KpiCard({ icon, label, value, sub, bg, textCls, loading, trend: t, invertTrend }: CardProps) {
+function KpiCard({ icon: Icon, label, value, sub, bg, textCls, loading, trend: t, invertTrend }: CardProps) {
   return (
     <div className={`${bg} rounded-2xl p-5`}>
-      <div className="text-xl mb-3">{icon}</div>
+      <Icon size={20} className="mb-3" />
       {loading ? (
         <div className="space-y-2">
           <div className="h-7 bg-white/50 rounded-lg animate-pulse w-24" />
@@ -67,38 +69,38 @@ export default function KpiGrid({ data, loading, prevData }: Props) {
   return (
     <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
       <KpiCard
-        icon="💰" label="Daromad" loading={loading}
+        icon={Banknote} label="Daromad" loading={loading}
         value={`${fmtM(data?.totalIncome ?? 0)} so'm`}
         sub={`Prev: ${fmtM(prevData?.totalIncome ?? 0)}`}
         trend={trend(data?.totalIncome ?? 0, prevData?.totalIncome)}
         bg="bg-emerald-50" textCls="text-emerald-700"
       />
       <KpiCard
-        icon="📤" label="Xarajat" loading={loading}
+        icon={Upload} label="Xarajat" loading={loading}
         value={`${fmtM(data?.totalExpenses ?? 0)} so'm`}
         trend={trend(data?.totalExpenses ?? 0, prevData?.totalExpenses)}
         invertTrend
         bg="bg-red-50" textCls="text-red-700"
       />
       <KpiCard
-        icon="📈" label="Sof foyda" loading={loading}
+        icon={TrendingUp} label="Sof foyda" loading={loading}
         value={`${fmtM(data?.netProfit ?? 0)} so'm`}
         trend={trend(data?.netProfit ?? 0, prevData?.netProfit)}
         bg="bg-blue-50" textCls="text-blue-700"
       />
       <KpiCard
-        icon="%" label="Marja" loading={loading}
+        icon={Percent} label="Marja" loading={loading}
         value={`${data?.marginPercent ?? 0}%`}
         bg={marginCls} textCls={marginTxt}
       />
       <KpiCard
-        icon="👥" label="O'quvchilar" loading={loading}
+        icon={Users} label="O'quvchilar" loading={loading}
         value={`${data?.activeStudents ?? 0} ta`}
         trend={trend(data?.activeStudents ?? 0, prevData?.activeStudents)}
         bg="bg-purple-50" textCls="text-purple-700"
       />
       <KpiCard
-        icon="⚠️" label="Qarzdorlar" loading={loading}
+        icon={AlertTriangle} label="Qarzdorlar" loading={loading}
         value={`${data?.debtorCount ?? 0} ta`}
         sub={`${fmtM(data?.debtAmount ?? 0)} so'm`}
         bg="bg-amber-50" textCls="text-amber-700"

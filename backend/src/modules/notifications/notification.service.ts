@@ -67,7 +67,7 @@ export class NotificationService {
     let telegramSent = false;
     let pushSent = false;
 
-    const sends: Promise<any>[] = [];
+    const sends: Promise<void>[] = [];
 
     if (!opts?.skipSms && user.phone) {
       sends.push(this.sms.send(user.phone, body).then((ok) => { smsSent = ok; }));
@@ -131,7 +131,7 @@ export class NotificationService {
 
     await Promise.allSettled(
       parents.map(async (parent) => {
-        const sends: Promise<any>[] = [];
+        const sends: Promise<boolean>[] = [];
 
         if (!opts?.skipSms && parent.phone) {
           sends.push(this.sms.send(parent.phone, body));

@@ -1,10 +1,13 @@
 'use client';
 
+import { X } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
-import { ROOMS, TIME_SLOTS } from '@/types/schedule';
 import type { ScheduleLesson, ConflictResult } from '@/types/schedule';
+
+interface ApiRoom     { id: string; name: string; number: string; capacity: number; isActive: boolean; orderIndex: number; }
+interface ApiTimeSlot { id: string; name: string; startTime: string; endTime: string; isActive: boolean; orderIndex: number; }
 
 interface Props {
   open:       boolean;
@@ -17,7 +20,7 @@ interface Props {
   lesson?:    ScheduleLesson | null;
 }
 
-const INPUT = 'w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white';
+const INPUT = 'w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white';
 const LABEL = 'block text-xs font-medium text-gray-600 mb-1';
 
 type Mode = 'create' | 'edit';
@@ -41,6 +44,8 @@ export default function CreateLessonModal({ open, onClose, preDay, preRoom, preS
   // Data
   const { data: groups }   = useQuery({ queryKey: ['groups-all'],   queryFn: () => api.get('/groups').then(r => r.data.data ?? r.data), enabled: open });
   const { data: teachers } = useQuery({ queryKey: ['teachers-all'], queryFn: () => api.get('/users?role=ustoz').then(r => r.data.data ?? r.data), enabled: open });
+  const { data: rooms }     = useQuery({ queryKey: ['rooms'],      queryFn: () => api.get<ApiRoom[]>('/schedule/rooms?active=true').then(r => r.data), enabled: open, staleTime: 5 * 60_000 });
+  const { data: timeSlots } = useQuery({ queryKey: ['time-slots'], queryFn: () => api.get<ApiTimeSlot[]>('/schedule/time-slots?active=true').then(r => r.data), enabled: open, staleTime: 5 * 60_000 });
 
   useEffect(() => {
     if (!open) { setConflict(null); setError(''); return; }
@@ -116,9 +121,9 @@ export default function CreateLessonModal({ open, onClose, preDay, preRoom, preS
 
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
           <h2 className="text-lg font-semibold text-gray-900">
-            {mode === 'edit' ? '✏️ Darsni tahrirlash' : '📅 Yangi dars qo\'shish'}
+            {mode === 'edit' ? 'Darsni tahrirlash' : 'Yangi dars qo\'shish'}
           </h2>
-          <button onClick={onClose} className="w-8 h-8 rounded-xl flex items-center justify-center text-gray-400 hover:bg-gray-100">✕</button>
+          <button onClick={onClose} className="w-8 h-8 rounded-xl flex items-center justify-center text-gray-400 hover:bg-gray-100"><X size={16} /></button>
         </div>
 
         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
@@ -154,9 +159,9 @@ export default function CreateLessonModal({ open, onClose, preDay, preRoom, preS
             <div>
               <label className={LABEL}>Xona *</label>
               <select value={room} onChange={e => setRoom(e.target.value)} className={INPUT}>
-                {ROOMS.map(r => (
-                  <option key={r.number} value={r.number}>
-                    Xona {r.number} ({r.capacity} o'rin)
+                {(rooms ?? []).map(r => (
+                  <option key={r.id} value={r.number}>
+                    {r.name} ({r.capacity} o'rin)
                   </option>
                 ))}
               </select>
@@ -167,18 +172,18 @@ export default function CreateLessonModal({ open, onClose, preDay, preRoom, preS
           <div>
             <label className={LABEL}>Para vaqti *</label>
             <div className="grid grid-cols-2 gap-2">
-              {TIME_SLOTS.map(slot => (
+              {(timeSlots ?? []).map(slot => (
                 <button
-                  key={slot.start}
+                  key={slot.id}
                   type="button"
-                  onClick={() => { setStartTime(slot.start); setEndTime(slot.end); }}
+                  onClick={() => { setStartTime(slot.startTime.slice(0, 5)); setEndTime(slot.endTime.slice(0, 5)); }}
                   className={`py-2.5 px-3 rounded-xl border text-sm font-medium transition-all ${
-                    startTime === slot.start
+                    startTime === slot.startTime.slice(0, 5)
                       ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
                       : 'border-gray-200 text-gray-600 hover:border-gray-300'
                   }`}
                 >
-                  {slot.label}: {slot.start}–{slot.end}
+                  {slot.name}: {slot.startTime.slice(0, 5)}–{slot.endTime.slice(0, 5)}
                 </button>
               ))}
             </div>
@@ -194,7 +199,7 @@ export default function CreateLessonModal({ open, onClose, preDay, preRoom, preS
           {mode === 'create' && (
             <div className="bg-gray-50 rounded-xl p-3 space-y-2">
               <label className="flex items-center gap-3 cursor-pointer">
-                <input type="checkbox" checked={recurring} onChange={e => setRecurring(e.target.checked)} className="w-4 h-4 accent-emerald-600" />
+                <input type="checkbox" checked={recurring} onChange={e => setRecurring(e.target.checked)} className="w-4 h-4 accent-primary-600" />
                 <span className="text-sm text-gray-700">Takroriy dars (har hafta)</span>
               </label>
               {recurring && (
@@ -202,7 +207,7 @@ export default function CreateLessonModal({ open, onClose, preDay, preRoom, preS
                   <input
                     type="number" min={1} max={52} value={recurWks}
                     onChange={e => setRecurWks(parseInt(e.target.value))}
-                    className="w-20 px-2 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    className="w-20 px-2 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
                   />
                   <span className="text-sm text-gray-500">hafta davomida</span>
                 </div>
@@ -215,12 +220,12 @@ export default function CreateLessonModal({ open, onClose, preDay, preRoom, preS
             <div className={`rounded-xl p-3 text-sm ${hasConflict ? 'bg-red-50 border border-red-200 text-red-700' : 'bg-emerald-50 border border-emerald-200 text-emerald-700'}`}>
               {hasConflict ? (
                 <>
-                  <p className="font-medium">⚠️ Konflikt aniqlandi</p>
+                  <p className="font-medium">Konflikt aniqlandi</p>
                   {conflict.roomConflict && <p className="text-xs mt-1">Xona band: {conflict.roomConflict.group?.name}</p>}
                   {conflict.teacherConflict && <p className="text-xs mt-1">Ustoz band: {conflict.teacherConflict.group?.name}</p>}
                 </>
               ) : (
-                <p className="font-medium">✅ Xona va ustoz bo'sh</p>
+                <p className="font-medium">Xona va ustoz bo'sh</p>
               )}
             </div>
           )}
@@ -231,7 +236,7 @@ export default function CreateLessonModal({ open, onClose, preDay, preRoom, preS
             {mode === 'edit' && (
               <button type="button" onClick={() => deleteMut.mutate()} disabled={deleteMut.isPending}
                 className="px-4 py-2.5 text-sm font-medium text-red-600 border border-red-200 rounded-xl hover:bg-red-50 transition disabled:opacity-60">
-                🗑️ Bekor
+                Bekor
               </button>
             )}
             <button type="button" onClick={onClose}
@@ -239,8 +244,8 @@ export default function CreateLessonModal({ open, onClose, preDay, preRoom, preS
               Yopish
             </button>
             <button type="submit" disabled={isPending || hasConflict}
-              className="flex-1 py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-medium hover:bg-emerald-700 disabled:opacity-60 transition">
-              {isPending ? 'Saqlanmoqda...' : mode === 'edit' ? '✓ Saqlash' : '+ Qo\'shish'}
+              className="flex-1 py-2.5 bg-primary-600 text-white rounded-xl text-sm font-medium hover:bg-primary-700 disabled:opacity-60 transition">
+              {isPending ? 'Saqlanmoqda...' : mode === 'edit' ? 'Saqlash' : '+ Qo\'shish'}
             </button>
           </div>
         </form>

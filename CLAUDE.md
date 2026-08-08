@@ -1,4 +1,4 @@
-# Ilm Academy CRM — Claude Code Arxitektura Hujjati
+#  CRM — Claude Code Arxitektura Hujjati
 
 ## Loyiha haqida
 O'quv markazi uchun to'liq CRM tizimi.

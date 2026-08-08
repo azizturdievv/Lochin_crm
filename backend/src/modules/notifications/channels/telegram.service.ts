@@ -11,6 +11,13 @@ export type TelegramUpdate = {
   };
 };
 
+// Telegram Bot API javob shakli (sendMessage/setWebhook/getMe — barchasida umumiy)
+export interface TelegramApiResponse<T = unknown> {
+  ok: boolean;
+  description?: string;
+  result?: T;
+}
+
 @Injectable()
 export class TelegramService {
   private readonly logger = new Logger(TelegramService.name);
@@ -40,7 +47,7 @@ export class TelegramService {
         }),
       });
 
-      const json = (await res.json()) as any;
+      const json = (await res.json()) as TelegramApiResponse;
       if (!json.ok) {
         this.logger.warn(`Telegram xato (${chatId}): ${json.description}`);
       }
@@ -77,7 +84,7 @@ export class TelegramService {
           allowed_updates: ['message'],
         }),
       });
-      const json = (await res.json()) as any;
+      const json = (await res.json()) as TelegramApiResponse;
       this.logger.log(`Webhook o'rnatildi: ${json.description}`);
       return json.ok === true;
     } catch (err) {
@@ -93,7 +100,7 @@ export class TelegramService {
   }
 
   // Bot haqida ma'lumot
-  async getMe(): Promise<any> {
+  async getMe(): Promise<TelegramApiResponse> {
     const res = await fetch(`${this.apiUrl}/getMe`);
     return res.json();
   }

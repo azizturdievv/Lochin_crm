@@ -3,6 +3,12 @@ import { Injectable, Logger } from '@nestjs/common';
 // Firebase Cloud Messaging (Legacy HTTP API)
 const FCM_URL = 'https://fcm.googleapis.com/fcm/send';
 
+interface FcmSendResponse {
+  success?: number;
+  failure?: number;
+  results?: { error?: string }[];
+}
+
 @Injectable()
 export class PushService {
   private readonly logger = new Logger(PushService.name);
@@ -41,7 +47,7 @@ export class PushService {
         }),
       });
 
-      const json = (await res.json()) as any;
+      const json = (await res.json()) as FcmSendResponse;
 
       if (json.success === 1) return true;
 
@@ -99,7 +105,7 @@ export class PushService {
           }),
         });
 
-        const json = (await res.json()) as any;
+        const json = (await res.json()) as FcmSendResponse;
         sent += json.success ?? 0;
         failed += json.failure ?? batch.length;
       } catch (err) {

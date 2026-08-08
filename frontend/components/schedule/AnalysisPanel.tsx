@@ -39,7 +39,7 @@ export default function AnalysisPanel({ summary, freeSlotCount, avgMonthlyFee = 
 
       {/* Daromad imkoniyati */}
       <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
-        <p className="text-xs font-medium text-amber-700 mb-1">💰 Daromad imkoniyati</p>
+        <p className="text-xs font-medium text-amber-700 mb-1">Daromad imkoniyati</p>
         <p className="text-lg font-bold text-amber-900">
           {(potentialRevenue / 1_000_000).toFixed(1)}M so'm
         </p>

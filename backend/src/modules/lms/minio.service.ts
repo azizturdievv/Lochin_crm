@@ -53,6 +53,20 @@ export class MinioService implements OnModuleInit {
       } else {
         this.logger.log(`MinIO ulandi: ${this.bucket}`);
       }
+
+      // uploadBuffer() qaytargan URL to'g'ridan-to'g'ri (presigned emas) —
+      // bucket ochiq o'qish siyosatisiz bo'lsa, avatar/material/chat-media/
+      // sertifikat kabi HAMMA fayl brauzerda 403 bilan ochilmay qolardi.
+      await this.client.setBucketPolicy(this.bucket, JSON.stringify({
+        Version: '2012-10-17',
+        Statement: [{
+          Effect: 'Allow',
+          Principal: { AWS: ['*'] },
+          Action: ['s3:GetObject'],
+          Resource: [`arn:aws:s3:::${this.bucket}/*`],
+        }],
+      }));
+      this.logger.log(`MinIO bucket ochiq o'qish siyosati o'rnatildi: ${this.bucket}`);
     } catch (err) {
       this.logger.warn(`MinIO ulanmadi (offline rejim): ${(err as Error).message}`);
     }

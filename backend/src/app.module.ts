@@ -25,8 +25,13 @@ import { UsersModule } from './modules/users/users.module';
 import { GroupsModule } from './modules/groups/groups.module';
 import { ReportsModule } from './modules/reports/reports.module';
 import { ScheduleSettingsModule } from './modules/schedule-settings/schedule-settings.module';
+import { PermissionsModule } from './modules/permissions/permissions.module';
+import { LiveSessionsModule } from './modules/live-sessions/live-sessions.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
+import { TwoFaEnforcementGuard } from './common/guards/two-fa-enforcement.guard';
+import { PermissionsGuard } from './modules/permissions/permissions.guard';
+import { PaymentLockGuard } from './modules/payments/payment-lock.guard';
 
 @Module({
   imports: [
@@ -101,6 +106,12 @@ import { RolesGuard } from './common/guards/roles.guard';
 
     // Jadval sozlamalari (paralar, xonalar)
     ScheduleSettingsModule,
+
+    // Granular ruxsatlar matritsasi
+    PermissionsModule,
+
+    // Jonli efir va onlayn dars (Livekit)
+    LiveSessionsModule,
   ],
   controllers: [AppController],
   providers: [
@@ -116,6 +127,25 @@ import { RolesGuard } from './common/guards/roles.guard';
     {
       provide: APP_GUARD,
       useClass: RolesGuard,
+    },
+
+    // Global 2FA majburiylik guard (SA/Manager uchun) — RolesGuard'dan keyin,
+    // request.user.role va .twoFaEnabled tayyor bo'lishi kerak
+    {
+      provide: APP_GUARD,
+      useClass: TwoFaEnforcementGuard,
+    },
+
+    // Global granular ruxsatlar guard (RolesGuard'dan keyin — request.user tayyor bo'lishi kerak)
+    {
+      provide: APP_GUARD,
+      useClass: PermissionsGuard,
+    },
+
+    // Global to'lov avto-blok guard (faqat @BlockWhenPaymentLocked() bilan belgilangan handlerlarda ishlaydi)
+    {
+      provide: APP_GUARD,
+      useClass: PaymentLockGuard,
     },
   ],
 })

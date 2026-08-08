@@ -1,5 +1,6 @@
 'use client';
 
+import { Briefcase } from 'lucide-react';
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
@@ -61,7 +62,7 @@ export default function SalaryTab({ month }: Props) {
         >
           {calculating
             ? <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-            : '⚡'}
+            : ''}
           Hisoblash ({month})
         </button>
       </div>
@@ -97,7 +98,7 @@ export default function SalaryTab({ month }: Props) {
                 ? (
                     <tr>
                       <td colSpan={8} className="px-6 py-16 text-center text-gray-400">
-                        <div className="text-5xl mb-3">💼</div>
+                        <div className="text-5xl mb-3"><Briefcase size={16} /></div>
                         <p className="font-medium">Ish haqi hisoblari yo'q</p>
                         <p className="text-sm mt-1">«Hisoblash» tugmasini bosing</p>
                       </td>
@@ -134,7 +135,7 @@ export default function SalaryTab({ month }: Props) {
                               disabled={approveMut.isPending}
                               className="px-2.5 py-1.5 text-xs bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 transition-colors disabled:opacity-60"
                             >
-                              ✓ Tasdiqlash
+                              Tasdiqlash
                             </button>
                           )}
                           {r.status === 'approved' && (
@@ -143,7 +144,7 @@ export default function SalaryTab({ month }: Props) {
                               disabled={paidMut.isPending}
                               className="px-2.5 py-1.5 text-xs bg-emerald-50 text-emerald-700 rounded-lg hover:bg-emerald-100 transition-colors disabled:opacity-60"
                             >
-                              💸 To'landi
+                              To'landi
                             </button>
                           )}
                         </div>

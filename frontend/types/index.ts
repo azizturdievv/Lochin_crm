@@ -47,6 +47,13 @@ export interface RefreshResponse {
   accessToken: string;
 }
 
+export interface TwoFaSetupResponse {
+  secret:        string;
+  otpAuthUrl:    string;
+  qrCodeDataUrl: string;
+  message:       string;
+}
+
 // ─── DASHBOARD — ADMIN / MANAGER ─────────────────────────────────────────────
 export interface AdminDashboard {
   role: 'admin';

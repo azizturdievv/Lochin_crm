@@ -74,7 +74,9 @@ export class PermitService {
       school:        dto.school ?? null,
       grade:         dto.grade ?? null,
       age:           dto.age ?? null,
-      paymentStatus: event.entryFee === 0n
+      // entryFee bigint ustuni pg drayveridan string sifatida qaytishi mumkin
+      // — 0n bilan qattiq solishtirish shu holatda doim false bo'lardi
+      paymentStatus: Number(event.entryFee) === 0
         ? ParticipantPaymentStatus.FREE
         : (dto.paymentStatus ?? ParticipantPaymentStatus.PENDING),
       permitCode,
@@ -173,7 +175,7 @@ export class PermitService {
     }
     if (query.search) {
       qb.andWhere(
-        '(s.first_name ILIKE :q OR s.last_name ILIKE :q OR p.phone ILIKE :q)',
+        '(s.firstName ILIKE :q OR s.last_name ILIKE :q OR p.phone ILIKE :q)',
         { q: `%${query.search}%` },
       );
     }

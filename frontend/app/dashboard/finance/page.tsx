@@ -1,9 +1,12 @@
 'use client';
 
+import { BarChart3, Briefcase, ClipboardList, Lock, Send, Trophy, Upload } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { useAuthStore } from '@/store/auth.store';
+import { toast } from '@/store/toast.store';
 import KpiGrid from '@/components/finance/KpiGrid';
 import PnlTable from '@/components/finance/PnlTable';
 import SalaryTab from '@/components/finance/SalaryTab';
@@ -13,12 +16,12 @@ import type { KpiData } from '@/types/finance';
 
 type ActiveTab = 'dashboard' | 'pnl' | 'salary' | 'expenses' | 'bonus';
 
-const TABS: { id: ActiveTab; label: string; icon: string }[] = [
-  { id: 'dashboard', label: 'Dashboard',  icon: '📊' },
-  { id: 'pnl',       label: 'P&L',        icon: '📋' },
-  { id: 'salary',    label: 'Ish haqi',   icon: '💼' },
-  { id: 'expenses',  label: 'Xarajatlar', icon: '📤' },
-  { id: 'bonus',     label: 'Mukofot',    icon: '🏆' },
+const TABS: { id: ActiveTab; label: string; icon: LucideIcon }[] = [
+  { id: 'dashboard', label: 'Dashboard',  icon: BarChart3 },
+  { id: 'pnl',       label: 'P&L',        icon: ClipboardList },
+  { id: 'salary',    label: 'Ish haqi',   icon: Briefcase },
+  { id: 'expenses',  label: 'Xarajatlar', icon: Upload },
+  { id: 'bonus',     label: 'Mukofot',    icon: Trophy },
 ];
 
 function prevMonth(m: string): string {
@@ -54,7 +57,7 @@ export default function FinancePage() {
   if (role !== 'super_admin') {
     return (
       <div className="flex flex-col items-center justify-center h-64 text-gray-400">
-        <div className="text-5xl mb-3">🔒</div>
+        <div className="text-5xl mb-3"><Lock size={16} /></div>
         <p className="font-medium text-gray-600">Bu sahifa faqat Super Admin uchun</p>
         <p className="text-sm mt-1">Sizga bu bo'limga kirish ruxsati yo'q</p>
       </div>
@@ -87,8 +90,9 @@ export default function FinancePage() {
     try {
       await api.post('/finance/export/telegram', { month, chatId: telegramChat.trim() });
       setShowTgModal(false);
+      toast.success('Hisobot Telegram\'ga yuborildi');
     } catch {
-      alert('Telegram yuborishda xatolik');
+      toast.error('Telegram yuborishda xatolik', handleTelegram);
     }
   }
 
@@ -98,7 +102,7 @@ export default function FinancePage() {
       {/* ── SARLAVHA ─────────────────────────────────────────────────── */}
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h2 className="text-xl font-bold text-gray-900">💰 Moliya</h2>
+          <h2 className="text-xl font-bold text-gray-900">Moliya</h2>
           <p className="text-gray-400 text-sm mt-0.5">Faqat Super Admin ko'radi</p>
         </div>
 
@@ -108,25 +112,25 @@ export default function FinancePage() {
             type="month"
             value={month}
             onChange={e => setMonth(e.target.value)}
-            className="px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            className="px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500"
           />
 
           {/* Export tugmalari */}
           <button onClick={() => handleExport('pnl-excel')} disabled={exportBusy}
             className="flex items-center gap-1.5 px-3 py-2 text-sm border border-gray-200 rounded-xl text-gray-600 hover:bg-gray-50 disabled:opacity-50 transition">
-            📊 Excel
+            Excel
           </button>
           <button onClick={() => handleExport('salary-excel')} disabled={exportBusy}
             className="flex items-center gap-1.5 px-3 py-2 text-sm border border-gray-200 rounded-xl text-gray-600 hover:bg-gray-50 disabled:opacity-50 transition">
-            💼 Maosh Excel
+            Maosh Excel
           </button>
           <button onClick={() => handleExport('pdf')} disabled={exportBusy}
             className="flex items-center gap-1.5 px-3 py-2 text-sm border border-gray-200 rounded-xl text-gray-600 hover:bg-gray-50 disabled:opacity-50 transition">
-            📄 PDF
+            PDF
           </button>
           <button onClick={() => setShowTgModal(true)}
             className="flex items-center gap-1.5 px-3 py-2 text-sm bg-blue-500 text-white rounded-xl hover:bg-blue-600 transition">
-            ✈️ Telegram
+            <Send size={14} /> Telegram
           </button>
         </div>
       </div>
@@ -143,7 +147,7 @@ export default function FinancePage() {
                 ? 'border-emerald-600 text-emerald-700'
                 : 'border-transparent text-gray-500 hover:text-gray-700'
             }`}>
-            <span>{t.icon}</span>
+            <span><t.icon size={14} className="shrink-0" /></span>
             <span>{t.label}</span>
           </button>
         ))}
@@ -162,7 +166,7 @@ export default function FinancePage() {
       {showTgModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
           <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-sm w-full">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">✈️ Telegramga yuborish</h3>
+            <h3 className="text-lg font-semibold text-gray-900 mb-4"><Send size={14} /> Telegramga yuborish</h3>
             <div className="mb-4">
               <label className="block text-xs font-medium text-gray-600 mb-1">Telegram Chat ID</label>
               <input
@@ -212,19 +216,19 @@ function DashboardTab({ kpi, loading, month, year }: {
         ) : kpi ? (
           <div className="space-y-4">
             <ProgressRow
-              label="💰 Daromad"
+              label="Daromad"
               value={kpi.totalIncome}
               max={kpi.totalIncome}
               color="bg-emerald-500"
             />
             <ProgressRow
-              label="📤 Xarajat"
+              label="Xarajat"
               value={kpi.totalExpenses}
               max={kpi.totalIncome}
               color="bg-red-400"
             />
             <ProgressRow
-              label="📈 Sof foyda"
+              label="Sof foyda"
               value={Math.max(0, kpi.netProfit)}
               max={kpi.totalIncome}
               color="bg-blue-500"

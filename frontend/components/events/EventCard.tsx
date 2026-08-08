@@ -1,5 +1,6 @@
 'use client';
 
+import { Calendar, MapPin } from 'lucide-react';
 import { EVENT_TYPE_META, EVENT_STATUS_META, daysUntil } from '@/types/events';
 import type { CrmEvent } from '@/types/events';
 
@@ -31,10 +32,15 @@ export default function EventCard({ event, onView, onRegister, onManage, canMana
         {/* Sarlavha */}
         <div className="flex items-start justify-between gap-3 mb-3">
           <div className="flex items-center gap-2 min-w-0">
-            <span className="text-2xl shrink-0">{typeMeta.icon}</span>
+            <typeMeta.icon size={22} className="shrink-0" />
             <div className="min-w-0">
               <h3 className="font-semibold text-gray-900 text-sm truncate">{event.title}</h3>
-              <span className={`text-[10px] font-medium ${typeMeta.color}`}>{typeMeta.label}</span>
+              <div className="flex items-center gap-1.5">
+                <span className={`text-[10px] font-medium ${typeMeta.color}`}>{typeMeta.label}</span>
+                {event.isOnline && (
+                  <span className="text-[10px] font-medium text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded-full">Onlayn</span>
+                )}
+              </div>
             </div>
           </div>
           <span className={`shrink-0 text-[10px] font-medium px-2 py-0.5 rounded-full ${statusMeta.bg} ${statusMeta.color}`}>
@@ -45,7 +51,7 @@ export default function EventCard({ event, onView, onRegister, onManage, canMana
         {/* Ma'lumot */}
         <div className="space-y-1.5 mb-3">
           <div className="flex items-center gap-1.5 text-xs text-gray-500">
-            <span>📅</span>
+            <span><Calendar size={16} /></span>
             <span>
               {new Date(event.eventDate).toLocaleDateString('uz-UZ', {
                 day: '2-digit', month: 'long', year: 'numeric',
@@ -60,14 +66,14 @@ export default function EventCard({ event, onView, onRegister, onManage, canMana
           </div>
           {event.location && (
             <div className="flex items-center gap-1.5 text-xs text-gray-500">
-              <span>📍</span>
+              <span><MapPin size={16} /></span>
               <span className="truncate">{event.location}</span>
             </div>
           )}
           <div className="flex items-center gap-3 text-xs text-gray-500">
-            <span>👥 {event.participantsCount}{event.maxParticipants ? `/${event.maxParticipants}` : ''} ishtirokchi</span>
+            <span>{event.participantsCount}{event.maxParticipants ? `/${event.maxParticipants}` : ''} ishtirokchi</span>
             {event.hasFee && event.feeAmount && (
-              <span>💳 {event.feeAmount.toLocaleString()} so'm</span>
+              <span>{event.feeAmount.toLocaleString()} so'm</span>
             )}
           </div>
         </div>
@@ -79,15 +85,15 @@ export default function EventCard({ event, onView, onRegister, onManage, canMana
               onClick={() => onManage(event)}
               className="flex-1 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1.5 rounded-xl font-medium transition-colors"
             >
-              ⚙️ Boshqarish
+              Boshqarish
             </button>
           ) : (
             isReg ? (
               <div className="flex-1 flex items-center justify-center gap-1.5 text-xs bg-emerald-50 text-emerald-700 px-3 py-1.5 rounded-xl font-medium">
-                ✅ Ro'yxatdan o'tildi
-                {event.myParticipation?.permissionQrUrl && (
+                Ro'yxatdan o'tildi
+                {event.myParticipation?.permitQr && (
                   <a
-                    href={event.myParticipation.permissionQrUrl}
+                    href={event.myParticipation.permitQr}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="underline"
@@ -101,9 +107,9 @@ export default function EventCard({ event, onView, onRegister, onManage, canMana
               <button
                 onClick={() => onRegister(event)}
                 disabled={isFull || event.status !== 'upcoming'}
-                className="flex-1 text-xs bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-xl font-medium transition-colors disabled:opacity-50"
+                className="flex-1 text-xs bg-primary-600 hover:bg-primary-700 text-white px-3 py-1.5 rounded-xl font-medium transition-colors disabled:opacity-50"
               >
-                {isFull ? '🔴 To\'ldi' : '+ Ro\'yxatdan o\'tish'}
+                {isFull ? 'To\'ldi' : '+ Ro\'yxatdan o\'tish'}
               </button>
             )
           )}

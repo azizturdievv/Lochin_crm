@@ -1,5 +1,6 @@
 'use client';
 
+import { MessageSquare, ChevronLeft } from 'lucide-react';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
@@ -8,7 +9,7 @@ import { useChatSocket } from '@/hooks/useChatSocket';
 import RoomList from '@/components/chat/RoomList';
 import MessageBubble from '@/components/chat/MessageBubble';
 import MessageInput from '@/components/chat/MessageInput';
-import { isReadOnly, ROOM_META } from '@/types/chat';
+import { isReadOnly, ROOM_META, getRoomDisplayName, getOtherMember } from '@/types/chat';
 import type { ChatRoom, ChatMessage } from '@/types/chat';
 
 const PAGE_SIZE = 50;
@@ -125,11 +126,11 @@ export default function ChatPage() {
         break;
 
       case 'message_blocked':
-        showToast(`🚫 ${lastEvent.text}`);
+        showToast(`${lastEvent.text}`);
         break;
 
       case 'message_warning':
-        showToast(`⚠️ ${lastEvent.text}`);
+        showToast(lastEvent.text);
         break;
     }
   }, [lastEvent]);
@@ -155,16 +156,36 @@ export default function ChatPage() {
   const roomTyping = typingUsers.filter(u => u.roomId === activeRoom?.id && u.userId !== user?.id);
   const readOnly   = activeRoom ? isReadOnly(activeRoom.type, user?.role ?? 'student') : false;
   const roomMeta   = activeRoom ? ROOM_META[activeRoom.type] : null;
+  const roomOther  = activeRoom ? getOtherMember(activeRoom, user?.id) : undefined;
 
   function shouldShowName(index: number): boolean {
     if (index === 0) return true;
     return messages[index].senderId !== messages[index - 1].senderId;
   }
 
+  function isSameLocalDay(a: Date, b: Date): boolean {
+    return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+  }
+
+  function shouldShowDateSeparator(index: number): boolean {
+    if (index === 0) return true;
+    return !isSameLocalDay(new Date(messages[index].createdAt), new Date(messages[index - 1].createdAt));
+  }
+
+  function formatDateSeparator(iso: string): string {
+    const d = new Date(iso);
+    const now = new Date();
+    const yesterday = new Date(now);
+    yesterday.setDate(now.getDate() - 1);
+    if (isSameLocalDay(d, now)) return 'Bugun';
+    if (isSameLocalDay(d, yesterday)) return 'Kecha';
+    return d.toLocaleDateString('uz-UZ', { day: 'numeric', month: 'long', year: 'numeric' });
+  }
+
   return (
     <div className="flex h-[calc(100vh-4rem)] bg-gray-50">
       {/* ─── Xonalar ro'yxati ─── */}
-      <div className="w-72 shrink-0">
+      <div className={`shrink-0 ${activeRoom ? 'hidden md:block md:w-72' : 'w-full md:w-72'}`}>
         <RoomList
           activeRoomId={activeRoom?.id ?? null}
           onSelect={handleRoomSelect}
@@ -173,19 +194,29 @@ export default function ChatPage() {
       </div>
 
       {/* ─── Asosiy chat maydoni ─── */}
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className={`flex-col min-w-0 ${activeRoom ? 'flex w-full md:flex-1' : 'hidden md:flex md:flex-1'}`}>
         {activeRoom && roomMeta ? (
           <>
             {/* Sarlavha */}
-            <div className="flex items-center justify-between px-6 py-4 bg-white border-b border-gray-100 shrink-0">
-              <div className="flex items-center gap-3 min-w-0">
-                <div className="w-10 h-10 rounded-2xl bg-gray-100 flex items-center justify-center text-xl shrink-0">
-                  {roomMeta.icon}
+            <div className="flex items-center justify-between px-4 md:px-6 py-4 bg-white border-b border-gray-100 shrink-0">
+              <div className="flex items-center gap-2 md:gap-3 min-w-0">
+                <button
+                  onClick={() => setActiveRoom(null)}
+                  className="md:hidden shrink-0 -ml-1 text-gray-400 hover:text-gray-600 w-8 h-8 flex items-center justify-center rounded-xl hover:bg-gray-100"
+                >
+                  <ChevronLeft size={22} />
+                </button>
+                <div className="w-10 h-10 rounded-2xl bg-gray-100 flex items-center justify-center text-xl shrink-0 overflow-hidden">
+                  {roomOther?.avatarUrl ? (
+                    <img src={roomOther.avatarUrl} alt="" className="w-full h-full object-cover" />
+                  ) : (
+                    <roomMeta.icon size={14} className="shrink-0" />
+                  )}
                 </div>
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
                     <h2 className="font-semibold text-gray-900 truncate">
-                      {activeRoom.name ?? activeRoom.group?.name ?? 'Chat'}
+                      {getRoomDisplayName(activeRoom, user?.id)}
                     </h2>
                     <span className={`text-xs font-medium ${roomMeta.color}`}>
                       {roomMeta.label}
@@ -204,10 +235,14 @@ export default function ChatPage() {
                     {activeRoom.members.slice(0, 4).map(m => (
                       <div
                         key={m.id}
-                        className="w-7 h-7 rounded-full bg-emerald-100 border-2 border-white flex items-center justify-center text-[9px] font-bold text-emerald-700"
+                        className="w-7 h-7 rounded-full bg-emerald-100 border-2 border-white flex items-center justify-center text-[9px] font-bold text-emerald-700 overflow-hidden"
                         title={`${m.firstName} ${m.lastName}`}
                       >
-                        {m.firstName[0]}{m.lastName[0]}
+                        {m.avatarUrl ? (
+                          <img src={m.avatarUrl} alt="" className="w-full h-full object-cover" />
+                        ) : (
+                          <>{m.firstName[0]}{m.lastName[0]}</>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -224,9 +259,9 @@ export default function ChatPage() {
                   <button
                     onClick={handleLoadMore}
                     disabled={loadingMore}
-                    className="text-xs text-emerald-600 hover:text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-4 py-1.5 rounded-full transition-colors disabled:opacity-50"
+                    className="text-xs text-primary-600 hover:text-primary-700 bg-emerald-50 hover:bg-emerald-100 px-4 py-1.5 rounded-full transition-colors disabled:opacity-50"
                   >
-                    {loadingMore ? 'Yuklanmoqda...' : '⬆ Oldingi xabarlar'}
+                    {loadingMore ? 'Yuklanmoqda...' : 'Oldingi xabarlar'}
                   </button>
                 </div>
               )}
@@ -239,21 +274,29 @@ export default function ChatPage() {
                 </div>
               ) : messages.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full text-gray-400 gap-3">
-                  <div className="text-5xl">{roomMeta.icon}</div>
+                  <div className="text-5xl"><roomMeta.icon size={14} className="shrink-0" /></div>
                   <p className="text-sm font-medium text-gray-500">
-                    {activeRoom.name ?? activeRoom.group?.name ?? 'Chat'}
+                    {getRoomDisplayName(activeRoom, user?.id)}
                   </p>
                   <p className="text-xs text-gray-400">Hali xabarlar yo'q. Birinchi bo'lib yozing!</p>
                 </div>
               ) : (
                 messages.map((msg, i) => (
-                  <MessageBubble
-                    key={msg.id}
-                    message={msg}
-                    isOwn={msg.senderId === user?.id}
-                    onDelete={handleDelete}
-                    showName={shouldShowName(i)}
-                  />
+                  <div key={msg.id}>
+                    {shouldShowDateSeparator(i) && (
+                      <div className="flex items-center justify-center my-3">
+                        <span className="text-xs text-gray-400 bg-gray-100 px-3 py-1 rounded-full">
+                          {formatDateSeparator(msg.createdAt)}
+                        </span>
+                      </div>
+                    )}
+                    <MessageBubble
+                      message={msg}
+                      isOwn={msg.senderId === user?.id}
+                      onDelete={handleDelete}
+                      showName={shouldShowName(i)}
+                    />
+                  </div>
                 ))
               )}
 
@@ -291,9 +334,7 @@ export default function ChatPage() {
           </>
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center text-gray-400 gap-4">
-            <div className="w-20 h-20 rounded-3xl bg-gray-100 flex items-center justify-center text-4xl">
-              💬
-            </div>
+            <div className="w-20 h-20 rounded-3xl bg-gray-100 flex items-center justify-center text-4xl"><MessageSquare size={36} /></div>
             <div className="text-center">
               <p className="text-base font-medium text-gray-500">Xona tanlang</p>
               <p className="text-sm text-gray-400 mt-1">Chap paneldan xona tanlang va suhbatni boshlang</p>

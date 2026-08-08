@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useCallback, useRef } from 'react';
+import { School, X } from 'lucide-react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { useAuthStore } from '@/store/auth.store';
@@ -8,6 +9,7 @@ import LessonCard from '@/components/schedule/LessonCard';
 import CreateLessonModal from '@/components/schedule/CreateLessonModal';
 import SubstituteModal from '@/components/schedule/SubstituteModal';
 import AnalysisPanel from '@/components/schedule/AnalysisPanel';
+import MonthlyAnalysisPanel from '@/components/schedule/MonthlyAnalysisPanel';
 import { DAYS_UZ } from '@/types/schedule';
 import type { WeekScheduleResponse, ScheduleLesson, ConflictResult } from '@/types/schedule';
 
@@ -32,18 +34,26 @@ function formatWeekRange(start: string, end: string): string {
 }
 
 // ─── HAFTA HISOBLASH ──────────────────────────────────────────────────────────
+// Mahalliy sana qatorini (YYYY-MM-DD) hisoblaydi — toISOString() UTC'ga
+// o'giradi va UTC+5 kabi mintaqalarda sanani bir kun orqaga surib yuboradi.
+function toLocalDateStr(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
 function getMondayOf(date: Date): string {
   const d   = new Date(date);
   const day = d.getDay();
   d.setDate(d.getDate() - (day === 0 ? 6 : day - 1));
-  d.setHours(0, 0, 0, 0);
-  return d.toISOString().slice(0, 10);
+  return toLocalDateStr(d);
 }
 
 function addDays(dateStr: string, n: number): string {
-  const d = new Date(dateStr);
-  d.setDate(d.getDate() + n);
-  return d.toISOString().slice(0, 10);
+  const [y, m, day] = dateStr.split('-').map(Number);
+  const d = new Date(y, m - 1, day + n);
+  return toLocalDateStr(d);
 }
 
 // ─── API TURLARI ──────────────────────────────────────────────────────────────
@@ -61,10 +71,19 @@ export default function SchedulePage() {
   const role = user?.role ?? 'manager';
 
   const [weekStart,  setWeekStart]  = useState(() => getMondayOf(new Date()));
+  const [selectedDay, setSelectedDay] = useState(() => toLocalDateStr(new Date()));
   const [filterRoom, setFilterRoom] = useState('');
   const [filterTeacher, setFilterTeacher] = useState('');
   const [filterSubject, setFilterSubject] = useState('');
   const [showAnalysis,  setShowAnalysis]  = useState(false);
+
+  // Hafta almashganda mobil kunlik ro'yxat tanlovini yangilash — bugun shu
+  // hafta ichida bo'lsa bugunni, aks holda hafta boshini tanlaydi
+  useEffect(() => {
+    const days = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
+    const todayStr = toLocalDateStr(new Date());
+    setSelectedDay(days.includes(todayStr) ? todayStr : weekStart);
+  }, [weekStart]);
 
   // Modallar
   const [createModal, setCreateModal] = useState<{
@@ -145,6 +164,7 @@ export default function SchedulePage() {
         roomNumber:      room,
         teacherId:       lesson.teacher.id,
         excludeLessonId: lesson.id,
+        groupId:         lesson.group.id,
       });
       setConflictDrop(res.data.hasConflict);
     } catch {
@@ -166,7 +186,7 @@ export default function SchedulePage() {
 
   // ─── HAFTA KUNLARI ──────────────────────────────────────────────────────────
   const weekDays = data?.weekDays ?? Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
-  const today    = new Date().toISOString().slice(0, 10);
+  const today    = toLocalDateStr(new Date());
 
   return (
     <div className="flex gap-5 h-[calc(100vh-5rem)] overflow-hidden">
@@ -197,7 +217,7 @@ export default function SchedulePage() {
           <div className="flex items-center gap-2 flex-wrap">
             {/* Xona filtri */}
             <select value={filterRoom} onChange={e => setFilterRoom(e.target.value)}
-              className="px-3 py-1.5 text-xs border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white">
+              className="px-3 py-1.5 text-xs border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white">
               <option value="">Barcha xona</option>
               {(rooms ?? []).map(r => (
                 <option key={r.number} value={r.number}>{r.name}</option>
@@ -205,23 +225,23 @@ export default function SchedulePage() {
             </select>
 
             <button onClick={() => setShowAnalysis(s => !s)}
-              className={`px-3 py-1.5 text-xs border rounded-xl transition-colors ${
-                showAnalysis ? 'bg-emerald-600 text-white border-emerald-600' : 'border-gray-200 text-gray-600 hover:bg-gray-50'
+              className={`hidden md:inline-flex px-3 py-1.5 text-xs border rounded-xl transition-colors ${
+                showAnalysis ? 'bg-primary-600 text-white border-primary-600' : 'border-gray-200 text-gray-600 hover:bg-gray-50'
               }`}>
-              📊 Tahlil
+              Tahlil
             </button>
 
             {canEdit && (
               <button onClick={() => setCreateModal({ open: true })}
-                className="px-3 py-1.5 text-xs bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-colors">
+                className="px-3 py-1.5 text-xs bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition-colors">
                 + Dars
               </button>
             )}
           </div>
         </div>
 
-        {/* Grid */}
-        <div className="flex-1 overflow-auto rounded-2xl border border-gray-100 shadow-sm bg-white">
+        {/* Grid (desktop — hafta × xona) */}
+        <div className="hidden md:block flex-1 overflow-auto rounded-2xl border border-gray-100 shadow-sm bg-white">
           <div className="min-w-[900px]">
             {/* Header: Para + kunlar */}
             <div className="grid sticky top-0 z-10 bg-white border-b border-gray-100"
@@ -229,7 +249,7 @@ export default function SchedulePage() {
               <div className="px-2 py-3 text-xs font-medium text-gray-400 uppercase tracking-wide">Para</div>
               <div className="px-2 py-3 text-xs font-medium text-gray-400 uppercase tracking-wide">Xona</div>
               {weekDays.map((day, i) => (
-                <div key={day} className={`px-3 py-3 text-center ${day === today ? 'bg-emerald-50' : ''}`}>
+                <div key={day} className={`px-3 py-3 text-center ${day === today ? 'bg-primary-50' : ''}`}>
                   <p className={`text-xs font-semibold ${day === today ? 'text-emerald-700' : 'text-gray-600'}`}>
                     {DAYS_UZ[i]}
                   </p>
@@ -264,7 +284,7 @@ export default function SchedulePage() {
                 )
               : !rooms?.length ? (
                   <div className="flex flex-col items-center justify-center py-16 text-gray-400">
-                    <div className="text-4xl mb-3">🏫</div>
+                    <div className="text-4xl mb-3"><School size={36} /></div>
                     <p className="text-sm font-medium text-gray-500">Xonalar sozlanmagan</p>
                     <p className="text-xs text-gray-400 mt-1">
                       Sozlamalar → Xonalar bo'limidan qo'shing
@@ -312,8 +332,8 @@ export default function SchedulePage() {
                             <div
                               key={`${day}-${room.number}-${slot.startTime}`}
                               className={`min-h-[64px] p-1.5 border-l border-gray-50 transition-colors
-                                ${isToday ? 'bg-emerald-50/30' : ''}
-                                ${isTarget && !conflictDrop ? 'bg-emerald-100 ring-2 ring-emerald-400 ring-inset' : ''}
+                                ${isToday ? 'bg-primary-50/30' : ''}
+                                ${isTarget && !conflictDrop ? 'bg-primary-100 ring-2 ring-primary-400 ring-inset' : ''}
                                 ${isTarget && conflictDrop  ? 'bg-red-100 ring-2 ring-red-400 ring-inset' : ''}
                               `}
                               onDragOver={e => handleDragOver(e, day, room.number)}
@@ -358,23 +378,112 @@ export default function SchedulePage() {
           </div>
         </div>
 
+        {/* Mobil — kunlik ro'yxat (agenda) */}
+        <div className="md:hidden flex-1 flex flex-col overflow-hidden">
+          {/* Kun tanlagich */}
+          <div className="flex gap-1.5 overflow-x-auto pb-3 shrink-0">
+            {weekDays.map((day, i) => {
+              const isSelected = day === selectedDay;
+              const isToday    = day === today;
+              return (
+                <button
+                  key={day}
+                  onClick={() => setSelectedDay(day)}
+                  className={`flex flex-col items-center justify-center shrink-0 w-12 h-14 rounded-2xl border transition-colors ${
+                    isSelected
+                      ? 'bg-primary-600 border-primary-600 text-white'
+                      : isToday
+                      ? 'border-primary-300 text-primary-700'
+                      : 'border-gray-200 text-gray-500'
+                  }`}
+                >
+                  <span className="text-[10px] font-medium">{DAYS_UZ[i]?.slice(0, 3)}</span>
+                  <span className="text-sm font-bold">{Number(day.slice(8, 10))}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Tanlangan kun darslari */}
+          <div className="flex-1 overflow-y-auto space-y-4 pb-4">
+            {isLoading ? (
+              Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="h-16 bg-gray-100 rounded-xl animate-pulse" />
+              ))
+            ) : !timeSlots?.length ? (
+              <div className="flex flex-col items-center justify-center py-16 text-gray-400">
+                <div className="text-4xl mb-3">⏰</div>
+                <p className="text-sm font-medium text-gray-500">Paralar sozlanmagan</p>
+              </div>
+            ) : (
+              (timeSlots ?? []).map(slot => {
+                const lessonsInSlot = (rooms ?? []).flatMap(room =>
+                  (data?.grid[selectedDay]?.[room.number] ?? []).filter(l => l.startTime === slot.startTime),
+                );
+                return (
+                  <div key={slot.startTime}>
+                    <p className="text-xs font-bold text-gray-400 uppercase mb-1.5">
+                      {slot.name} · {slot.startTime.slice(0, 5)}–{slot.endTime.slice(0, 5)}
+                    </p>
+                    {lessonsInSlot.length > 0 ? (
+                      <div className="space-y-2">
+                        {lessonsInSlot.map(lesson => (
+                          <LessonCard
+                            key={lesson.id}
+                            lesson={lesson}
+                            dragging={false}
+                            onDragStart={() => {}}
+                            onDragEnd={() => {}}
+                            onClick={() => canEdit && setCreateModal({ open: true, lesson })}
+                            onTeacherClick={setSubModal}
+                            compact={false}
+                          />
+                        ))}
+                      </div>
+                    ) : canEdit ? (
+                      <button
+                        onClick={() => setCreateModal({
+                          open: true, day: selectedDay,
+                          slot: { start: slot.startTime, end: slot.endTime },
+                        })}
+                        className="w-full py-3 rounded-xl border-2 border-dashed border-gray-200 text-gray-300 text-xs hover:border-emerald-400 hover:text-emerald-600 transition-colors"
+                      >
+                        + Dars qo'shish
+                      </button>
+                    ) : (
+                      <div className="py-3 text-center text-xs text-gray-300">Dars yo'q</div>
+                    )}
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+
         {/* Izoh */}
         {dragId && (
-          <div className="mt-2 text-xs text-center text-gray-400">
-            🟢 Yashil = bo'sh  •  🔴 Qizil = band  •  Tashlash uchun maqsad xonaga sudrang
+          <div className="mt-2 text-xs text-center text-gray-400 hidden md:block">
+            Yashil = bo'sh  •  Qizil = band  •  Tashlash uchun maqsad xonaga sudrang
           </div>
         )}
       </div>
 
       {/* ── TAHLIL PANELI ────────────────────────────────────────────── */}
       {showAnalysis && data && (
-        <aside className="w-64 shrink-0 overflow-y-auto space-y-4">
+        <aside className="w-72 shrink-0 overflow-y-auto space-y-4">
           <div className="flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-gray-700">📊 Hafta tahlili</h3>
+            <h3 className="text-sm font-semibold text-gray-700">Hafta tahlili</h3>
             <button onClick={() => setShowAnalysis(false)}
-              className="text-gray-400 hover:text-gray-600 text-sm">✕</button>
+              className="text-gray-400 hover:text-gray-600 text-sm"><X size={16} /></button>
           </div>
           <AnalysisPanel summary={data.summary} />
+
+          {/* Oylik daromad / o'qituvchi / guruh tahlili — moliyaviy ma'lumot, faqat SA/manager */}
+          {canEdit && (
+            <div className="pt-2 border-t border-gray-100">
+              <MonthlyAnalysisPanel />
+            </div>
+          )}
 
           {/* Legenda */}
           <div className="bg-white rounded-xl border border-gray-100 p-3 space-y-1.5">

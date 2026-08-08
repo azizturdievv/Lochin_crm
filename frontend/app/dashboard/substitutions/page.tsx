@@ -1,5 +1,7 @@
 'use client';
 
+import { ArrowRight, BookOpen, ClipboardList, Plus, RefreshCw, Thermometer, Trash2, User, Users, X } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
@@ -48,12 +50,12 @@ interface CreateSubDto {
 }
 
 // ─── Meta ─────────────────────────────────────────────────────────────────────
-const REASON_META: Record<AbsenceReason, { label: string; icon: string; color: string }> = {
-  sick:     { label: 'Kasal',        icon: '🤒', color: 'text-red-600'    },
-  personal: { label: 'Shaxsiy',      icon: '👤', color: 'text-blue-600'   },
-  family:   { label: 'Oilaviy',      icon: '👪', color: 'text-amber-600'  },
-  training: { label: "O'qitish",     icon: '📚', color: 'text-purple-600' },
-  other:    { label: 'Boshqa',       icon: '📋', color: 'text-gray-600'   },
+const REASON_META: Record<AbsenceReason, { label: string; icon: LucideIcon; color: string }> = {
+  sick:     { label: 'Kasal',        icon: Thermometer, color: 'text-red-600'    },
+  personal: { label: 'Shaxsiy',      icon: User, color: 'text-blue-600'   },
+  family:   { label: 'Oilaviy',      icon: Users, color: 'text-amber-600'  },
+  training: { label: "O'qitish",     icon: BookOpen, color: 'text-purple-600' },
+  other:    { label: 'Boshqa',       icon: ClipboardList, color: 'text-gray-600'   },
 };
 
 function fmtDate(iso: string) {
@@ -103,7 +105,7 @@ export default function SubstitutionsPage() {
       <div className="px-6 pt-6 pb-4 bg-white border-b border-gray-100 shrink-0 space-y-4">
         <div className="flex items-center justify-between gap-4 flex-wrap">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-indigo-500 flex items-center justify-center text-white text-xl shrink-0">🔄</div>
+            <div className="w-10 h-10 rounded-2xl bg-indigo-500 flex items-center justify-center text-white text-xl shrink-0"><RefreshCw size={16} /></div>
             <div>
               <h1 className="text-lg font-bold text-gray-900">O'rinbosarlik</h1>
               <p className="text-xs text-gray-400">{subs.length} ta yozuv</p>
@@ -112,9 +114,9 @@ export default function SubstitutionsPage() {
           {(isSA || user?.role === 'manager') && (
             <button
               onClick={() => setCreateOpen(true)}
-              className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium px-4 py-2.5 rounded-xl transition-colors"
+              className="flex items-center gap-2 bg-primary-600 hover:bg-primary-700 text-white text-sm font-medium px-4 py-2.5 rounded-xl transition-colors"
             >
-              ➕ O'rinbosar tayinlash
+              <Plus size={16} /> O'rinbosar tayinlash
             </button>
           )}
         </div>
@@ -144,17 +146,17 @@ export default function SubstitutionsPage() {
           <div className="flex items-center gap-2">
             <span className="text-xs text-gray-500">Dan:</span>
             <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
-              className="px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+              className="px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500" />
           </div>
           <div className="flex items-center gap-2">
             <span className="text-xs text-gray-500">Gacha:</span>
             <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
-              className="px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+              className="px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500" />
           </div>
           {(dateFrom || dateTo) && (
             <button onClick={() => { setDateFrom(''); setDateTo(''); }}
               className="text-xs text-gray-500 hover:text-gray-700 px-3 py-2 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors">
-              ✕ Tozalash
+              Tozalash
             </button>
           )}
         </div>
@@ -170,14 +172,14 @@ export default function SubstitutionsPage() {
           </div>
         ) : subs.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-64 text-gray-400 gap-3">
-            <div className="text-5xl">🔄</div>
+            <div className="text-5xl"><RefreshCw size={16} /></div>
             <p className="text-sm font-medium text-gray-500">O'rinbosarlik yozuvlari topilmadi</p>
             {(isSA || user?.role === 'manager') && (
               <button
                 onClick={() => setCreateOpen(true)}
                 className="text-sm text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-4 py-2 rounded-xl transition-colors"
               >
-                ➕ Birinchi yozuv qo'shish
+                <Plus size={16} /> Birinchi yozuv qo'shish
               </button>
             )}
           </div>
@@ -214,7 +216,7 @@ export default function SubstitutionsPage() {
                               : '—'}
                           </span>
                         </div>
-                        <span className="text-gray-300">→</span>
+                        <ArrowRight size={14} className="text-gray-300" />
                         <div className="flex items-center gap-1.5">
                           <span className="text-gray-400">O'rinbosar:</span>
                           <span className="font-medium text-emerald-700">
@@ -228,7 +230,7 @@ export default function SubstitutionsPage() {
                       {/* Meta */}
                       <div className="flex items-center gap-3 flex-wrap">
                         <span className={`text-[11px] font-medium ${rm.color}`}>
-                          {rm.icon} {rm.label}
+                          <rm.icon size={14} className="shrink-0" /> {rm.label}
                         </span>
                         {sub.notes && (
                           <span className="text-[11px] text-gray-400 italic">"{sub.notes}"</span>
@@ -246,16 +248,14 @@ export default function SubstitutionsPage() {
                       </div>
                       <div className="flex items-center justify-end gap-2 mt-2">
                         {sub.salaryProcessed
-                          ? <span className="text-[10px] bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">✅ Hisoblandi</span>
+                          ? <span className="text-[10px] bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">Hisoblandi</span>
                           : <span className="text-[10px] bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">⏳ Kutmoqda</span>}
                         {(isSA || user?.role === 'manager') && !sub.salaryProcessed && (
                           <button
                             onClick={() => confirm("O'chirishni tasdiqlaysizmi?") && deleteMut.mutate(sub.id)}
                             disabled={deleteMut.isPending}
                             className="text-[10px] text-gray-400 hover:text-red-500 w-5 h-5 rounded flex items-center justify-center transition-colors"
-                          >
-                            🗑️
-                          </button>
+                          ><Trash2 size={16} /></button>
                         )}
                       </div>
                     </div>
@@ -323,15 +323,15 @@ function CreateSubModal({ onClose }: { onClose: () => void }) {
     mut.mutate();
   }
 
-  const INPUT = 'w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white';
+  const INPUT = 'w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white';
   const LABEL = 'text-xs font-medium text-gray-600 mb-1 block';
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
       <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-gray-100">
-          <h2 className="text-base font-bold text-gray-900">🔄 O'rinbosar tayinlash</h2>
-          <button onClick={onClose} className="w-8 h-8 rounded-xl hover:bg-gray-100 text-gray-400 flex items-center justify-center transition-colors">✕</button>
+          <h2 className="text-base font-bold text-gray-900">O'rinbosar tayinlash</h2>
+          <button onClick={onClose} className="w-8 h-8 rounded-xl hover:bg-gray-100 text-gray-400 flex items-center justify-center transition-colors"><X size={16} /></button>
         </div>
 
         <div className="px-6 py-5 space-y-4">
@@ -409,11 +409,11 @@ function CreateSubModal({ onClose }: { onClose: () => void }) {
                     onClick={() => setForm(f => ({ ...f, reason: r }))}
                     className={`flex items-center gap-1 text-xs px-3 py-1.5 rounded-xl border font-medium transition-colors ${
                       form.reason === r
-                        ? 'bg-emerald-600 text-white border-emerald-600'
+                        ? 'bg-primary-600 text-white border-emerald-600'
                         : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
                     }`}
                   >
-                    {m.icon} {m.label}
+                    <m.icon size={14} className="shrink-0" /> {m.label}
                   </button>
                 );
               })}
@@ -428,7 +428,7 @@ function CreateSubModal({ onClose }: { onClose: () => void }) {
               onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
               rows={2}
               placeholder="Qo'shimcha ma'lumot..."
-              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 resize-none"
+              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 resize-none"
             />
           </div>
 
@@ -436,7 +436,7 @@ function CreateSubModal({ onClose }: { onClose: () => void }) {
 
           {/* Maosh ma'lumoti */}
           <div className="bg-blue-50 rounded-xl px-4 py-3 text-xs text-blue-700">
-            ℹ️ Tayinlangach avtomatik hisoblanadi: o'rinbosar maoshi oshiriladi, asl o'qituvchidan chegirma qilinadi.
+            ℹTayinlangach avtomatik hisoblanadi: o'rinbosar maoshi oshiriladi, asl o'qituvchidan chegirma qilinadi.
           </div>
 
           <div className="flex gap-2">
@@ -444,9 +444,9 @@ function CreateSubModal({ onClose }: { onClose: () => void }) {
             <button
               onClick={handleSubmit}
               disabled={mut.isPending}
-              className="flex-1 py-2.5 text-sm font-medium text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl disabled:opacity-50 transition-colors"
+              className="flex-1 py-2.5 text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 rounded-xl disabled:opacity-50 transition-colors"
             >
-              {mut.isPending ? 'Saqlanmoqda...' : '✅ Tayinlash'}
+              {mut.isPending ? 'Saqlanmoqda...' : 'Tayinlash'}
             </button>
           </div>
         </div>

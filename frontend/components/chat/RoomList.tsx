@@ -1,10 +1,11 @@
 'use client';
 
+import { MessageSquare, School } from 'lucide-react';
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { useAuthStore } from '@/store/auth.store';
-import { ROOM_META } from '@/types/chat';
+import { ROOM_META, getRoomDisplayName, getOtherMember } from '@/types/chat';
 import UserSearchModal from './UserSearchModal';
 import type { ChatRoom } from '@/types/chat';
 
@@ -24,9 +25,10 @@ function timeAgo(iso: string): string {
   return `${Math.floor(h / 24)}k`;
 }
 
-function RoomItem({ room, isActive, onClick }: { room: ChatRoom; isActive: boolean; onClick: () => void }) {
+function RoomItem({ room, isActive, onClick, currentUserId }: { room: ChatRoom; isActive: boolean; onClick: () => void; currentUserId?: string }) {
   const meta    = ROOM_META[room.type];
-  const name    = room.name ?? room.group?.name ?? 'Chat';
+  const name    = getRoomDisplayName(room, currentUserId);
+  const other   = getOtherMember(room, currentUserId);
   const lastMsg = room.lastMessage;
   const unread  = room.unreadCount ?? 0;
 
@@ -37,10 +39,14 @@ function RoomItem({ room, isActive, onClick }: { room: ChatRoom; isActive: boole
         isActive ? 'bg-emerald-50 border-l-2 border-l-emerald-500' : 'hover:bg-gray-50'
       }`}
     >
-      <div className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 text-xl ${
+      <div className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 text-xl overflow-hidden ${
         isActive ? 'bg-emerald-100' : 'bg-gray-100'
       }`}>
-        {meta.icon}
+        {other?.avatarUrl ? (
+          <img src={other.avatarUrl} alt="" className="w-full h-full object-cover" />
+        ) : (
+          <meta.icon size={14} className="shrink-0" />
+        )}
       </div>
 
       <div className="flex-1 min-w-0">
@@ -97,7 +103,7 @@ export default function RoomList({ activeRoomId, onSelect, connected }: Props) {
   const displayRooms = isSA && saTab === 'all' ? (allRoomsData?.items ?? []) : (rooms ?? []);
 
   const filtered = displayRooms.filter(r => {
-    const name = r.name ?? r.group?.name ?? '';
+    const name = getRoomDisplayName(r, user?.id);
     return name.toLowerCase().includes(search.toLowerCase());
   });
 
@@ -106,7 +112,7 @@ export default function RoomList({ activeRoomId, onSelect, connected }: Props) {
       {/* ── Header ── */}
       <div className="px-4 py-4 border-b border-gray-100">
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-base font-bold text-gray-900">💬 Chat</h2>
+          <h2 className="text-base font-bold text-gray-900">Chat</h2>
           <div className="flex items-center gap-2">
             {/* Online indikator */}
             <div className="flex items-center gap-1">
@@ -117,7 +123,7 @@ export default function RoomList({ activeRoomId, onSelect, connected }: Props) {
             <button
               onClick={() => setNewChat(true)}
               title="Yangi chat"
-              className="w-7 h-7 rounded-lg bg-emerald-600 text-white flex items-center justify-center hover:bg-emerald-700 transition text-sm font-bold"
+              className="w-7 h-7 rounded-lg bg-primary-600 text-white flex items-center justify-center hover:bg-primary-700 transition text-sm font-bold"
             >
               +
             </button>
@@ -148,7 +154,7 @@ export default function RoomList({ activeRoomId, onSelect, connected }: Props) {
           value={search}
           onChange={e => setSearch(e.target.value)}
           placeholder="Xonalarni qidiring..."
-          className="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+          className="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
         />
       </div>
 
@@ -168,23 +174,23 @@ export default function RoomList({ activeRoomId, onSelect, connected }: Props) {
           <div className="flex flex-col items-center justify-center h-64 text-gray-400 px-4">
             {user?.role === 'student' ? (
               <>
-                <div className="text-4xl mb-3">🏫</div>
+                <div className="text-4xl mb-3"><School size={36} /></div>
                 <p className="text-sm font-medium text-gray-600 text-center">Guruhingiz yo'q</p>
                 <p className="text-xs text-gray-400 mt-1 text-center leading-relaxed">
                   Siz hali hech qaysi guruhga qo'shilmagansiz.
                   Manager yoki Super Admin dan guruhga qo'shishni so'rang.
                 </p>
                 <button onClick={() => setNewChat(true)}
-                  className="mt-4 text-xs text-emerald-600 hover:text-emerald-700 font-medium bg-emerald-50 px-4 py-2 rounded-xl transition">
+                  className="mt-4 text-xs text-primary-600 hover:text-primary-700 font-medium bg-emerald-50 px-4 py-2 rounded-xl transition">
                   + Ustoz bilan chat boshlash
                 </button>
               </>
             ) : (
               <>
-                <div className="text-4xl mb-2">💬</div>
+                <div className="text-4xl mb-2"><MessageSquare size={36} /></div>
                 <p className="text-sm">Xonalar topilmadi</p>
                 <button onClick={() => setNewChat(true)}
-                  className="mt-3 text-xs text-emerald-600 hover:text-emerald-700 font-medium">
+                  className="mt-3 text-xs text-primary-600 hover:text-primary-700 font-medium">
                   + Yangi chat boshlash
                 </button>
               </>
@@ -195,7 +201,7 @@ export default function RoomList({ activeRoomId, onSelect, connected }: Props) {
             {isSA && saTab === 'all' && (
               <div className="px-4 py-2 bg-amber-50 border-b border-amber-100">
                 <p className="text-xs text-amber-700 font-medium">
-                  🛡️ SA rejimi — barcha chatlar ko'rinmoqda. Har kirish audit log ga yoziladi.
+                  SA rejimi — barcha chatlar ko'rinmoqda. Har kirish audit log ga yoziladi.
                 </p>
               </div>
             )}
@@ -205,6 +211,7 @@ export default function RoomList({ activeRoomId, onSelect, connected }: Props) {
                 room={room}
                 isActive={room.id === activeRoomId}
                 onClick={() => onSelect(room)}
+                currentUserId={user?.id}
               />
             ))}
           </>

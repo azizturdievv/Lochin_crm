@@ -1,23 +1,10 @@
 // ─── KONSTANTALAR ─────────────────────────────────────────────────────────────
-export const ROOMS = [
-  { number: '101', capacity: 12 },
-  { number: '102', capacity: 12 },
-  { number: '103', capacity: 12 },
-  { number: '104', capacity: 12 },
-  { number: '201', capacity: 32 },
-] as const;
-
-export const TIME_SLOTS = [
-  { start: '08:00', end: '10:00', label: '1-para', index: 0 },
-  { start: '10:05', end: '12:00', label: '2-para', index: 1 },
-  { start: '14:00', end: '16:00', label: '3-para', index: 2 },
-  { start: '16:05', end: '18:00', label: '4-para', index: 3 },
-] as const;
+// Xonalar va paralar endi Sozlamalar bo'limida boshqariladi (DB-backed:
+// GET /schedule/rooms, /schedule/time-slots) — qattiq kodlangan ro'yxat emas.
 
 export const DAYS_UZ = ['Dush', 'Sesh', 'Chor', 'Pay', 'Juma', 'Shan', 'Yak'];
 export const DAYS_FULL = ['Dushanba', 'Seshanba', 'Chorshanba', 'Payshanba', 'Juma', 'Shanba', 'Yakshanba'];
 
-export type RoomNumber = '101' | '102' | '103' | '104' | '201';
 export type LessonStatus = 'scheduled' | 'completed' | 'cancelled' | 'substituted';
 
 // ─── ENTITI ───────────────────────────────────────────────────────────────────
@@ -43,14 +30,24 @@ export interface ScheduleLesson {
   };
 }
 
+// ─── XONA / PARA (Sozlamalar bo'limidan, DB-backed) ────────────────────────────
+export interface ScheduleRoom {
+  id: string; name: string; number: string; capacity: number;
+  isActive: boolean; orderIndex: number;
+}
+export interface ScheduleTimeSlotItem {
+  id: string; name: string; startTime: string; endTime: string;
+  isActive: boolean; orderIndex: number;
+}
+
 // ─── API JAVOB ─────────────────────────────────────────────────────────────────
 export interface WeekScheduleResponse {
   weekStart: string;
   weekEnd:   string;
   weekDays:  string[];
   grid:      Record<string, Record<string, ScheduleLesson[]>>; // { day: { room: lessons[] } }
-  rooms:     typeof ROOMS[number][];
-  timeSlots: typeof TIME_SLOTS[number][];
+  rooms:     ScheduleRoom[];
+  timeSlots: ScheduleTimeSlotItem[];
   summary: {
     totalLessons: number;
     freeSlots:    number;
@@ -65,19 +62,19 @@ export interface FreeSlot {
 }
 
 export interface AnalysisData {
-  month:         string;
-  totalLessons:  number;
-  totalHours:    number;
-  avgUtilization:number;
-  roomStats:     { room: string; lessons: number; hours: number; utilization: number }[];
-  revenueData:   { room: string; revenue: number; potentialRevenue: number }[];
+  month:          string;
+  roomStats:      { room: string; lessonCount: number; totalHours: number; groupCount: number; utilizationPercent: number }[];
+  subjectRevenue: { subject: string; students: number; revenue: number }[];
+  teacherStats:   { name: string; lessonCount: number; totalHours: number; groupCount: number }[];
+  groupFill:      { name: string; subject: string; currentStudents: number; maxStudents: number; fillPercent: number }[];
 }
 
 // ─── CONFLICT ─────────────────────────────────────────────────────────────────
 export interface ConflictResult {
-  hasConflict:     boolean;
-  roomConflict:    ScheduleLesson | null;
-  teacherConflict: ScheduleLesson | null;
+  hasConflict:      boolean;
+  roomConflict:     ScheduleLesson | null;
+  teacherConflict:  ScheduleLesson | null;
+  capacityConflict: { enrolledCount: number; roomCapacity: number } | null;
 }
 
 // ─── STATUS RANGI ─────────────────────────────────────────────────────────────
@@ -89,18 +86,18 @@ export const STATUS_COLORS: Record<LessonStatus, { bg: string; border: string; t
 };
 
 // ─── SUBJECT RANGLARI (fan bo'yicha rang) ────────────────────────────────────
-const SUBJECT_PALETTE = [
-  'bg-sky-100 border-sky-300 text-sky-800',
-  'bg-violet-100 border-violet-300 text-violet-800',
-  'bg-rose-100 border-rose-300 text-rose-800',
-  'bg-amber-100 border-amber-300 text-amber-800',
-  'bg-teal-100 border-teal-300 text-teal-800',
-  'bg-orange-100 border-orange-300 text-orange-800',
-  'bg-cyan-100 border-cyan-300 text-cyan-800',
-  'bg-pink-100 border-pink-300 text-pink-800',
+const SUBJECT_PALETTE: { bg: string; borderL: string; text: string }[] = [
+  { bg: 'bg-sky-50',    borderL: 'border-l-sky-400',    text: 'text-sky-800'    },
+  { bg: 'bg-violet-50', borderL: 'border-l-violet-400', text: 'text-violet-800' },
+  { bg: 'bg-rose-50',   borderL: 'border-l-rose-400',   text: 'text-rose-800'   },
+  { bg: 'bg-amber-50',  borderL: 'border-l-amber-400',   text: 'text-amber-800'  },
+  { bg: 'bg-teal-50',   borderL: 'border-l-teal-400',   text: 'text-teal-800'   },
+  { bg: 'bg-orange-50', borderL: 'border-l-orange-400', text: 'text-orange-800' },
+  { bg: 'bg-cyan-50',   borderL: 'border-l-cyan-400',   text: 'text-cyan-800'   },
+  { bg: 'bg-pink-50',   borderL: 'border-l-pink-400',   text: 'text-pink-800'   },
 ];
 
-export function subjectColor(subjectId: string): string {
+export function subjectColor(subjectId: string): { bg: string; borderL: string; text: string } {
   const hash = subjectId.split('').reduce((a, c) => a + c.charCodeAt(0), 0);
   return SUBJECT_PALETTE[hash % SUBJECT_PALETTE.length];
 }

@@ -51,8 +51,8 @@ export class GamificationController {
   @Roles(Role.SUPER_ADMIN, Role.MANAGER, Role.USTOZ, Role.STUDENT)
   getLeaderboard(@Query() query: LeaderboardQueryDto) {
     return this.leaderboardService.getLeaderboard({
-      role: query.role as any ?? 'student',
-      period: query.period as any ?? 'monthly',
+      role: query.role ?? 'all',
+      period: query.period ?? 'monthly',
       limit: query.limit ? Number(query.limit) : 10,
     });
   }

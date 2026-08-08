@@ -1,5 +1,6 @@
 'use client';
 
+import { X } from 'lucide-react';
 import { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -35,7 +36,7 @@ interface Props {
   onClose: () => void;
 }
 
-const INPUT = 'w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white';
+const INPUT = 'w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white';
 const LABEL = 'text-xs font-medium text-gray-600 mb-1 block';
 
 export default function StaffModal({ staff, onClose }: Props) {
@@ -86,9 +87,9 @@ export default function StaffModal({ staff, onClose }: Props) {
         {/* Sarlavha */}
         <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-gray-100">
           <h2 className="text-base font-bold text-gray-900">
-            {isEdit ? `${staff!.firstName} ${staff!.lastName}` : '➕ Yangi xodim'}
+            {isEdit ? `${staff!.firstName} ${staff!.lastName}` : 'Yangi xodim'}
           </h2>
-          <button onClick={onClose} className="w-8 h-8 rounded-xl hover:bg-gray-100 text-gray-400 hover:text-gray-600 flex items-center justify-center transition-colors">✕</button>
+          <button onClick={onClose} className="w-8 h-8 rounded-xl hover:bg-gray-100 text-gray-400 hover:text-gray-600 flex items-center justify-center transition-colors"><X size={16} /></button>
         </div>
 
         <form onSubmit={handleSubmit(onSubmit)} className="px-6 py-5 space-y-4">
@@ -142,7 +143,7 @@ export default function StaffModal({ staff, onClose }: Props) {
                       {...register('role')}
                       type="radio"
                       value={r}
-                      className="accent-emerald-600"
+                      className="accent-primary-600"
                     />
                     <span className={`text-sm font-medium px-3 py-1.5 rounded-xl w-full text-center border transition-colors ${meta.bg} ${meta.color} border-current/20`}>
                       {meta.label}
@@ -174,8 +175,8 @@ export default function StaffModal({ staff, onClose }: Props) {
               Bekor
             </button>
             <button type="submit" disabled={saveMut.isPending}
-              className="px-5 py-2 text-sm font-medium text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl disabled:opacity-50 transition-colors">
-              {saveMut.isPending ? 'Saqlanmoqda...' : (isEdit ? '💾 Saqlash' : '➕ Qo\'shish')}
+              className="px-5 py-2 text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 rounded-xl disabled:opacity-50 transition-colors">
+              {saveMut.isPending ? 'Saqlanmoqda...' : (isEdit ? 'Saqlash' : 'Qo\'shish')}
             </button>
           </div>
         </form>

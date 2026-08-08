@@ -1,9 +1,10 @@
 'use client';
 
+import { Trash2, X } from 'lucide-react';
 import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
-import type { TestDifficulty } from '@/types/lms';
+import type { TestDifficulty, Test } from '@/types/lms';
 import { DIFFICULTY_META } from '@/types/lms';
 
 interface Props {
@@ -23,38 +24,62 @@ function emptyQuestion(): QuestionDraft {
   return { text: '', options: ['', '', '', ''], correct: 0, difficulty: 'medium' };
 }
 
-export default function CreateTestModal({ subjectId, groupId, onClose }: Props) {
+export default function CreateTestModal({ subjectId, onClose }: Props) {
   const qc = useQueryClient();
 
-  const [title,     setTitle]     = useState('');
-  const [duration,  setDuration]  = useState(30);
-  const [passScore, setPassScore] = useState(60);
-  const [dueDate,   setDueDate]   = useState('');
-  const [questions, setQuestions] = useState<QuestionDraft[]>([emptyQuestion()]);
-  const [error,     setError]     = useState('');
-  const [activeQ,   setActiveQ]   = useState(0);
+  const [title,          setTitle]          = useState('');
+  const [duration,       setDuration]       = useState(30);
+  const [questionsToShow,setQuestionsToShow]= useState(10);
+  const [maxAttempts,    setMaxAttempts]    = useState(3);
+  const [questions,      setQuestions]      = useState<QuestionDraft[]>([emptyQuestion()]);
+  const [error,          setError]          = useState('');
+  const [activeQ,        setActiveQ]        = useState(0);
+  const [saving,         setSaving]         = useState(false);
 
   const createMut = useMutation({
-    mutationFn: () => api.post('/lms/tests', {
-      subjectId,
-      groupId: groupId ?? undefined,
-      title,
-      durationMinutes: duration,
-      passScore,
-      dueDate: dueDate || undefined,
-      questions: questions.map((q, i) => ({ ...q, order: i + 1 })),
-    }),
+    mutationFn: async () => {
+      // 1) Test qobig'ini yaratamiz (haqiqiy backend CreateTestDto shakli)
+      const { data: test } = await api.post<Test>('/tests', {
+        title,
+        subjectId,
+        timeLimitMinutes: duration,
+        questionsToShow,
+        totalQuestions: questions.length,
+        maxAttempts,
+        scoreMethod: 'best',
+      });
+
+      // 2) Har bir savolni alohida qo'shamiz — options {id,text}[], correctAnswer id sifatida
+      await Promise.all(
+        questions.map((q) =>
+          api.post(`/tests/${test.id}/questions`, {
+            question: q.text,
+            options: q.options.map((text, i) => ({ id: String(i), text })),
+            correctAnswer: String(q.correct),
+            difficulty: q.difficulty,
+            points: 1,
+          }),
+        ),
+      );
+
+      return test;
+    },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['tests', subjectId, groupId] });
+      qc.invalidateQueries({ queryKey: ['tests', subjectId] });
+      qc.invalidateQueries({ queryKey: ['subjects'] });
       onClose();
     },
-    onError: () => setError("Saqlashda xatolik yuz berdi"),
+    onError: () => setError('Saqlashda xatolik yuz berdi'),
+    onSettled: () => setSaving(false),
   });
 
   function handleSubmit() {
     setError('');
     if (!title.trim()) { setError("Sarlavha kiritilishi shart"); return; }
-    if (questions.length < 5) { setError("Kamida 5 ta savol kerak"); return; }
+    if (questions.length < questionsToShow) {
+      setError(`Kamida ${questionsToShow} ta savol kerak (ko'rsatiladigan savollar soniga mos)`);
+      return;
+    }
     const invalid = questions.findIndex(q =>
       !q.text.trim() || q.options.some(o => !o.trim())
     );
@@ -63,6 +88,7 @@ export default function CreateTestModal({ subjectId, groupId, onClose }: Props) 
       setActiveQ(invalid);
       return;
     }
+    setSaving(true);
     createMut.mutate();
   }
 
@@ -97,10 +123,10 @@ export default function CreateTestModal({ subjectId, groupId, onClose }: Props) 
         {/* Sarlavha */}
         <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-gray-100">
           <div>
-            <h2 className="text-base font-bold text-gray-900">✏️ Test draft yaratish</h2>
+            <h2 className="text-base font-bold text-gray-900">Test draft yaratish</h2>
             <p className="text-xs text-gray-400 mt-0.5">Saqlangach manager tekshiruviga ketadi</p>
           </div>
-          <button onClick={onClose} className="w-8 h-8 rounded-xl hover:bg-gray-100 text-gray-400 hover:text-gray-600 flex items-center justify-center transition-colors">✕</button>
+          <button onClick={onClose} className="w-8 h-8 rounded-xl hover:bg-gray-100 text-gray-400 hover:text-gray-600 flex items-center justify-center transition-colors"><X size={16} /></button>
         </div>
 
         <div className="flex flex-1 overflow-hidden">
@@ -113,7 +139,7 @@ export default function CreateTestModal({ subjectId, groupId, onClose }: Props) 
                   value={title}
                   onChange={e => setTitle(e.target.value)}
                   placeholder="Test nomi"
-                  className="w-full px-2.5 py-2 text-xs border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  className="w-full px-2.5 py-2 text-xs border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500"
                 />
               </div>
               <div className="grid grid-cols-2 gap-2">
@@ -125,28 +151,30 @@ export default function CreateTestModal({ subjectId, groupId, onClose }: Props) 
                     max={180}
                     value={duration}
                     onChange={e => setDuration(+e.target.value)}
-                    className="w-full px-2.5 py-2 text-xs border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    className="w-full px-2.5 py-2 text-xs border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500"
                   />
                 </div>
                 <div>
-                  <label className="text-[10px] font-medium text-gray-500 mb-1 block">O'tish %</label>
+                  <label className="text-[10px] font-medium text-gray-500 mb-1 block">Ko'rsatiladi</label>
                   <input
                     type="number"
-                    min={0}
-                    max={100}
-                    value={passScore}
-                    onChange={e => setPassScore(+e.target.value)}
-                    className="w-full px-2.5 py-2 text-xs border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    min={1}
+                    max={questions.length}
+                    value={questionsToShow}
+                    onChange={e => setQuestionsToShow(+e.target.value)}
+                    className="w-full px-2.5 py-2 text-xs border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500"
                   />
                 </div>
               </div>
               <div>
-                <label className="text-[10px] font-medium text-gray-500 mb-1 block">Muddat</label>
+                <label className="text-[10px] font-medium text-gray-500 mb-1 block">Urinishlar soni</label>
                 <input
-                  type="date"
-                  value={dueDate}
-                  onChange={e => setDueDate(e.target.value)}
-                  className="w-full px-2.5 py-2 text-xs border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  type="number"
+                  min={1}
+                  max={10}
+                  value={maxAttempts}
+                  onChange={e => setMaxAttempts(+e.target.value)}
+                  className="w-full px-2.5 py-2 text-xs border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500"
                 />
               </div>
 
@@ -216,9 +244,7 @@ export default function CreateTestModal({ subjectId, groupId, onClose }: Props) 
                         <button
                           onClick={() => removeQuestion(activeQ)}
                           className="text-gray-400 hover:text-red-500 text-xs w-6 h-6 rounded-lg hover:bg-red-50 flex items-center justify-center transition-colors"
-                        >
-                          🗑️
-                        </button>
+                        ><Trash2 size={16} /></button>
                       )}
                     </div>
                   </div>
@@ -229,7 +255,7 @@ export default function CreateTestModal({ subjectId, groupId, onClose }: Props) 
                     onChange={e => updateQuestion(activeQ, { text: e.target.value })}
                     placeholder="Savol matnini kiriting..."
                     rows={3}
-                    className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 resize-none"
+                    className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 resize-none"
                   />
 
                   {/* Variantlar */}
@@ -251,7 +277,7 @@ export default function CreateTestModal({ subjectId, groupId, onClose }: Props) 
                           value={opt}
                           onChange={e => updateOption(activeQ, oi, e.target.value)}
                           placeholder={`Variant ${oi + 1}`}
-                          className={`flex-1 px-3 py-2 text-sm border rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 ${
+                          className={`flex-1 px-3 py-2 text-sm border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 ${
                             q.correct === oi ? 'border-emerald-300 bg-emerald-50' : 'border-gray-200'
                           }`}
                         />
@@ -268,8 +294,8 @@ export default function CreateTestModal({ subjectId, groupId, onClose }: Props) 
         <div className="flex items-center justify-between px-6 py-4 border-t border-gray-100 gap-3">
           <div className="text-xs text-gray-500">
             {questions.length} ta savol
-            {questions.length < 5 && (
-              <span className="text-amber-600 ml-2">— kamida 5 ta kerak</span>
+            {questions.length < questionsToShow && (
+              <span className="text-amber-600 ml-2">— kamida {questionsToShow} ta kerak</span>
             )}
           </div>
           {error && <p className="text-xs text-red-500 flex-1">{error}</p>}
@@ -277,10 +303,10 @@ export default function CreateTestModal({ subjectId, groupId, onClose }: Props) 
             <button onClick={onClose} className="px-4 py-2 text-sm text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors">Bekor</button>
             <button
               onClick={handleSubmit}
-              disabled={createMut.isPending}
-              className="px-5 py-2 text-sm font-medium text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl disabled:opacity-50 transition-colors"
+              disabled={saving}
+              className="px-5 py-2 text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 rounded-xl disabled:opacity-50 transition-colors"
             >
-              {createMut.isPending ? 'Saqlanmoqda...' : '📤 Tekshiruvga yuborish'}
+              {saving ? 'Saqlanmoqda...' : 'Tekshiruvga yuborish'}
             </button>
           </div>
         </div>

@@ -1,10 +1,11 @@
 'use client';
 
+import { Clock, Footprints, Globe, GraduationCap, Instagram, MessageSquare, Phone, Search, Send, Target, TrendingUp, UserPlus, Users, type LucideIcon } from 'lucide-react';
 import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { STAGE_META, SOURCE_META, STAGE_ORDER } from '@/types/leads';
-import type { Lead, LeadStage, LeadSource, LeadStats } from '@/types/leads';
+import type { Lead, LeadStage, LeadSource } from '@/types/leads';
 import LeadCard from '@/components/leads/LeadCard';
 import LeadModal from '@/components/leads/LeadModal';
 import { useAuthStore } from '@/store/auth.store';
@@ -13,14 +14,15 @@ import { useAuthStore } from '@/store/auth.store';
 const ALERT_STAGES: LeadStage[] = ['new'];
 
 // Manba filtri variantlari
-const SOURCE_OPTIONS: Array<{ value: LeadSource | 'all'; label: string; icon: string }> = [
-  { value: 'all',      label: 'Barchasi', icon: '🔍' },
-  { value: 'instagram',label: 'Instagram',icon: '📸' },
-  { value: 'telegram', label: 'Telegram', icon: '✈️' },
-  { value: 'call',     label: "Qo'ng'iroq",icon: '📞' },
-  { value: 'website',  label: 'Website',  icon: '🌐' },
-  { value: 'whatsapp', label: 'WhatsApp', icon: '💬' },
-  { value: 'walk_in',  label: 'Walk-in',  icon: '🚶' },
+const SOURCE_OPTIONS: Array<{ value: LeadSource | 'all'; label: string; icon: LucideIcon }> = [
+  { value: 'all',      label: 'Barchasi', icon: Search },
+  { value: 'instagram',label: 'Instagram',icon: Instagram },
+  { value: 'telegram', label: 'Telegram', icon: Send },
+  { value: 'phone',    label: "Qo'ng'iroq",icon: Phone },
+  { value: 'website',  label: 'Website',  icon: Globe },
+  { value: 'whatsapp', label: 'WhatsApp', icon: MessageSquare },
+  { value: 'walkin',   label: 'Walk-in',  icon: Footprints },
+  { value: 'referral', label: 'Referral', icon: UserPlus },
 ];
 
 function minutesSince(iso: string): number {
@@ -46,19 +48,12 @@ export default function LeadsPage() {
     refetchInterval: 30_000,
   });
 
-  const { data: stats } = useQuery<LeadStats>({
-    queryKey: ['lead-stats'],
-    queryFn:  () => api.get<LeadStats>('/leads/stats').then(r => r.data),
-    refetchInterval: 60_000,
-  });
-
   // Bosqich o'zgartirish
   const stageMut = useMutation({
     mutationFn: ({ id, stage }: { id: string; stage: LeadStage }) =>
       api.patch(`/leads/${id}/stage`, { stage }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['leads'] });
-      qc.invalidateQueries({ queryKey: ['lead-stats'] });
     },
   });
 
@@ -66,7 +61,7 @@ export default function LeadsPage() {
   const filtered = useMemo(() => {
     return leads.filter(l => {
       const matchSearch = !search ||
-        `${l.firstName} ${l.lastName} ${l.phone}`.toLowerCase().includes(search.toLowerCase());
+        `${l.fullName} ${l.phone}`.toLowerCase().includes(search.toLowerCase());
       const matchSource = sourceFilter === 'all' || l.source === sourceFilter;
       return matchSearch && matchSource;
     });
@@ -84,7 +79,7 @@ export default function LeadsPage() {
   const alertCount = useMemo(() =>
     leads.filter(l =>
       ALERT_STAGES.includes(l.stage) &&
-      !l.firstResponseAt &&
+      !l.firstContactAt &&
       minutesSince(l.createdAt) > 15
     ).length,
   [leads]);
@@ -108,11 +103,9 @@ export default function LeadsPage() {
   }
 
   // ─── Konversiya hisoblash ─────────────────────────────────────────────────────
-  const convRate = stats?.conversionRate != null
-    ? `${stats.conversionRate.toFixed(1)}%`
-    : leads.length
-      ? `${((byStage.enrolled?.length / leads.length) * 100).toFixed(1)}%`
-      : '0%';
+  const convRate = leads.length
+    ? `${((byStage.enrolled.length / leads.length) * 100).toFixed(1)}%`
+    : '0%';
 
   return (
     <div className="flex flex-col h-full">
@@ -120,23 +113,21 @@ export default function LeadsPage() {
       <div className="flex flex-col gap-4 px-6 pt-6 pb-4 bg-white border-b border-gray-100 shrink-0">
         <div className="flex items-center justify-between gap-4 flex-wrap">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-emerald-600 flex items-center justify-center text-white text-xl shrink-0">
-              🎯
-            </div>
+            <div className="w-10 h-10 rounded-2xl bg-primary-600 flex items-center justify-center text-white text-xl shrink-0"><Target size={16} /></div>
             <div>
               <h1 className="text-lg font-bold text-gray-900">Lid boshqaruvi</h1>
               <p className="text-xs text-gray-400">{leads.length} ta lid</p>
             </div>
             {alertCount > 0 && (
               <div className="flex items-center gap-1.5 bg-red-50 text-red-600 text-xs font-semibold px-3 py-1.5 rounded-full animate-pulse border border-red-200">
-                🔴 {alertCount} lid 15 daqiqa javob kutmoqda!
+                {alertCount} lid 15 daqiqa javob kutmoqda!
               </div>
             )}
           </div>
 
           <button
             onClick={() => setModalLead(null)}
-            className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium px-4 py-2.5 rounded-xl transition-colors shrink-0"
+            className="flex items-center gap-2 bg-primary-600 hover:bg-primary-700 text-white text-sm font-medium px-4 py-2.5 rounded-xl transition-colors shrink-0"
           >
             + Yangi lid
           </button>
@@ -144,14 +135,14 @@ export default function LeadsPage() {
 
         {/* KPI kartalar */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <StatCard label="Jami lidlar"     value={leads.length}            color="blue"   icon="👥" />
-          <StatCard label="Konversiya"       value={convRate}                color="emerald"icon="📈" />
-          <StatCard label="Sinov darsi"      value={byStage.trial?.length}   color="purple" icon="🎓" />
+          <StatCard label="Jami lidlar"     value={leads.length}            color="blue"   icon={Users} />
+          <StatCard label="Konversiya"       value={convRate}                color="emerald"icon={TrendingUp} />
+          <StatCard label="Sinov darsi"      value={byStage.trial.length}    color="purple" icon={GraduationCap} />
           <StatCard
-            label="O'rtacha javob"
-            value={stats?.avgResponseMinutes != null ? `${stats.avgResponseMinutes} daq` : '—'}
-            color={stats?.avgResponseMinutes != null && stats.avgResponseMinutes > 15 ? 'red' : 'emerald'}
-            icon="⏱"
+            label="Yo'qotilgan"
+            value={byStage.lost.length}
+            color={byStage.lost.length > 0 ? 'red' : 'emerald'}
+            icon={Clock}
           />
         </div>
 
@@ -161,7 +152,7 @@ export default function LeadsPage() {
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Ism yoki telefon bo'yicha qidirish..."
-            className="flex-1 min-w-[200px] px-4 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            className="flex-1 min-w-[200px] px-4 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500"
           />
           <div className="flex gap-1.5 flex-wrap">
             {SOURCE_OPTIONS.map(opt => (
@@ -170,11 +161,11 @@ export default function LeadsPage() {
                 onClick={() => setSource(opt.value as LeadSource | 'all')}
                 className={`text-xs px-3 py-1.5 rounded-xl font-medium transition-colors border ${
                   sourceFilter === opt.value
-                    ? 'bg-emerald-600 text-white border-emerald-600'
+                    ? 'bg-primary-600 text-white border-emerald-600'
                     : 'bg-white text-gray-600 border-gray-200 hover:border-emerald-300 hover:text-emerald-700'
                 }`}
               >
-                {opt.icon} {opt.label}
+                <opt.icon size={14} className="shrink-0" /> {opt.label}
               </button>
             ))}
           </div>
@@ -203,10 +194,10 @@ export default function LeadsPage() {
 
               return (
                 <div key={stage} className="w-64 shrink-0 flex flex-col gap-3">
-                  {/* Ustun sarlavhasi */}
-                  <div className={`flex items-center justify-between px-3 py-2.5 rounded-2xl ${meta.bg} ${meta.border} border`}>
+                  {/* Ustun sarlavhasi — yuqori rangli chiziq */}
+                  <div className={`flex items-center justify-between px-3 py-2.5 rounded-2xl bg-white border border-gray-100 border-t-4 ${meta.borderTop} shadow-sm`}>
                     <span className={`text-sm font-semibold ${meta.color}`}>{meta.label}</span>
-                    <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${meta.bg} ${meta.color} border ${meta.border}`}>
+                    <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${meta.bg} ${meta.color}`}>
                       {count}
                     </span>
                   </div>
@@ -249,8 +240,8 @@ export default function LeadsPage() {
 
 // ─── KPI karta ───────────────────────────────────────────────────────────────
 function StatCard({
-  label, value, color, icon,
-}: { label: string; value: string | number | undefined; color: string; icon: string }) {
+  label, value, color, icon: Icon,
+}: { label: string; value: string | number | undefined; color: string; icon: LucideIcon }) {
   const colors: Record<string, string> = {
     blue:    'bg-blue-50 text-blue-700',
     emerald: 'bg-emerald-50 text-emerald-700',
@@ -260,7 +251,7 @@ function StatCard({
   };
   return (
     <div className={`flex items-center gap-3 rounded-2xl px-4 py-3 ${colors[color] ?? colors.blue}`}>
-      <span className="text-2xl shrink-0">{icon}</span>
+      <Icon size={22} className="shrink-0" />
       <div className="min-w-0">
         <p className="text-lg font-bold leading-tight">{value ?? '—'}</p>
         <p className="text-xs opacity-70 truncate">{label}</p>

@@ -1,8 +1,10 @@
 'use client';
 
+import { Calendar, CheckCircle2, ChevronLeft, ClipboardList, Clock, Pencil, Search, Users, XCircle } from 'lucide-react';
 import { useState, useEffect, useCallback } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import api from '@/lib/api';
+import PageHeader from '@/components/ui/PageHeader';
 import { useAuthStore } from '@/store/auth.store';
 import { useAttendanceSocket } from '@/hooks/useAttendanceSocket';
 import QrCodeCard from '@/components/attendance/QrCodeCard';
@@ -80,6 +82,15 @@ export default function AttendancePage() {
   const [excuseTarget,     setExcuseTarget]     = useState<AttendanceRecord | null>(null);
   const [bulkOpen,         setBulkOpen]         = useState(false);
   const [toast,            setToast]            = useState<string | null>(null);
+
+  // Inline tez-belgilash (Keldi/Kech/Kelmadi) — ManualMarkModal bilan bir xil endpoint
+  const quickMarkMut = useMutation({
+    mutationFn: (data: object) => api.post('/attendance/manual', data).then(r => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['lesson-attendance', selectedLessonId] });
+      qc.invalidateQueries({ queryKey: ['today-attendance'] });
+    },
+  });
 
   // ─── SOCKET ───────────────────────────────────────────────────────────────
   const { lastEvent, connected } = useAttendanceSocket(selectedLessonId);
@@ -160,22 +171,24 @@ export default function AttendancePage() {
   return (
     <div className="space-y-4">
 
+      <PageHeader title="Davomat" crumbs={[{ label: 'Dashboard', href: '/dashboard' }, { label: 'Davomat' }]} />
+
       {/* ── YUQORI ASBOBLAR PANELI ──────────────────────────────────────── */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm px-5 py-3 flex flex-wrap items-center gap-3">
 
         {/* Sana tanlash */}
         <div className="flex items-center gap-2">
-          <span className="text-xs font-medium text-gray-500">📅</span>
+          <span className="text-xs font-medium text-gray-500"><Calendar size={16} /></span>
           <input
             type="date"
             value={selectedDate}
             onChange={e => setSelectedDate(e.target.value)}
-            className="px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            className="px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500"
           />
           {selectedDate !== todayStr() && (
             <button
               onClick={() => setSelectedDate(todayStr())}
-              className="text-xs text-emerald-600 hover:text-emerald-700 underline"
+              className="text-xs text-primary-600 hover:text-primary-700 underline"
             >
               Bugun
             </button>
@@ -186,7 +199,7 @@ export default function AttendancePage() {
         <select
           value={selectedGroupId}
           onChange={e => setSelectedGroupId(e.target.value)}
-          className="px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500"
+          className="px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500"
         >
           <option value="">Barcha guruhlar</option>
           {groups?.map(g => (
@@ -208,20 +221,20 @@ export default function AttendancePage() {
             disabled={!selectedLessonId}
             className={`flex items-center gap-2 px-3 py-2 text-sm rounded-xl border transition font-medium disabled:opacity-40 ${
               qrVisible
-                ? 'bg-emerald-600 text-white border-emerald-600'
+                ? 'bg-primary-600 text-white border-primary-600'
                 : 'border-gray-200 text-gray-600 hover:bg-gray-50'
             }`}
           >
-            📱 {qrVisible ? "QR yashirish" : "QR ko'rish"}
+            {qrVisible ? "QR yashirish" : "QR ko'rish"}
           </button>
 
-          {/* Qo'lda kiritish */}
+          {/* Hammasini belgilash */}
           {canMark && (
             <button
               onClick={() => setBulkOpen(true)}
-              className="flex items-center gap-2 px-3 py-2 text-sm bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition font-medium"
+              className="flex items-center gap-2 px-3 py-2 text-sm bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition font-medium"
             >
-              ✏️ Qo'lda kiritish
+              <ClipboardList size={14} /> Hammasini belgilash
             </button>
           )}
         </div>
@@ -231,7 +244,9 @@ export default function AttendancePage() {
       <div className="flex gap-5 min-h-[calc(100vh-13rem)]">
 
         {/* ── CHAP: DARSLAR RO'YXATI ─────────────────────────────────── */}
-        <aside className="w-60 shrink-0 space-y-2">
+        <aside className={`shrink-0 space-y-2 ${
+          selectedLessonId ? 'hidden md:block md:w-60' : 'w-full md:w-60'
+        }`}>
           <div className="flex items-center justify-between mb-1">
             <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
               Darslar
@@ -245,7 +260,7 @@ export default function AttendancePage() {
             ))
           ) : !lessons?.length ? (
             <div className="text-center py-10 text-gray-400">
-              <div className="text-3xl mb-2">📅</div>
+              <div className="text-3xl mb-2"><Calendar size={30} /></div>
               <p className="text-xs">
                 {selectedDate === todayStr()
                   ? 'Bugun dars yo\'q'
@@ -265,18 +280,27 @@ export default function AttendancePage() {
         </aside>
 
         {/* ── O'NG: TANLANGAN DARS DAVOMATI ──────────────────────────── */}
-        <div className="flex-1 min-w-0 space-y-4">
+        <div className={`min-w-0 space-y-4 ${
+          selectedLessonId ? 'w-full md:flex-1' : 'hidden md:block md:flex-1'
+        }`}>
 
           {!selectedLessonId ? (
             <div className="flex flex-col items-center justify-center h-64 text-gray-400 bg-white rounded-2xl border border-gray-100">
-              <div className="text-4xl mb-2">👈</div>
+              <div className="text-4xl mb-2"></div>
               <p className="text-sm">Dars tanlang</p>
             </div>
           ) : (
             <>
               {/* ── SARLAVHA ──────────────────────────────────────────── */}
               <div className="flex items-start justify-between gap-4 flex-wrap">
-                <div>
+                <div className="flex items-start gap-2 min-w-0">
+                  <button
+                    onClick={() => setSelectedLessonId(null)}
+                    className="md:hidden shrink-0 -ml-1 mt-0.5 text-gray-400 hover:text-gray-600 w-8 h-8 flex items-center justify-center rounded-xl hover:bg-gray-100"
+                  >
+                    <ChevronLeft size={20} />
+                  </button>
+                  <div className="min-w-0">
                   <h2 className="text-base font-bold text-gray-900">
                     {selectedLesson?.lesson.group.name} — {selectedLesson?.lesson.group.subject.name}
                   </h2>
@@ -291,12 +315,13 @@ export default function AttendancePage() {
                       {connected ? 'Real-time' : 'Offline'}
                     </span>
                   </p>
+                  </div>
                 </div>
                 <button
                   onClick={() => lessonData && exportCsv(lessonData.attendance, selectedLesson?.lesson.group.name ?? 'dars')}
                   className="flex items-center gap-2 px-3 py-2 text-sm border border-gray-200 rounded-xl text-gray-600 hover:bg-gray-50 transition"
                 >
-                  📥 CSV
+                  CSV
                 </button>
               </div>
 
@@ -330,17 +355,17 @@ export default function AttendancePage() {
                   >
                     {s === 'all'
                       ? 'Barchasi'
-                      : `${STATUS_META[s as AttendanceStatus].icon} ${STATUS_META[s as AttendanceStatus].label}`}
+                      : STATUS_META[s as AttendanceStatus].label}
                   </button>
                 ))}
 
                 <div className="relative ml-auto">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">🔍</span>
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs"><Search size={16} /></span>
                   <input
                     value={searchQ}
                     onChange={e => setSearchQ(e.target.value)}
                     placeholder="Ism yoki telefon..."
-                    className="pl-8 pr-4 py-1.5 text-xs border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 w-44"
+                    className="pl-8 pr-4 py-1.5 text-xs border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 w-44"
                   />
                 </div>
                 <span className="text-xs text-gray-400">{filteredRecords.length} ta</span>
@@ -375,7 +400,7 @@ export default function AttendancePage() {
                       ) : filteredRecords.length === 0 ? (
                         <tr>
                           <td colSpan={7} className="px-6 py-16 text-center text-gray-400">
-                            <div className="text-4xl mb-2">🔍</div>
+                            <div className="text-4xl mb-2"><Search size={36} /></div>
                             <p className="text-sm">O'quvchilar topilmadi</p>
                           </td>
                         </tr>
@@ -390,6 +415,7 @@ export default function AttendancePage() {
                             isNew={lastEvent?.record.studentId === r.studentId}
                             onMark={() => setMarkTarget(r)}
                             onExcuse={() => setExcuseTarget(r)}
+                            onQuickMark={(status) => quickMarkMut.mutate({ lessonId: selectedLessonId, studentId: r.studentId, status })}
                           />
                         ))
                       )}
@@ -458,26 +484,35 @@ function LessonCard({ lessonData, selected, onClick }: {
         <div className={`h-full ${rateBg} rounded-full`} style={{ width: `${stats.rate}%` }} />
       </div>
       <div className="flex items-center gap-3 mt-2 text-xs text-gray-400">
-        <span>✅ {stats.present}</span>
-        <span>⏰ {stats.late}</span>
-        <span>❌ {stats.absent + stats.unexcused}</span>
-        {stats.excused > 0 && <span>📋 {stats.excused}</span>}
+        <span className="inline-flex items-center gap-1"><CheckCircle2 size={14} className="text-emerald-600" /> {stats.present}</span>
+        <span className="inline-flex items-center gap-1"><Clock size={14} className="text-amber-500" /> {stats.late}</span>
+        <span className="inline-flex items-center gap-1"><XCircle size={14} className="text-red-600" /> {stats.absent + stats.unexcused}</span>
+        {stats.excused > 0 && <span>{stats.excused}</span>}
       </div>
     </button>
   );
 }
 
+// Inline radio-guruh uchun 4 holat (Sababsiz promptda yo'q — chiqarib tashlandi)
+const QUICK_STATUSES: AttendanceStatus[] = ['present', 'late', 'absent', 'excused'];
+const QUICK_STATUS_CLS: Record<string, string> = {
+  present: 'bg-emerald-100 text-emerald-700 border-emerald-300',
+  late:    'bg-amber-100 text-amber-700 border-amber-300',
+  absent:  'bg-red-100 text-red-700 border-red-300',
+  excused: 'bg-blue-100 text-blue-700 border-blue-300',
+};
+
 // ─── DAVOMAT SATRI ────────────────────────────────────────────────────────────
-function AttendanceRow({ index, record, canMark, canExcuse, isNew, onMark, onExcuse }: {
-  index:     number;
-  record:    AttendanceRecord;
-  canMark:   boolean;
-  canExcuse: boolean;
-  isNew:     boolean;
-  onMark:    () => void;
-  onExcuse:  () => void;
+function AttendanceRow({ index, record, canMark, canExcuse, isNew, onMark, onExcuse, onQuickMark }: {
+  index:       number;
+  record:      AttendanceRecord;
+  canMark:     boolean;
+  canExcuse:   boolean;
+  isNew:       boolean;
+  onMark:      () => void;
+  onExcuse:    () => void;
+  onQuickMark: (status: AttendanceStatus) => void;
 }) {
-  const meta = STATUS_META[record.status as AttendanceStatus];
   const name = `${record.student.lastName} ${record.student.firstName}`;
 
   return (
@@ -492,9 +527,29 @@ function AttendanceRow({ index, record, canMark, canExcuse, isNew, onMark, onExc
       </td>
 
       <td className="px-4 py-3">
-        <span className={`inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full ${meta.cls}`}>
-          {meta.icon} {meta.label}
-        </span>
+        {canMark ? (
+          <div className="flex items-center gap-1">
+            {QUICK_STATUSES.map(s => {
+              const selected = record.status === s;
+              const sMeta = STATUS_META[s];
+              return (
+                <button
+                  key={s}
+                  onClick={() => s === 'excused' ? onMark() : onQuickMark(s)}
+                  title={s === 'excused' ? `${sMeta.label} (izoh bilan)` : sMeta.label}
+                  className={`w-7 h-7 rounded-lg border flex items-center justify-center transition-colors ${
+                    selected ? QUICK_STATUS_CLS[s] : 'border-gray-200 text-gray-300 hover:border-gray-300 hover:text-gray-400'
+                  }`}
+                ><sMeta.icon size={13} /></button>
+              );
+            })}
+          </div>
+        ) : (
+          <span className={`inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full ${STATUS_META[record.status as AttendanceStatus].cls}`}>
+            {(() => { const I = STATUS_META[record.status as AttendanceStatus].icon; return <I size={14} className="shrink-0" />; })()}
+            {' '}{STATUS_META[record.status as AttendanceStatus].label}
+          </span>
+        )}
       </td>
 
       <td className="px-4 py-3 hidden sm:table-cell">
@@ -514,7 +569,7 @@ function AttendanceRow({ index, record, canMark, canExcuse, isNew, onMark, onExc
       <td className="px-4 py-3 hidden lg:table-cell max-w-xs">
         {record.excuseReason ? (
           <p className="text-xs text-gray-500 truncate" title={record.excuseReason}>
-            {record.excuseByParent && <span className="text-blue-500 mr-1">👪</span>}
+            {record.excuseByParent && <span className="text-blue-500 mr-1"><Users size={16} /></span>}
             {record.excuseReason}
           </p>
         ) : (
@@ -527,20 +582,18 @@ function AttendanceRow({ index, record, canMark, canExcuse, isNew, onMark, onExc
           {canMark && (
             <button onClick={onMark}
               className="p-1.5 rounded-lg hover:bg-emerald-50 text-emerald-600 text-sm transition-colors"
-              title="Belgilash">
-              ✏️
-            </button>
+              title="Belgilash"><Pencil size={16} /></button>
           )}
           {/* Faqat haqiqiy yozuv bo'lsa sabab kiritish mumkin */}
           {canExcuse && record.id && (record.status === 'absent' || record.status === 'unexcused') && (
             <button onClick={onExcuse}
               className="p-1.5 rounded-lg hover:bg-blue-50 text-blue-500 text-sm transition-colors"
-              title="Sabab kiritish">
-              📋
-            </button>
+              title="Sabab kiritish"><ClipboardList size={16} /></button>
           )}
         </div>
       </td>
     </tr>
   );
 }
+
+

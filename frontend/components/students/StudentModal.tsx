@@ -1,5 +1,6 @@
 'use client';
 
+import { ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
@@ -20,7 +21,7 @@ interface GroupOption {
 const REFERRAL_SOURCES = ['Instagram', 'Telegram', "Do'st", 'Walk-in', "Qo'ng'iroq", 'Boshqa'];
 const GRADES = Array.from({ length: 11 }, (_, i) => i + 1);
 
-const INPUT  = 'w-full px-3 py-2 text-sm border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition';
+const INPUT  = 'w-full px-3 py-2 text-sm border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition';
 const LABEL  = 'block text-xs font-medium text-gray-600 mb-1';
 const ERR    = 'text-red-500 text-xs mt-0.5';
 
@@ -118,15 +119,15 @@ export default function StudentModal({ open, onClose, student }: Props) {
 
   const TABS: { key: Tab; label: string }[] = isEdit
     ? [
-        { key: 'main',     label: '👤 Asosiy' },
-        { key: 'academic', label: '🏫 O\'quv' },
-        { key: 'extra',    label: '📝 Qo\'shimcha' },
+        { key: 'main',     label: 'Asosiy' },
+        { key: 'academic', label: 'O\'quv' },
+        { key: 'extra',    label: 'Qo\'shimcha' },
       ]
     : [
-        { key: 'main',     label: '👤 Asosiy' },
-        { key: 'academic', label: '🏫 O\'quv' },
-        { key: 'extra',    label: '📝 Qo\'shimcha' },
-        { key: 'parents',  label: '👪 Ota-ona' },
+        { key: 'main',     label: 'Asosiy' },
+        { key: 'academic', label: 'O\'quv' },
+        { key: 'extra',    label: 'Qo\'shimcha' },
+        { key: 'parents',  label: 'Ota-ona' },
       ];
 
   // ─── RENDER ─────────────────────────────────────────────────────────────────
@@ -140,9 +141,7 @@ export default function StudentModal({ open, onClose, student }: Props) {
             {isEdit ? "O'quvchi tahrirlash" : "Yangi o'quvchi"}
           </h2>
           <button onClick={onClose}
-            className="w-8 h-8 rounded-xl flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition">
-            ✕
-          </button>
+            className="w-8 h-8 rounded-xl flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition"><X size={16} /></button>
         </div>
 
         {/* Tablar */}
@@ -311,7 +310,7 @@ function CreateContent({ form, setForm, tab, setTab, groups, mut, onClose }: {
             </button>
             <button type="button" onClick={() => setTab('academic')}
               className="flex-1 py-2.5 bg-gray-100 text-gray-700 rounded-xl text-sm font-medium hover:bg-gray-200 transition">
-              Keyingi →
+              Keyingi <ChevronRight size={14} />
             </button>
           </div>
         </>
@@ -326,7 +325,7 @@ function CreateContent({ form, setForm, tab, setTab, groups, mut, onClose }: {
               <label className={LABEL + ' mb-0'}>Guruhlar (ixtiyoriy)</label>
               {(form.groupIds ?? []).length < 5 && (
                 <button type="button" onClick={addGroup}
-                  className="text-xs text-emerald-600 hover:text-emerald-700 font-medium">
+                  className="text-xs text-primary-600 hover:text-primary-700 font-medium">
                   + Yana fan qo'sh
                 </button>
               )}
@@ -364,9 +363,7 @@ function CreateContent({ form, setForm, tab, setTab, groups, mut, onClose }: {
                       )}
                     </div>
                     <button type="button" onClick={() => removeGroup(idx)}
-                      className="mt-2 w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50 transition shrink-0">
-                      ✕
-                    </button>
+                      className="mt-2 w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50 transition shrink-0"><X size={16} /></button>
                   </div>
                 );
               })
@@ -400,11 +397,11 @@ function CreateContent({ form, setForm, tab, setTab, groups, mut, onClose }: {
           <div className="flex gap-3 pt-1">
             <button type="button" onClick={() => setTab('main')}
               className="flex-1 py-2.5 border border-gray-300 text-gray-700 rounded-xl text-sm font-medium hover:bg-gray-50 transition">
-              ← Orqaga
+              <ChevronLeft size={14} /> Orqaga
             </button>
             <button type="button" onClick={() => setTab('extra')}
               className="flex-1 py-2.5 bg-gray-100 text-gray-700 rounded-xl text-sm font-medium hover:bg-gray-200 transition">
-              Keyingi →
+              Keyingi <ChevronRight size={14} />
             </button>
           </div>
         </>
@@ -450,14 +447,14 @@ function CreateContent({ form, setForm, tab, setTab, groups, mut, onClose }: {
           <div className="flex gap-3 pt-1">
             <button type="button" onClick={() => setTab('academic')}
               className="flex-1 py-2.5 border border-gray-300 text-gray-700 rounded-xl text-sm font-medium hover:bg-gray-50 transition">
-              ← Orqaga
+              <ChevronLeft size={14} /> Orqaga
             </button>
             <button type="button" onClick={() => setTab('parents')}
               className="flex-1 py-2.5 bg-gray-100 text-gray-700 rounded-xl text-sm font-medium hover:bg-gray-200 transition">
-              Ota-ona →
+              Ota-ona <ChevronRight size={14} />
             </button>
             <button type="button" onClick={handleSubmit} disabled={mut.isPending}
-              className="flex-1 py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-medium hover:bg-emerald-700 disabled:opacity-60 transition">
+              className="flex-1 py-2.5 bg-primary-600 text-white rounded-xl text-sm font-medium hover:bg-primary-700 disabled:opacity-60 transition">
               {mut.isPending ? 'Saqlanmoqda...' : 'Saqlash'}
             </button>
           </div>
@@ -497,7 +494,7 @@ function EditContent({ form, setForm, tab, mut, onClose }: {
         Bekor
       </button>
       <button type="button" onClick={() => mut.mutate(form)} disabled={mut.isPending}
-        className="flex-1 py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-medium hover:bg-emerald-700 disabled:opacity-60 transition">
+        className="flex-1 py-2.5 bg-primary-600 text-white rounded-xl text-sm font-medium hover:bg-primary-700 disabled:opacity-60 transition">
         {mut.isPending ? 'Saqlanmoqda...' : 'Saqlash'}
       </button>
     </div>
@@ -531,7 +528,7 @@ function EditContent({ form, setForm, tab, mut, onClose }: {
           </div>
           <div className="flex items-center gap-3">
             <input type="checkbox" id="isActive" checked={form.isActive ?? true}
-              onChange={e => set('isActive', e.target.checked)} className="w-4 h-4 accent-emerald-600" />
+              onChange={e => set('isActive', e.target.checked)} className="w-4 h-4 accent-primary-600" />
             <label htmlFor="isActive" className="text-sm text-gray-700">Faol o'quvchi</label>
           </div>
           {mut.isError && <p className="text-red-500 text-sm bg-red-50 px-3 py-2 rounded-xl">{getErrMsg(mut.error)}</p>}
@@ -600,7 +597,7 @@ function ParentsTab({ parents, onChange, onBack, onSave, isPending, error }: {
         <div key={i} className="bg-gray-50 rounded-xl p-4 space-y-3">
           <div className="flex items-center justify-between">
             <p className="text-sm font-medium text-gray-700">{i + 1}-ota-ona</p>
-            <button type="button" onClick={() => remove(i)} className="text-red-400 hover:text-red-600 text-xs">✕</button>
+            <button type="button" onClick={() => remove(i)} className="text-red-400 hover:text-red-600 text-xs"><X size={16} /></button>
           </div>
           <div>
             <label className={LABEL}>To'liq ism *</label>
@@ -625,7 +622,7 @@ function ParentsTab({ parents, onChange, onBack, onSave, isPending, error }: {
           </div>
           <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
             <input type="checkbox" checked={p.isPrimary ?? false}
-              onChange={e => upd(i, 'isPrimary', e.target.checked)} className="accent-emerald-600" />
+              onChange={e => upd(i, 'isPrimary', e.target.checked)} className="accent-primary-600" />
             Asosiy ota-ona
           </label>
         </div>
@@ -643,10 +640,10 @@ function ParentsTab({ parents, onChange, onBack, onSave, isPending, error }: {
       <div className="flex gap-3 pt-1">
         <button type="button" onClick={onBack}
           className="flex-1 py-2.5 border border-gray-300 text-gray-700 rounded-xl text-sm font-medium hover:bg-gray-50 transition">
-          ← Orqaga
+          <ChevronLeft size={14} /> Orqaga
         </button>
         <button type="button" onClick={onSave} disabled={isPending}
-          className="flex-1 py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-medium hover:bg-emerald-700 disabled:opacity-60 transition">
+          className="flex-1 py-2.5 bg-primary-600 text-white rounded-xl text-sm font-medium hover:bg-primary-700 disabled:opacity-60 transition">
           {isPending ? 'Saqlanmoqda...' : 'Saqlash'}
         </button>
       </div>

@@ -15,7 +15,8 @@ import { Payment, PaymentStatus } from '../../entities/payment.entity';
 import { Role } from '../../common/enums/role.enum';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { QrService } from '../attendance/qr.service';
-import { CreateLessonDto, ROOMS, TIME_SLOTS } from './dto/create-lesson.dto';
+import { ScheduleSettingsService } from '../schedule-settings/schedule-settings.service';
+import { CreateLessonDto } from './dto/create-lesson.dto';
 import { UpdateLessonDto } from './dto/update-lesson.dto';
 import {
   WeekQueryDto,
@@ -23,6 +24,17 @@ import {
   ConflictCheckDto,
   AnalysisQueryDto,
 } from './dto/query-schedule.dto';
+
+// Mahalliy sana qatorini (YYYY-MM-DD) hisoblaydi — toISOString() UTC'ga
+// o'giradi va UTC+5 kabi mintaqalarda sanani bir kun orqaga surib yuboradi
+// (server host UTC+5'da ishlaydi — natijada hafta/kun hisob-kitobi bir kun siljib,
+// darslar butunlay noto'g'ri kun katakchasida "yo'qolib" ketardi).
+function toLocalDateStr(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
 
 // Hafta boshini (Dushanba) hisoblash
 function getWeekStart(dateStr?: string): Date {
@@ -40,7 +52,7 @@ function getWeekDays(weekStart: Date): string[] {
   return Array.from({ length: 7 }, (_, i) => {
     const d = new Date(weekStart);
     d.setDate(weekStart.getDate() + i);
-    return d.toISOString().slice(0, 10);
+    return toLocalDateStr(d);
   });
 }
 
@@ -79,6 +91,7 @@ export class ScheduleService {
     private dataSource: DataSource,
     private auditLog: AuditLogService,
     private qrService: QrService,
+    private scheduleSettingsService: ScheduleSettingsService,
   ) {}
 
   // ─── HAFTALIK JADVAL ─────────────────────────────────────────────────────
@@ -86,6 +99,9 @@ export class ScheduleService {
     const weekStart = getWeekStart(query.weekStart);
     const weekDays = getWeekDays(weekStart);
     const [dateFrom, dateTo] = [weekDays[0], weekDays[6]];
+
+    const rooms = await this.scheduleSettingsService.getRooms(true);
+    const timeSlots = await this.scheduleSettingsService.getTimeSlots(true);
 
     const qb = this.lessonRepo
       .createQueryBuilder('l')
@@ -123,7 +139,7 @@ export class ScheduleService {
 
     for (const day of weekDays) {
       grid[day] = {};
-      for (const room of ROOMS) {
+      for (const room of rooms) {
         grid[day][room.number] = [];
       }
     }
@@ -143,7 +159,7 @@ export class ScheduleService {
     }
 
     // Bo'sh slotlar soni
-    const totalSlots = 7 * 4 * ROOMS.length; // hafta × para × xona
+    const totalSlots = 7 * timeSlots.length * rooms.length; // hafta × para × xona
     const busySlots = lessons.length;
 
     return {
@@ -151,12 +167,12 @@ export class ScheduleService {
       weekEnd: weekDays[6],
       weekDays,
       grid,
-      rooms: ROOMS,
-      timeSlots: TIME_SLOTS,
+      rooms,
+      timeSlots,
       summary: {
         totalLessons: lessons.length,
         freeSlots: totalSlots - busySlots,
-        roomUsage: ROOMS.map((r) => ({
+        roomUsage: rooms.map((r) => ({
           room: r.number,
           capacity: r.capacity,
           bookedHours: roomStats[r.number] ?? 0,
@@ -179,11 +195,11 @@ export class ScheduleService {
     });
     if (!teacher) throw new NotFoundException('O\'qituvchi topilmadi');
 
-    if (!ROOMS.find((r) => r.number === dto.roomNumber)) {
-      throw new BadRequestException(`Xona ${dto.roomNumber} mavjud emas. Mavjud: ${ROOMS.map((r) => r.number).join(', ')}`);
+    const rooms = await this.scheduleSettingsService.getRooms(true);
+    const room = rooms.find((r) => r.number === dto.roomNumber);
+    if (!room) {
+      throw new BadRequestException(`Xona ${dto.roomNumber} mavjud emas. Mavjud: ${rooms.map((r) => r.number).join(', ')}`);
     }
-
-    const room = ROOMS.find((r) => r.number === dto.roomNumber)!;
 
     // O'quvchilar soni xona sigimidan oshmasligi
     if (group.currentStudents > room.capacity) {
@@ -233,6 +249,9 @@ export class ScheduleService {
       dto.startTime || dto.endTime || dto.roomNumber || dto.lessonDate || dto.teacherId;
 
     if (timeOrRoomChanged) {
+      // groupId endi ham beriladi — ilgari dars sudrab ko'chirilganda (drag &
+      // drop) xona sig'imi umuman tekshirilmasdi, faqat yangi dars yaratishda
+      // tekshirilardi
       await this.checkConflicts({
         lessonDate: newDate,
         startTime: newStartTime,
@@ -240,6 +259,7 @@ export class ScheduleService {
         roomNumber: newRoom,
         teacherId: newTeacherId,
         excludeLessonId: id,
+        groupId: lesson.groupId,
       });
     }
 
@@ -337,8 +357,10 @@ export class ScheduleService {
 
   // ─── BO'SH SLOTLAR ────────────────────────────────────────────────────────
   async getFreeSlots(query: FreeSlotsQueryDto) {
-    const date = query.date ?? new Date().toISOString().slice(0, 10);
+    const date = query.date ?? toLocalDateStr(new Date());
     const minCap = Number(query.minCapacity ?? 1);
+    const rooms = await this.scheduleSettingsService.getRooms(true);
+    const timeSlots = await this.scheduleSettingsService.getTimeSlots(true);
 
     const busyLessons = await this.lessonRepo.find({
       where: {
@@ -355,20 +377,20 @@ export class ScheduleService {
       isFree: boolean;
     }[] = [];
 
-    for (const room of ROOMS) {
+    for (const room of rooms) {
       if (room.capacity < minCap) continue;
 
-      for (const slot of TIME_SLOTS) {
+      for (const slot of timeSlots) {
         const isBusy = busyLessons.some(
           (l) =>
             l.roomNumber === room.number &&
-            timesOverlap(slot.start, slot.end, l.startTime, l.endTime),
+            timesOverlap(slot.startTime, slot.endTime, l.startTime, l.endTime),
         );
 
         freeSlots.push({
           room: room.number,
           capacity: room.capacity,
-          slot: { start: slot.start, end: slot.end },
+          slot: { start: slot.startTime, end: slot.endTime },
           isFree: !isBusy,
         });
       }
@@ -391,7 +413,10 @@ export class ScheduleService {
   async checkConflict(dto: ConflictCheckDto) {
     const conflicts = await this.findConflicts(dto);
     return {
-      hasConflict: conflicts.roomConflict !== null || conflicts.teacherConflict !== null,
+      hasConflict:
+        conflicts.roomConflict !== null ||
+        conflicts.teacherConflict !== null ||
+        conflicts.capacityConflict !== null,
       ...conflicts,
     };
   }
@@ -428,8 +453,8 @@ export class ScheduleService {
       query.month ??
       `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
     const [year, monthNum] = month.split('-').map(Number);
-    const monthStart = new Date(year, monthNum - 1, 1).toISOString().slice(0, 10);
-    const monthEnd = new Date(year, monthNum, 0).toISOString().slice(0, 10);
+    const monthStart = toLocalDateStr(new Date(year, monthNum - 1, 1));
+    const monthEnd = toLocalDateStr(new Date(year, monthNum, 0));
 
     // Xona bo'yicha darslar soni va soat
     const roomStats = await this.lessonRepo.query(
@@ -522,14 +547,7 @@ export class ScheduleService {
     };
   }
 
-  // ─── XONALAR RO'YXATI ─────────────────────────────────────────────────────
-  getRooms() {
-    return ROOMS;
-  }
-
-  getTimeSlots() {
-    return TIME_SLOTS;
-  }
+  // Xonalar/paralar ro'yxati endi ScheduleSettingsService orqali (DB-backed)
 
   // ─── ICHKI YORDAMCHILAR ───────────────────────────────────────────────────
 
@@ -545,6 +563,12 @@ export class ScheduleService {
         `O'qituvchi bu vaqtda band: "${conflicts.teacherConflict.group?.name}" guruhi ${dto.startTime}–${dto.endTime}`,
       );
     }
+    if (conflicts.capacityConflict) {
+      const { enrolledCount, roomCapacity } = conflicts.capacityConflict;
+      throw new ConflictException(
+        `Guruhda ${enrolledCount} ta o'quvchi bor, xona ${dto.roomNumber} faqat ${roomCapacity} ta sig'adi`,
+      );
+    }
   }
 
   private async findConflicts(dto: {
@@ -554,6 +578,7 @@ export class ScheduleService {
     roomNumber: string;
     teacherId: string;
     excludeLessonId?: string;
+    groupId?: string;
   }) {
     const date = new Date(dto.lessonDate);
 
@@ -581,7 +606,23 @@ export class ScheduleService {
           timesOverlap(dto.startTime, dto.endTime, l.startTime, l.endTime),
       ) ?? null;
 
-    return { roomConflict, teacherConflict };
+    // Sig'im to'qnashuvi — guruhdagi o'quvchilar soni xona sig'imidan oshsa
+    // (masalan dars sudrab boshqa, kichikroq xonaga tashlansa). Ilgari faqat
+    // yangi dars YARATISHDA tekshirilardi — sudrab ko'chirishda (drag & drop)
+    // hech qanday tekshiruv yo'q edi.
+    let capacityConflict: { enrolledCount: number; roomCapacity: number } | null = null;
+    if (dto.groupId) {
+      const rooms = await this.scheduleSettingsService.getRooms(true);
+      const room = rooms.find((r) => r.number === dto.roomNumber);
+      if (room) {
+        const group = await this.groupRepo.findOne({ where: { id: dto.groupId } });
+        if (group && group.currentStudents > room.capacity) {
+          capacityConflict = { enrolledCount: group.currentStudents, roomCapacity: room.capacity };
+        }
+      }
+    }
+
+    return { roomConflict, teacherConflict, capacityConflict };
   }
 
   private async saveSingleLesson(

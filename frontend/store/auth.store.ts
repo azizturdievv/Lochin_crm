@@ -9,10 +9,12 @@ interface AuthState {
   refreshToken:    string | null;
   user:            User | null;
   isAuthenticated: boolean;
+  hasHydrated:     boolean;
 
-  setTokens:  (accessToken: string, refreshToken: string) => void;
-  setUser:    (user: User) => void;
-  logout:     () => void;
+  setTokens:      (accessToken: string, refreshToken: string) => void;
+  setUser:        (user: User) => void;
+  logout:         () => void;
+  setHasHydrated: (value: boolean) => void;
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -22,6 +24,7 @@ export const useAuthStore = create<AuthState>()(
       refreshToken:    null,
       user:            null,
       isAuthenticated: false,
+      hasHydrated:     false,
 
       setTokens: (accessToken, refreshToken) =>
         set({ accessToken, refreshToken, isAuthenticated: true }),
@@ -35,6 +38,8 @@ export const useAuthStore = create<AuthState>()(
           user:            null,
           isAuthenticated: false,
         }),
+
+      setHasHydrated: (value) => set({ hasHydrated: value }),
     }),
     {
       name:    'ilm-auth',
@@ -51,6 +56,9 @@ export const useAuthStore = create<AuthState>()(
         user:            s.user,
         isAuthenticated: s.isAuthenticated,
       }),
+      onRehydrateStorage: () => (state) => {
+        state?.setHasHydrated(true);
+      },
     },
   ),
 );

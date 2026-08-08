@@ -87,7 +87,7 @@ export class QueryUserDto {
   role?: StaffRole;
 
   @IsOptional()
-  @Transform(({ value }) => value === 'true')
+  @Transform(({ obj, key }) => obj[key] === 'true' || obj[key] === true)
   @IsBoolean()
   isActive?: boolean;
 

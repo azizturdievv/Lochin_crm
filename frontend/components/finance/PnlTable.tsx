@@ -1,5 +1,6 @@
 'use client';
 
+import { HelpCircle } from 'lucide-react';
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
@@ -66,7 +67,7 @@ export default function PnlTable({ month, year }: Props) {
                 ? 'bg-gray-900 text-white border-gray-900'
                 : 'border-gray-200 text-gray-600 hover:border-gray-300'
             }`}>
-            {m === 'monthly' ? `📅 ${month}` : `📆 ${year} yil`}
+            {m === 'monthly' ? `${month}` : `${year} yil`}
           </button>
         ))}
       </div>
@@ -86,6 +87,7 @@ export default function PnlTable({ month, year }: Props) {
             ))}
           </div>
         ) : (
+          <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-100">
@@ -100,22 +102,23 @@ export default function PnlTable({ month, year }: Props) {
             <tbody className="divide-y divide-gray-50">
               {mode === 'monthly' && monthly ? (
                 <>
-                  <PnlRow label="💰 Jami daromad" value={monthly.totalIncome} bold positive />
+                  <PnlRow label="Jami daromad" value={monthly.totalIncome} bold positive />
                   <PnlRow label="  Ish haqi (xarajat)" value={monthly.expensesBreakdown.salaries} indent />
                   <PnlRow label="  Operatsion xarajat" value={monthly.expensesBreakdown.operational} indent />
-                  <PnlRow label="📤 Jami xarajat" value={monthly.totalExpenses} bold />
-                  <PnlRow label="📈 Sof foyda" value={monthly.netProfit} bold positive={monthly.netProfit >= 0} className={monthly.netProfit >= 0 ? 'bg-emerald-50/50' : 'bg-red-50/50'} />
+                  <PnlRow label="Jami xarajat" value={monthly.totalExpenses} bold />
+                  <PnlRow label="Sof foyda" value={monthly.netProfit} bold positive={monthly.netProfit >= 0} className={monthly.netProfit >= 0 ? 'bg-emerald-50/50' : 'bg-red-50/50'} />
                   <PnlRow label="% Marja" value={monthly.marginPercent} bold suffix="%" />
                 </>
               ) : mode === 'annual' && annual ? (
                 <>
-                  <AnnualRow label="💰 Daromad" months={annual.months.map(m => m.totalIncome)} total={annual.annualTotal.income} positive />
-                  <AnnualRow label="📤 Xarajat" months={annual.months.map(m => m.totalExpenses)} total={annual.annualTotal.expenses} />
-                  <AnnualRow label="📈 Foyda" months={annual.months.map(m => m.netProfit)} total={annual.annualTotal.netProfit} bold positive={annual.annualTotal.netProfit >= 0} className="bg-emerald-50/30" />
+                  <AnnualRow label="Daromad" months={annual.months.map(m => m.totalIncome)} total={annual.annualTotal.income} positive />
+                  <AnnualRow label="Xarajat" months={annual.months.map(m => m.totalExpenses)} total={annual.annualTotal.expenses} />
+                  <AnnualRow label="Foyda" months={annual.months.map(m => m.netProfit)} total={annual.annualTotal.netProfit} bold positive={annual.annualTotal.netProfit >= 0} className="bg-emerald-50/30" />
                 </>
               ) : null}
             </tbody>
           </table>
+          </div>
         )}
       </div>
 
@@ -124,7 +127,7 @@ export default function PnlTable({ month, year }: Props) {
 
         {/* LineChart: 12 oy trend */}
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-          <h4 className="text-sm font-semibold text-gray-700 mb-4">📈 {year} — Oylik trend</h4>
+          <h4 className="text-sm font-semibold text-gray-700 mb-4">{year} — Oylik trend</h4>
           {trendData.length > 0 ? (
             <ResponsiveContainer width="100%" height={220}>
               <LineChart data={trendData}>
@@ -147,7 +150,7 @@ export default function PnlTable({ month, year }: Props) {
 
         {/* PieChart: fan bo'yicha daromad */}
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-          <h4 className="text-sm font-semibold text-gray-700 mb-4">🎓 Fan bo'yicha daromad ({year})</h4>
+          <h4 className="text-sm font-semibold text-gray-700 mb-4">Fan bo'yicha daromad ({year})</h4>
           {pieData.length > 0 ? (
             <ResponsiveContainer width="100%" height={220}>
               <PieChart>
@@ -172,7 +175,7 @@ export default function PnlTable({ month, year }: Props) {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {/* To'lov usuli */}
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-            <h4 className="text-sm font-semibold text-gray-700 mb-3">💳 To'lov usuli</h4>
+            <h4 className="text-sm font-semibold text-gray-700 mb-3">To'lov usuli</h4>
             <div className="space-y-2">
               {monthly.income.byMethod.map(m => (
                 <div key={m.method} className="flex items-center justify-between text-sm">
@@ -188,14 +191,14 @@ export default function PnlTable({ month, year }: Props) {
 
           {/* Xarajat kategoriya */}
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-            <h4 className="text-sm font-semibold text-gray-700 mb-3">📤 Xarajat kategoriya</h4>
+            <h4 className="text-sm font-semibold text-gray-700 mb-3">Xarajat kategoriya</h4>
             <div className="space-y-2">
               {monthly.expenses.byCategory.map(c => {
-                const meta = EXPENSE_CATEGORIES[c.category as keyof typeof EXPENSE_CATEGORIES] ?? { label: c.category, icon: '📌', color: 'bg-gray-100 text-gray-700' };
+                const meta = EXPENSE_CATEGORIES[c.category as keyof typeof EXPENSE_CATEGORIES] ?? { label: c.category, icon: HelpCircle, color: 'bg-gray-100 text-gray-700' };
                 return (
                   <div key={c.category} className="flex items-center justify-between text-sm">
                     <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs ${meta.color}`}>
-                      {meta.icon} {meta.label}
+                      <meta.icon size={14} className="shrink-0" /> {meta.label}
                     </span>
                     <span className="font-semibold text-gray-900">{fmtM(c.total)} so'm</span>
                   </div>

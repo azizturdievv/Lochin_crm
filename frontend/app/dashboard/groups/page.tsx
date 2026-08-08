@@ -1,12 +1,16 @@
 'use client';
 
+import { AlertTriangle, Archive, Pencil, School, Search, X } from 'lucide-react';
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useSearchParams } from 'next/navigation';
 import api from '@/lib/api';
+import GroupDetailModal from '@/components/groups/GroupDetailModal';
 
 // ─── TURLARI ──────────────────────────────────────────────────────────────────
 interface Subject { id: string; name: string; }
 interface Teacher { id: string; firstName: string; lastName: string; }
+interface Room { id: string; name: string; number: string; capacity: number; }
 interface Group {
   id: string;
   name: string;
@@ -56,18 +60,21 @@ const EMPTY: GroupForm = {
   lessonDays: [], monthlyPrice: '', maxStudents: '12',
 };
 
-const INPUT = 'w-full px-3 py-2 text-sm border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition';
+const INPUT = 'w-full px-3 py-2 text-sm border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition';
 const LABEL = 'block text-xs font-medium text-gray-600 mb-1';
 const ERROR_CLS = 'text-red-500 text-xs mt-0.5';
 
 // ─── ASOSIY SAHIFA ────────────────────────────────────────────────────────────
 export default function GroupsPage() {
   const qc = useQueryClient();
+  const searchParams = useSearchParams();
   const [modal, setModal]   = useState<{ open: boolean; group: Group | null }>({ open: false, group: null });
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [detailGroup, setDetailGroup] = useState<Group | null>(null);
   const [filterSubject, setFilterSubject] = useState('');
   const [filterActive, setFilterActive]   = useState('true');
-  const [search, setSearch] = useState('');
+  // Global qidiruv (⌘K) orqali "?q=" bilan kelinsa, boshlang'ich qidiruv shu bo'ladi
+  const [search, setSearch] = useState(() => searchParams.get('q') ?? '');
   const [page, setPage]     = useState(1);
 
   // Guruhlar
@@ -115,7 +122,7 @@ export default function GroupsPage() {
         </div>
         <button
           onClick={() => setModal({ open: true, group: null })}
-          className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium rounded-xl transition-colors shadow-sm"
+          className="flex items-center gap-2 px-4 py-2.5 bg-primary-600 hover:bg-primary-700 text-white text-sm font-medium rounded-xl transition-colors shadow-sm"
         >
           <span>+</span> Yangi guruh
         </button>
@@ -125,18 +132,18 @@ export default function GroupsPage() {
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
         <div className="flex flex-wrap gap-3">
           <div className="relative flex-1 min-w-48">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">🔍</span>
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm"><Search size={16} /></span>
             <input
               value={search}
               onChange={e => { setSearch(e.target.value); setPage(1); }}
               placeholder="Guruh nomi..."
-              className="w-full pl-9 pr-4 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              className="w-full pl-9 pr-4 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500"
             />
           </div>
           <select
             value={filterSubject}
             onChange={e => { setFilterSubject(e.target.value); setPage(1); }}
-            className="px-3 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white min-w-36"
+            className="px-3 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white min-w-36"
           >
             <option value="">Barcha fanlar</option>
             {(subjects as Subject[] | undefined)?.map(s => (
@@ -146,7 +153,7 @@ export default function GroupsPage() {
           <select
             value={filterActive}
             onChange={e => { setFilterActive(e.target.value); setPage(1); }}
-            className="px-3 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white"
+            className="px-3 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white"
           >
             <option value="true">Faol</option>
             <option value="false">Arxivlangan</option>
@@ -184,13 +191,16 @@ export default function GroupsPage() {
               ) : groups.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="px-6 py-16 text-center text-gray-400">
-                    <div className="text-5xl mb-3">🏫</div>
+                    <div className="text-5xl mb-3"><School size={16} /></div>
                     <p className="font-medium text-gray-500">Guruh topilmadi</p>
                     <p className="text-sm mt-1">Yangi guruh yarating</p>
                   </td>
                 </tr>
               ) : groups.map(g => (
-                <tr key={g.id} className="hover:bg-gray-50/60 transition-colors group">
+                <tr key={g.id}
+                  onClick={() => setDetailGroup(g)}
+                  className="hover:bg-gray-50/60 transition-colors group cursor-pointer"
+                >
                   <td className="px-4 py-3.5">
                     <div className="flex items-center gap-3">
                       <div className="w-9 h-9 rounded-xl bg-emerald-100 flex items-center justify-center shrink-0">
@@ -244,22 +254,18 @@ export default function GroupsPage() {
                     </span>
                   </td>
                   <td className="px-4 py-3.5">
-                    <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="flex items-center justify-end gap-1">
                       <button
-                        onClick={() => setModal({ open: true, group: g })}
+                        onClick={(e) => { e.stopPropagation(); setModal({ open: true, group: g }); }}
                         className="p-1.5 rounded-lg hover:bg-amber-50 text-amber-500 transition-colors text-sm"
                         title="Tahrirlash"
-                      >
-                        ✏️
-                      </button>
+                      ><Pencil size={16} /></button>
                       {g.isActive && (
                         <button
-                          onClick={() => setDeleteId(g.id)}
+                          onClick={(e) => { e.stopPropagation(); setDeleteId(g.id); }}
                           className="p-1.5 rounded-lg hover:bg-red-50 text-red-400 transition-colors text-sm"
                           title="Arxivlash"
-                        >
-                          🗃️
-                        </button>
+                        ><Archive size={16} /></button>
                       )}
                     </div>
                   </td>
@@ -278,7 +284,7 @@ export default function GroupsPage() {
                 className="w-8 h-8 rounded-lg text-xs text-gray-600 hover:bg-gray-200 disabled:opacity-30 transition-colors">‹</button>
               {Array.from({ length: Math.min(5, totalPages) }, (_, i) => i + 1).map(p => (
                 <button key={p} onClick={() => setPage(p)}
-                  className={`w-8 h-8 rounded-lg text-xs font-medium transition-colors ${p === page ? 'bg-emerald-600 text-white' : 'text-gray-600 hover:bg-gray-200'}`}>
+                  className={`w-8 h-8 rounded-lg text-xs font-medium transition-colors ${p === page ? 'bg-primary-600 text-white' : 'text-gray-600 hover:bg-gray-200'}`}>
                   {p}
                 </button>
               ))}
@@ -302,11 +308,20 @@ export default function GroupsPage() {
         />
       )}
 
+      {/* ── GURUH TAFSILOTI (O'QUVCHILAR RO'YXATI) ─────────────────── */}
+      {detailGroup && !modal.open && (
+        <GroupDetailModal
+          group={detailGroup}
+          onClose={() => setDetailGroup(null)}
+          onEdit={() => { setModal({ open: true, group: detailGroup }); setDetailGroup(null); }}
+        />
+      )}
+
       {/* ── O'CHIRISH TASDIQLASH ───────────────────────────────────── */}
       {deleteId && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
           <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-sm w-full">
-            <div className="text-3xl mb-3">⚠️</div>
+            <div className="text-3xl mb-3"><AlertTriangle size={30} /></div>
             <h3 className="font-semibold text-gray-900 mb-1">Guruhni arxivlash</h3>
             <p className="text-gray-500 text-sm mb-5">Guruh arxivlanadi. Ma'lumotlar saqlanib qoladi.</p>
             <div className="flex gap-3">
@@ -361,6 +376,13 @@ function GroupModal({
         .then(r => r.data.data),
   });
 
+  // Xonalar ro'yxati (Sozlamalar bo'limida boshqariladi)
+  const { data: rooms } = useQuery({
+    queryKey: ['rooms'],
+    queryFn: () => api.get<Room[]>('/schedule/rooms?active=true').then(r => r.data),
+    staleTime: 5 * 60_000,
+  });
+
   const saveMut = useMutation({
     mutationFn: (payload: object) =>
       isEdit
@@ -412,9 +434,7 @@ function GroupModal({
             {isEdit ? 'Guruhni tahrirlash' : 'Yangi guruh'}
           </h2>
           <button onClick={onClose}
-            className="w-8 h-8 rounded-xl flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition">
-            ✕
-          </button>
+            className="w-8 h-8 rounded-xl flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition"><X size={16} /></button>
         </div>
 
         {/* Form */}
@@ -466,12 +486,18 @@ function GroupModal({
           {/* Xona */}
           <div>
             <label className={LABEL}>Xona</label>
-            <input
+            <select
               value={form.roomNumber}
               onChange={e => setForm(f => ({ ...f, roomNumber: e.target.value }))}
               className={INPUT}
-              placeholder="101, 202, Katta zal..."
-            />
+            >
+              <option value="">Tanlang...</option>
+              {(rooms ?? []).map(r => (
+                <option key={r.id} value={r.number}>
+                  {r.name} ({r.capacity} o'rin)
+                </option>
+              ))}
+            </select>
           </div>
 
           {/* Vaqt */}
@@ -506,7 +532,7 @@ function GroupModal({
                     type="checkbox"
                     checked={form.lessonDays.includes(d.value)}
                     onChange={() => toggleDay(d.value)}
-                    className="accent-emerald-600 w-4 h-4"
+                    className="accent-primary-600 w-4 h-4"
                   />
                   <span className={`text-sm font-medium px-2 py-0.5 rounded-lg transition-colors ${
                     form.lessonDays.includes(d.value)
@@ -559,7 +585,7 @@ function GroupModal({
               Bekor
             </button>
             <button type="submit" disabled={saveMut.isPending}
-              className="flex-1 py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-medium hover:bg-emerald-700 disabled:opacity-60 transition">
+              className="flex-1 py-2.5 bg-primary-600 text-white rounded-xl text-sm font-medium hover:bg-primary-700 disabled:opacity-60 transition">
               {saveMut.isPending ? 'Saqlanmoqda...' : 'Saqlash'}
             </button>
           </div>

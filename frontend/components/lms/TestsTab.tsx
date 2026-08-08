@@ -1,5 +1,6 @@
 'use client';
 
+import { FileText, Pencil } from 'lucide-react';
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
@@ -30,18 +31,18 @@ export default function TestsTab({ subjectId, groupId, canCreate, canApprove }: 
 
   const { data: tests = [], isLoading } = useQuery({
     queryKey: ['tests', subjectId, groupId],
-    queryFn:  () => api.get<Test[]>('/lms/tests', {
-      params: { subjectId, groupId: groupId ?? undefined },
+    queryFn:  () => api.get<Test[]>('/tests', {
+      params: { subjectId },
     }).then(r => r.data),
   });
 
   const approveMut = useMutation({
-    mutationFn: (id: string) => api.patch(`/lms/tests/${id}/status`, { status: 'published' }),
+    mutationFn: (id: string) => api.patch(`/tests/${id}/status`, { status: 'published' }),
     onSuccess:  () => qc.invalidateQueries({ queryKey: ['tests', subjectId, groupId] }),
   });
 
   const archiveMut = useMutation({
-    mutationFn: (id: string) => api.patch(`/lms/tests/${id}/status`, { status: 'archived' }),
+    mutationFn: (id: string) => api.patch(`/tests/${id}/status`, { status: 'archived' }),
     onSuccess:  () => qc.invalidateQueries({ queryKey: ['tests', subjectId, groupId] }),
   });
 
@@ -50,7 +51,15 @@ export default function TestsTab({ subjectId, groupId, canCreate, canApprove }: 
     : tests.filter(t => t.status === statusFilter);
 
   if (activeTest) {
-    return <TestRunner test={activeTest} onClose={() => setActiveTest(null)} />;
+    return (
+      <TestRunner
+        test={activeTest}
+        onClose={() => {
+          setActiveTest(null);
+          qc.invalidateQueries({ queryKey: ['tests', subjectId, groupId] });
+        }}
+      />
+    );
   }
 
   return (
@@ -64,7 +73,7 @@ export default function TestsTab({ subjectId, groupId, canCreate, canApprove }: 
               onClick={() => setStatusFilter(f.value as TestStatus | 'all')}
               className={`text-xs px-3 py-1.5 rounded-xl font-medium transition-colors border ${
                 statusFilter === f.value
-                  ? 'bg-emerald-600 text-white border-emerald-600'
+                  ? 'bg-primary-600 text-white border-emerald-600'
                   : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
               }`}
             >
@@ -75,9 +84,9 @@ export default function TestsTab({ subjectId, groupId, canCreate, canApprove }: 
         {canCreate && (
           <button
             onClick={() => setCreateOpen(true)}
-            className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium px-4 py-2 rounded-xl transition-colors"
+            className="flex items-center gap-1.5 bg-primary-600 hover:bg-primary-700 text-white text-sm font-medium px-4 py-2 rounded-xl transition-colors"
           >
-            ✏️ Test draft
+            <Pencil size={14} /> Test draft
           </button>
         )}
       </div>
@@ -91,7 +100,7 @@ export default function TestsTab({ subjectId, groupId, canCreate, canApprove }: 
         </div>
       ) : filtered.length === 0 ? (
         <div className="flex flex-col items-center justify-center h-48 text-gray-400 gap-2">
-          <div className="text-4xl">📝</div>
+          <div className="text-4xl"><FileText size={36} /></div>
           <p className="text-sm">Testlar topilmadi</p>
         </div>
       ) : (
@@ -99,8 +108,8 @@ export default function TestsTab({ subjectId, groupId, canCreate, canApprove }: 
           {filtered.map(test => {
             const sMeta      = TEST_STATUS_META[test.status];
             const result     = test.myResult;
-            const attemptsLeft = test.myAttemptsLeft ?? 0;
-            const canTake    = test.status === 'published' && (attemptsLeft > 0 || test.retryCount === 0);
+            const attemptsLeft = test.myAttemptsLeft ?? test.maxAttempts;
+            const canTake    = test.status === 'published' && attemptsLeft > 0;
 
             return (
               <div
@@ -117,17 +126,12 @@ export default function TestsTab({ subjectId, groupId, canCreate, canApprove }: 
                     </div>
 
                     <div className="flex items-center gap-3 mt-1.5 flex-wrap">
-                      <span className="text-xs text-gray-400">⏱ {test.durationMinutes} daq</span>
-                      <span className="text-xs text-gray-400">📝 {test.totalQuestions} savol</span>
-                      <span className="text-xs text-gray-400">✅ O'tish: {test.passScore}%</span>
-                      {test.dueDate && (
-                        <span className="text-xs text-amber-600">
-                          📅 {new Date(test.dueDate).toLocaleDateString('uz-UZ', { day:'2-digit', month:'short' })}
-                        </span>
-                      )}
-                      {test.creator && (
+                      <span className="text-xs text-gray-400">⏱ {test.timeLimitMinutes} daq</span>
+                      <span className="text-xs text-gray-400">{test.questionsToShow}/{test.totalQuestions} savol</span>
+                      <span className="text-xs text-gray-400">{attemptsLeft}/{test.maxAttempts} urinish qoldi</span>
+                      {test.createdBy && (
                         <span className="text-xs text-gray-400">
-                          👤 {test.creator.firstName} {test.creator.lastName[0]}.
+                          {test.createdBy.firstName} {test.createdBy.lastName[0]}.
                         </span>
                       )}
                     </div>
@@ -153,7 +157,7 @@ export default function TestsTab({ subjectId, groupId, canCreate, canApprove }: 
                           disabled={approveMut.isPending}
                           className="text-xs bg-emerald-50 text-emerald-700 hover:bg-emerald-100 px-3 py-1.5 rounded-xl transition-colors font-medium"
                         >
-                          ✓ Tasdiqlash
+                          Tasdiqlash
                         </button>
                       )}
                       {canApprove && test.status === 'published' && (
@@ -168,9 +172,9 @@ export default function TestsTab({ subjectId, groupId, canCreate, canApprove }: 
                       {canTake && (
                         <button
                           onClick={() => setActiveTest(test)}
-                          className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-xl transition-colors font-medium"
+                          className="text-xs bg-primary-600 hover:bg-primary-700 text-white px-3 py-1.5 rounded-xl transition-colors font-medium"
                         >
-                          {result ? '🔄 Qayta urinish' : '▶ Boshlash'}
+                          {result ? 'Qayta urinish' : '▶ Boshlash'}
                         </button>
                       )}
                       {!canTake && test.status === 'published' && attemptsLeft === 0 && result && (

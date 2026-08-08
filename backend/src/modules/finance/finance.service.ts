@@ -278,7 +278,7 @@ export class FinanceService {
     const pnl = await this.getMonthlyPnl(month);
 
     const wb = new ExcelJS.Workbook();
-    wb.creator = 'Ilm Academy CRM';
+    wb.creator = 'Lochin School CRM';
     wb.created = new Date();
 
     const ws = wb.addWorksheet(`P&L — ${month}`);
@@ -287,7 +287,7 @@ export class FinanceService {
     // Sarlavha
     ws.mergeCells('A1:C1');
     const title = ws.getCell('A1');
-    title.value = `ILM ACADEMY — P&L Hisoboti (${month})`;
+    title.value = `LOCHIN SCHOOL — P&L Hisoboti (${month})`;
     title.font = { bold: true, size: 14 };
     title.alignment = { horizontal: 'center' };
     title.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1565C0' } };
@@ -367,7 +367,7 @@ export class FinanceService {
   // ─── EXCEL EKSPORT: MAOSH ─────────────────────────────────────────────────
   async exportSalaryExcel(month: string, records: SalaryRecord[]): Promise<Buffer> {
     const wb = new ExcelJS.Workbook();
-    wb.creator = 'Ilm Academy CRM';
+    wb.creator = 'Lochin School CRM';
 
     const ws = wb.addWorksheet(`Maosh — ${month}`);
     ws.columns = [
@@ -378,7 +378,7 @@ export class FinanceService {
     // Maxfiylik belgisi
     ws.mergeCells('A1:G1');
     const titleCell = ws.getCell('A1');
-    titleCell.value = `ILM ACADEMY — Ish haqi (${month})  ⚠ MAXFIY`;
+    titleCell.value = `LOCHIN SCHOOL — Ish haqi (${month})  ⚠ MAXFIY`;
     titleCell.font = { bold: true, size: 13, color: { argb: 'FFFFFFFF' } };
     titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFB71C1C' } };
     titleCell.alignment = { horizontal: 'center' };
@@ -394,8 +394,7 @@ export class FinanceService {
       const total = r.totalAmount;
       grandTotal += total;
 
-      const teacher = r.teacher as any;
-      const name = teacher ? `${teacher.firstName} ${teacher.lastName}` : r.teacherId;
+      const name = r.teacher ? `${r.teacher.firstName} ${r.teacher.lastName}` : r.teacherId;
 
       const dataRow = ws.addRow([
         name,
@@ -433,7 +432,7 @@ export class FinanceService {
       const fmt = (n: number) => n.toLocaleString('uz-UZ') + " so'm";
 
       // Sarlavha
-      doc.fontSize(18).font('Helvetica-Bold').text('ILM ACADEMY', { align: 'center' });
+      doc.fontSize(18).font('Helvetica-Bold').text('LOCHIN SCHOOL', { align: 'center' });
       doc
         .fontSize(12)
         .font('Helvetica')
@@ -517,17 +516,17 @@ export class FinanceService {
     return { message: `Hisobot ${chatId} ga yuborildi` };
   }
 
-  private buildTelegramText(month: string, pnl: any): string {
+  private buildTelegramText(month: string, pnl: Awaited<ReturnType<FinanceService['getMonthlyPnl']>>): string {
     const fmt = (n: number) => n.toLocaleString('uz-UZ');
     const sign = pnl.netProfit >= 0 ? '📈' : '📉';
 
     const subjectLines = pnl.income.bySubject
       .slice(0, 5)
-      .map((s: any) => `  • ${s.subjectName}: *${fmt(s.total)} so'm*`)
+      .map((s) => `  • ${s.subjectName}: *${fmt(s.total)} so'm*`)
       .join('\n');
 
     return (
-      `${sign} *ILM ACADEMY — ${month}*\n\n` +
+      `${sign} *LOCHIN SCHOOL — ${month}*\n\n` +
       `💰 Daromad: *${fmt(pnl.totalIncome)} so'm*\n` +
       `📤 Xarajat: *${fmt(pnl.totalExpenses)} so'm*\n` +
       `  — Maosh: ${fmt(pnl.expensesBreakdown.salaries)} so'm\n` +

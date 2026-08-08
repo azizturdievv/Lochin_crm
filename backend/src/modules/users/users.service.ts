@@ -79,7 +79,7 @@ export class UsersService {
 
     if (search) {
       qb = qb.andWhere(
-        '(LOWER(u.first_name) LIKE :s OR LOWER(u.last_name) LIKE :s OR LOWER(u.email) LIKE :s OR u.phone LIKE :s)',
+        '(LOWER(u.firstName) LIKE :s OR LOWER(u.last_name) LIKE :s OR LOWER(u.email) LIKE :s OR u.phone LIKE :s)',
         { s: `%${search.toLowerCase()}%` },
       );
     }
@@ -425,6 +425,18 @@ export class UsersService {
     const user = await this.userRepository.findOne({ where: { id: userId } });
     if (!user) throw new NotFoundException('Foydalanuvchi topilmadi');
 
+    // O'quvchi faqat login ma'lumotlarini (username/email) o'zi o'zgartira oladi —
+    // ism/telefon/manzil/tug'ilgan sana kabi enrollment yozuvi faqat SA/Manager orqali o'zgaradi
+    if (user.role === Role.STUDENT) {
+      const restricted = ['firstName', 'lastName', 'middleName', 'phone', 'address', 'birthDate'] as const;
+      const attempted = restricted.filter((f) => dto[f] !== undefined);
+      if (attempted.length > 0) {
+        throw new ForbiddenException(
+          "Bu ma'lumotlarni faqat administrator o'zgartira oladi. Iltimos, administratorga murojaat qiling",
+        );
+      }
+    }
+
     // Username takrorlanmasligini tekshirish
     if (dto.username && dto.username !== user.username) {
       const exists = await this.userRepository.findOne({ where: { username: dto.username } });
@@ -563,10 +575,10 @@ export class UsersService {
       .andWhere('u.is_active = true')
       .andWhere('u.id != :actorId', { actorId })
       .andWhere(
-        '(LOWER(u.username) LIKE :q OR LOWER(u.first_name) LIKE :q OR LOWER(u.last_name) LIKE :q)',
+        '(LOWER(u.username) LIKE :q OR LOWER(u.firstName) LIKE :q OR LOWER(u.last_name) LIKE :q)',
         { q: query },
       )
-      .orderBy('u.first_name', 'ASC')
+      .orderBy('u.firstName', 'ASC')
       .limit(20);
 
     // O'quvchi faqat o'z guruhi a'zolari va ustozi bilan chat qila oladi

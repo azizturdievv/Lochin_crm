@@ -1,5 +1,6 @@
 'use client';
 
+import { BookOpen, X } from 'lucide-react';
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
@@ -46,7 +47,7 @@ export default function BookclubTab({ canAdd }: { canAdd: boolean }) {
               onClick={() => setStatusFilter(f.v as BookStatus | 'all')}
               className={`text-xs px-3 py-1.5 rounded-xl font-medium transition-colors border ${
                 statusFilter === f.v
-                  ? 'bg-emerald-600 text-white border-emerald-600'
+                  ? 'bg-primary-600 text-white border-emerald-600'
                   : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
               }`}
             >
@@ -57,7 +58,7 @@ export default function BookclubTab({ canAdd }: { canAdd: boolean }) {
         {canAdd && (
           <button
             onClick={() => setAddOpen(true)}
-            className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl font-medium transition-colors"
+            className="text-xs bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-xl font-medium transition-colors"
           >
             + Kitob qo'shish
           </button>
@@ -72,7 +73,7 @@ export default function BookclubTab({ canAdd }: { canAdd: boolean }) {
         </div>
       ) : filtered.length === 0 ? (
         <div className="flex flex-col items-center justify-center h-48 text-gray-400 gap-2">
-          <div className="text-4xl">📖</div>
+          <div className="text-4xl"><BookOpen size={36} /></div>
           <p className="text-sm">Kitoblar topilmadi</p>
         </div>
       ) : (
@@ -90,10 +91,10 @@ export default function BookclubTab({ canAdd }: { canAdd: boolean }) {
                   {book.coverUrl ? (
                     <img src={book.coverUrl} alt={book.title} className="h-full w-full object-cover" />
                   ) : (
-                    <span className="text-5xl">📖</span>
+                    <span className="text-5xl"><BookOpen size={16} /></span>
                   )}
                   <div className={`absolute top-2 right-2 text-[10px] font-medium px-2 py-0.5 rounded-full ${meta.color} bg-white/90`}>
-                    {meta.icon} {meta.label}
+                    <meta.icon size={14} className="shrink-0" /> {meta.label}
                   </div>
                 </div>
 
@@ -108,7 +109,7 @@ export default function BookclubTab({ canAdd }: { canAdd: boolean }) {
                         ? 'bg-emerald-100 text-emerald-700'
                         : 'bg-red-100 text-red-700'
                     }`}>
-                      ⭐ {book.myScore}% ball
+                      {book.myScore}% ball
                     </div>
                   )}
 
@@ -135,7 +136,7 @@ export default function BookclubTab({ canAdd }: { canAdd: boolean }) {
                         <button
                           className="text-[10px] bg-amber-50 text-amber-700 px-2 py-1 rounded-lg font-medium hover:bg-amber-100 transition-colors"
                         >
-                          📝 AI test
+                          AI test
                         </button>
                       )}
                     </div>
@@ -177,23 +178,23 @@ function AddBookModal({ onClose }: { onClose: () => void }) {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
       <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md p-6 space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="font-bold text-gray-900">📖 Kitob qo'shish</h2>
-          <button onClick={onClose} className="w-7 h-7 rounded-lg hover:bg-gray-100 text-gray-400 flex items-center justify-center">✕</button>
+          <h2 className="font-bold text-gray-900">Kitob qo'shish</h2>
+          <button onClick={onClose} className="w-7 h-7 rounded-lg hover:bg-gray-100 text-gray-400 flex items-center justify-center"><X size={16} /></button>
         </div>
         <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Kitob nomi *"
-          className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+          className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500" />
         <input value={author} onChange={e => setAuthor(e.target.value)} placeholder="Muallif *"
-          className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+          className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500" />
         <textarea value={desc} onChange={e => setDesc(e.target.value)} rows={2} placeholder="Qisqacha tavsif"
-          className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 resize-none" />
+          className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 resize-none" />
         <input type="number" value={pages} onChange={e => setPages(e.target.value)} placeholder="Sahifalar soni"
-          className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+          className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500" />
         <div className="flex justify-end gap-2">
           <button onClick={onClose} className="px-4 py-2 text-sm bg-gray-100 text-gray-600 rounded-xl hover:bg-gray-200 transition-colors">Bekor</button>
           <button
             onClick={() => { if (title && author) mut.mutate(); }}
             disabled={mut.isPending || !title || !author}
-            className="px-5 py-2 text-sm font-medium bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 disabled:opacity-50 transition-colors"
+            className="px-5 py-2 text-sm font-medium bg-primary-600 text-white rounded-xl hover:bg-primary-700 disabled:opacity-50 transition-colors"
           >
             {mut.isPending ? 'Saqlanmoqda...' : "Qo'shish"}
           </button>

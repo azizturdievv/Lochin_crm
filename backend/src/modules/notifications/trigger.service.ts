@@ -64,7 +64,7 @@ export class TriggerService {
     await Promise.allSettled(
       parents.map(async (parent) => {
         parentVars.ota_ism = parent.fullName;
-        const sends: Promise<any>[] = [];
+        const sends: Promise<boolean>[] = [];
 
         if (parent.phone) {
           sends.push(this.sms.send(parent.phone, render(tmpl.sms, parentVars)));

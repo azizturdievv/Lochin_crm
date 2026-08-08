@@ -1,5 +1,6 @@
 'use client';
 
+import { BookOpen, X, ChevronLeft } from 'lucide-react';
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
@@ -63,7 +64,7 @@ export default function VocabTab({ canAdd }: Props) {
           disabled={words.length < 4}
           className="text-sm bg-purple-600 hover:bg-purple-700 text-white px-4 py-2.5 rounded-xl font-medium transition-colors disabled:opacity-50 shrink-0"
         >
-          📝 Haftalik test
+          Haftalik test
         </button>
       </div>
 
@@ -73,12 +74,12 @@ export default function VocabTab({ canAdd }: Props) {
           value={search}
           onChange={e => setSearch(e.target.value)}
           placeholder="So'z qidirish..."
-          className="flex-1 px-4 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500"
+          className="flex-1 px-4 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500"
         />
         {canAdd && (
           <button
             onClick={() => setAddOpen(true)}
-            className="text-sm bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-xl font-medium transition-colors shrink-0"
+            className="text-sm bg-primary-600 hover:bg-primary-700 text-white px-4 py-2.5 rounded-xl font-medium transition-colors shrink-0"
           >
             + So'z
           </button>
@@ -92,7 +93,7 @@ export default function VocabTab({ canAdd }: Props) {
         </div>
       ) : filtered.length === 0 ? (
         <div className="flex flex-col items-center justify-center h-40 text-gray-400 gap-2">
-          <div className="text-3xl">📚</div>
+          <div className="text-3xl"><BookOpen size={30} /></div>
           <p className="text-sm">{search ? 'So\'z topilmadi' : 'Lug\'at bo\'sh'}</p>
         </div>
       ) : (
@@ -180,17 +181,17 @@ function VocabTest({ words, onBack }: { words: VocabWord[]; onBack: () => void }
   if (submitted) {
     return (
       <div className="flex flex-col items-center justify-center min-h-64 gap-5">
-        <div className="text-5xl">{score >= 80 ? '🎉' : score >= 60 ? '👍' : '😔'}</div>
+        <div className="text-5xl">{score >= 80 ? '' : score >= 60 ? '' : ''}</div>
         <div className="text-center">
           <div className={`text-3xl font-bold ${score >= 80 ? 'text-emerald-600' : score >= 60 ? 'text-amber-600' : 'text-red-600'}`}>
             {score}%
           </div>
           <p className="text-sm text-gray-500 mt-1">
-            {score >= 80 ? '+50 ⭐ ball olindingiz!' : 'Davom eting, yaxshilaning!'}
+            {score >= 80 ? '+50 ball olindingiz!' : 'Davom eting, yaxshilaning!'}
           </p>
         </div>
-        <button onClick={onBack} className="px-6 py-2.5 bg-emerald-600 text-white text-sm font-medium rounded-xl hover:bg-emerald-700 transition-colors">
-          ← Lug'atga qaytish
+        <button onClick={onBack} className="px-6 py-2.5 bg-primary-600 text-white text-sm font-medium rounded-xl hover:bg-primary-700 transition-colors">
+          <ChevronLeft size={14} /> Lug'atga qaytish
         </button>
       </div>
     );
@@ -200,7 +201,7 @@ function VocabTest({ words, onBack }: { words: VocabWord[]; onBack: () => void }
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <button onClick={onBack} className="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1">
-          ← Orqaga
+          <ChevronLeft size={14} /> Orqaga
         </button>
         <span className="text-xs text-gray-400">{answered}/{questions.length} javob</span>
       </div>
@@ -237,7 +238,7 @@ function VocabTest({ words, onBack }: { words: VocabWord[]; onBack: () => void }
           disabled={answered < questions.length || submitMut.isPending}
           className="px-6 py-2.5 bg-purple-600 hover:bg-purple-700 text-white text-sm font-semibold rounded-xl disabled:opacity-50 transition-colors"
         >
-          {submitMut.isPending ? 'Topshirilmoqda...' : '✓ Testni topshirish'}
+          {submitMut.isPending ? 'Topshirilmoqda...' : 'Testni topshirish'}
         </button>
       </div>
     </div>
@@ -269,26 +270,26 @@ function AddWordModal({ onClose }: { onClose: () => void }) {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
       <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm p-6 space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="font-bold text-gray-900">📚 Yangi so'z</h2>
-          <button onClick={onClose} className="w-7 h-7 rounded-lg hover:bg-gray-100 text-gray-400 flex items-center justify-center">✕</button>
+          <h2 className="font-bold text-gray-900">Yangi so'z</h2>
+          <button onClick={onClose} className="w-7 h-7 rounded-lg hover:bg-gray-100 text-gray-400 flex items-center justify-center"><X size={16} /></button>
         </div>
         <input value={word} onChange={e => setWord(e.target.value)} placeholder="So'z (inglizcha) *"
-          className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+          className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500" />
         <input value={trans} onChange={e => setTrans(e.target.value)} placeholder="Tarjimasi (o'zbekcha) *"
-          className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+          className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500" />
         <input value={ex} onChange={e => setEx(e.target.value)} placeholder="Misol jumla (ixtiyoriy)"
-          className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+          className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500" />
         <label className="flex items-center gap-2 cursor-pointer">
           <input type="checkbox" checked={ai} onChange={e => setAi(e.target.checked)}
-            className="w-4 h-4 accent-emerald-600" />
-          <span className="text-sm text-gray-700">🤖 AI ta'rif yaratish</span>
+            className="w-4 h-4 accent-primary-600" />
+          <span className="text-sm text-gray-700">AI ta'rif yaratish</span>
         </label>
         <div className="flex justify-end gap-2">
           <button onClick={onClose} className="px-4 py-2 text-sm bg-gray-100 text-gray-600 rounded-xl hover:bg-gray-200">Bekor</button>
           <button
             onClick={() => { if (word && trans) mut.mutate(); }}
             disabled={mut.isPending || !word || !trans}
-            className="px-5 py-2 text-sm font-medium bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 disabled:opacity-50"
+            className="px-5 py-2 text-sm font-medium bg-primary-600 text-white rounded-xl hover:bg-primary-700 disabled:opacity-50"
           >
             {mut.isPending ? '...' : "Qo'shish"}
           </button>

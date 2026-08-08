@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { Role } from '../../common/enums/role.enum';
 
 export enum ModerationLevel {
   CLEAN = 'clean',
@@ -12,6 +13,14 @@ export type ModerationResult = {
   cleanedText?: string;
 };
 
+// OpenAI /v1/moderations javob shakli
+interface OpenAiModerationResponse {
+  results?: Array<{
+    flagged: boolean;
+    categories: Record<string, boolean>;
+  }>;
+}
+
 // Shaxsiy ma'lumot aniqlash pattern'lari
 const PERSONAL_INFO_PATTERNS = [
   /\b9[0-9]{8}\b/g,                    // Telefon: 9XXXXXXXX
@@ -20,20 +29,30 @@ const PERSONAL_INFO_PATTERNS = [
   /\b\d{14}\b/g,                        // Passport ID
 ];
 
+// Tashqi havola aniqlash (http/https, www., t.me, tg://, keng tarqalgan domenlar)
+const LINK_PATTERN = /(https?:\/\/[^\s]+)|(www\.[^\s]+)|(t\.me\/[^\s]+)|(tg:\/\/[^\s]+)|([a-zA-Z0-9-]+\.(com|uz|ru|net|org|io|me)\b[^\s]*)/gi;
+
 // Og'ir haqorat so'zlari (BLOCKED — avtomatik blok)
+// Eslatma: bu qo'lda yozilgan ro'yxat — imlo xatosi, lotin/krill aralashmasi
+// yoki yangi so'z ijodini (masalan harflarni raqamga almashtirish) aniqlay
+// olmaydi. AI moderatsiya (OPENAI_API_KEY) shu bo'shliqni to'ldiradi — bu
+// ro'yxat faqat AI ishlamaganda ishlaydigan zaxira sifatida qaraladi.
 const SEVERE_WORDS = new Set([
-  // O'zbek haqoratlari (placeholder, real tizimda to'liq ro'yxat kerak)
-  'ахмоқ', 'тентак', 'нодон', 'мўт', 'аблаҳ',
-  'axmoq', 'tentak', 'nodon', 'ablah',
-  // Rus haqoratlari (keng tarqalgan)
-  'дурак', 'идиот', 'тупой', 'мразь', 'скотина',
-  'durak', 'idiot',
+  // O'zbek haqoratlari — lotin va krill, ikkalasi ham amalda ishlatiladi
+  'ахмоқ', 'тентак', 'нодон', 'мўт', 'аблаҳ', 'лақма', 'бадбахт', 'жинни', 'семиз', 'кар-соқов',
+  'axmoq', 'tentak', 'nodon', 'ablah', 'laqma', 'badbaxt', 'jinni', 'svoloch', 'padar lanat',
+  // Rus haqoratlari (keng tarqalgan, O'zbekistonda ham ishlatiladi)
+  'дурак', 'идиот', 'тупой', 'мразь', 'скотина', 'кретин', 'болван', 'придурок', 'гад', 'сволочь', 'ублюдок',
+  'durak', 'idiot', 'kreten', 'boldon', 'pridurok',
+  // Ingliz haqoratlari (aralash-tilli chatda uchraydi)
+  'bastard', 'bitch', 'asshole', 'retard',
 ]);
 
 // Yengil ogohlantirishlar (WARNING)
 const MILD_WORDS = new Set([
-  'stupid', 'idiot', 'loser', 'noob',
-  'бестолковый', 'бесполезный',
+  'stupid', 'idiot', 'loser', 'noob', 'dumb', 'lame', 'pathetic', 'moron',
+  'бестолковый', 'бесполезный', 'дурачок', 'глупый', 'тупица',
+  'ahmoqona', 'bema\'ni', 'nodonlik',
 ]);
 
 // Spam aniqlash uchun foydalanuvchi yuborish tarixi
@@ -44,35 +63,60 @@ export class ModerationService {
   private readonly logger = new Logger(ModerationService.name);
 
   // Asosiy moderatsiya funksiyasi
-  moderate(content: string, senderId: string): ModerationResult {
+  async moderate(content: string, senderId: string, senderRole?: string): Promise<ModerationResult> {
     if (!content?.trim()) {
       return { level: ModerationLevel.CLEAN };
     }
 
     const lower = content.toLowerCase();
 
-    // 1. Og'ir haqorat tekshirish (BLOCKED)
-    for (const word of SEVERE_WORDS) {
-      if (lower.includes(word)) {
-        this.logger.warn(`Blok: foydalanuvchi ${senderId} haqorat ishlatdi: "${word}"`);
+    // 0. Tashqi havola tekshirish — faqat Admin/Ustoz rasmiy havola joylay oladi
+    const canPostLinks = senderRole === Role.SUPER_ADMIN || senderRole === Role.MANAGER || senderRole === Role.USTOZ;
+    if (!canPostLinks) {
+      LINK_PATTERN.lastIndex = 0;
+      if (LINK_PATTERN.test(content)) {
+        this.logger.warn(`Blok: foydalanuvchi ${senderId} tashqi havola yubordi`);
         return {
           level: ModerationLevel.BLOCKED,
-          reason: `Haqoratli so'z aniqlandi. Xabar blok qilindi.`,
+          reason: 'Tashqi havolalar yuborish taqiqlangan. Faqat admin va ustoz rasmiy havola joylay oladi.',
         };
       }
     }
 
-    // 2. Yengil haqorat tekshirish (WARNING)
-    for (const word of MILD_WORDS) {
-      if (lower.includes(word)) {
-        return {
-          level: ModerationLevel.WARNING,
-          reason: `Munosib bo'lmagan so'z ishlatildi. Iltimos, hurmat bilan muloqot qiling.`,
-        };
+    // 1. Haqorat/zo'ravonlik tekshiruvi — OPENAI_API_KEY sozlangan bo'lsa haqiqiy AI
+    // moderatsiya ishlatiladi (aniqroq, ko'p tilni tushunadi); aks holda yoki AI
+    // chaqiruvi xato bersa, pastdagi so'zlar ro'yxatiga qaytamiz (hech qachon
+    // moderatsiyasiz qoldirmaymiz)
+    const aiResult = await this.moderateWithAi(content);
+    if (aiResult) {
+      if (aiResult.level === ModerationLevel.BLOCKED) {
+        this.logger.warn(`AI blok: foydalanuvchi ${senderId} — ${aiResult.reason}`);
+        return aiResult;
+      }
+    } else {
+      // 1a. Og'ir haqorat tekshirish (BLOCKED) — AI sozlanmaganda zaxira
+      for (const word of SEVERE_WORDS) {
+        if (lower.includes(word)) {
+          this.logger.warn(`Blok: foydalanuvchi ${senderId} haqorat ishlatdi: "${word}"`);
+          return {
+            level: ModerationLevel.BLOCKED,
+            reason: `Haqoratli so'z aniqlandi. Xabar blok qilindi.`,
+          };
+        }
+      }
+
+      // 1b. Yengil haqorat tekshirish (WARNING) — AI sozlanmaganda zaxira
+      for (const word of MILD_WORDS) {
+        if (lower.includes(word)) {
+          return {
+            level: ModerationLevel.WARNING,
+            reason: `Munosib bo'lmagan so'z ishlatildi. Iltimos, hurmat bilan muloqot qiling.`,
+          };
+        }
       }
     }
 
-    // 3. Shaxsiy ma'lumot tekshirish (WARNING)
+    // 2. Shaxsiy ma'lumot tekshirish (WARNING)
     for (const pattern of PERSONAL_INFO_PATTERNS) {
       if (pattern.test(content)) {
         pattern.lastIndex = 0; // RegExp reset
@@ -83,7 +127,7 @@ export class ModerationService {
       }
     }
 
-    // 4. Spam tekshirish
+    // 3. Spam tekshirish
     const spamResult = this.checkSpam(content, senderId);
     if (spamResult) return spamResult;
 
@@ -145,11 +189,26 @@ export class ModerationService {
         body: JSON.stringify({ input: content }),
       });
 
-      const json = (await res.json()) as any;
+      // res.ok tekshirilmasa, 429/401/500 kabi xato javoblar ham "clean"
+      // deb noto'g'ri talqin qilinardi (fetch() faqat tarmoq xatosida reject
+      // qiladi, HTTP xato kodida emas) — bu moderatsiyani sukut bo'yicha
+      // "hammasi joyida" holatiga tushirib qo'yadi, aksincha bo'lishi kerak
+      if (!res.ok) {
+        const errBody = await res.text().catch(() => '');
+        this.logger.error(`OpenAI moderatsiya xatosi: HTTP ${res.status} — ${errBody.slice(0, 300)}`);
+        return null;
+      }
+
+      const json = (await res.json()) as OpenAiModerationResponse;
       const result = json.results?.[0];
 
-      if (result?.flagged) {
-        const categories = Object.entries(result.categories as Record<string, boolean>)
+      if (!result) {
+        this.logger.error(`OpenAI moderatsiya: kutilmagan javob shakli — ${JSON.stringify(json).slice(0, 300)}`);
+        return null;
+      }
+
+      if (result.flagged) {
+        const categories = Object.entries(result.categories)
           .filter(([, v]) => v)
           .map(([k]) => k)
           .join(', ');

@@ -172,10 +172,29 @@ export class ChatController {
     return { url: result.url, size: file.size, name: file.originalname };
   }
 
-  // ─── VIDEO DOIRA (Circle) — 30-60 sek ───────────────────────────────────
+  // ─── VIDEO (to'rtburchak) ─────────────────────────────────────────────────
+  @Post('upload/video')
+  @Roles(Role.SUPER_ADMIN, Role.MANAGER, Role.USTOZ, Role.STUDENT)
+  @UseInterceptors(FileInterceptor('file', UPLOAD_OPTS))
+  @HttpCode(HttpStatus.CREATED)
+  async uploadVideo(
+    @UploadedFile() file: Express.Multer.File,
+    @CurrentUser() user: User,
+  ) {
+    if (!file) throw new Error('Video yuklanmadi');
+    const validation = this.minioService.validateFile(file.mimetype, file.size, 'video');
+    if (!validation.valid) return { error: validation.error };
+
+    const result = await this.minioService.uploadBuffer(
+      file.buffer, file.originalname, file.mimetype, `chat/${user.id}/videos`,
+    );
+    return { url: result.url, size: file.size };
+  }
+
+  // ─── VIDEO DOIRA (Circle) — maks. 60 sek ────────────────────────────────
   @Post('upload/video-circle')
   @Roles(Role.SUPER_ADMIN, Role.MANAGER, Role.USTOZ, Role.STUDENT)
-  @UseInterceptors(FileInterceptor('video', UPLOAD_OPTS))
+  @UseInterceptors(FileInterceptor('file', UPLOAD_OPTS))
   @HttpCode(HttpStatus.CREATED)
   async uploadVideoCircle(
     @UploadedFile() file: Express.Multer.File,
@@ -187,15 +206,15 @@ export class ChatController {
     const validation = this.minioService.validateFile(file.mimetype, file.size, 'video');
     if (!validation.valid) return { error: validation.error };
 
-    if (dto.durationSeconds < 30 || dto.durationSeconds > 60) {
-      return { error: 'Video xabar 30-60 soniya bo\'lishi kerak' };
+    if (dto.durationSeconds > 60) {
+      return { error: 'Video xabar 60 soniyadan oshmasligi kerak' };
     }
 
     const result = await this.minioService.uploadBuffer(
       file.buffer, file.originalname, file.mimetype, `chat/${user.id}/video-circles`,
     );
 
-    const vm = await this.chatService.saveVideoMessage({
+    await this.chatService.saveVideoMessage({
       senderId: user.id,
       videoUrl: result.url,
       durationSeconds: dto.durationSeconds,
@@ -203,7 +222,9 @@ export class ChatController {
       recipientId: dto.recipientId,
     });
 
-    return vm;
+    // Boshqa yuklash endpointlari kabi { url } shaklida qaytaramiz —
+    // frontend shu maydonni o'qiydi (butun VideoMessage obyekti emas)
+    return { url: result.url, size: file.size };
   }
 
   @Get('video-messages')

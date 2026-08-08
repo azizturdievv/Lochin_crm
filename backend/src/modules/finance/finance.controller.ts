@@ -17,6 +17,7 @@ import type { Response } from 'express';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
+import { RequirePermissions } from '../../common/decorators/require-permissions.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Role } from '../../common/enums/role.enum';
 import { User } from '../../entities/user.entity';
@@ -66,7 +67,7 @@ export class FinanceController {
 
   // ─── ISH HAQI ────────────────────────────────────────────────────────────────
   @Get('salary')
-  @Roles(Role.SUPER_ADMIN)
+  @RequirePermissions('finance:salary:read')
   getSalaries(@Query('month') month?: string) {
     return this.salaryService.findAll(month ?? currentMonth());
   }
@@ -95,7 +96,7 @@ export class FinanceController {
   }
 
   @Patch('salary/:id/approve')
-  @Roles(Role.SUPER_ADMIN)
+  @RequirePermissions('finance:salary:approve')
   @HttpCode(HttpStatus.OK)
   approveSalary(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: User) {
     return this.salaryService.approve(id, user.id);

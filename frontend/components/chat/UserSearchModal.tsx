@@ -1,5 +1,6 @@
 'use client';
 
+import { Search, Users, X } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
@@ -105,21 +106,19 @@ export default function UserSearchModal({ open, onClose, onRoomCreated }: Props)
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
           <h2 className="text-base font-bold text-gray-900">Yangi chat</h2>
           <button onClick={onClose}
-            className="w-8 h-8 flex items-center justify-center rounded-xl hover:bg-gray-100 text-gray-400 transition">
-            ✕
-          </button>
+            className="w-8 h-8 flex items-center justify-center rounded-xl hover:bg-gray-100 text-gray-400 transition"><X size={16} /></button>
         </div>
 
         {/* Qidiruv */}
         <div className="px-4 py-3 border-b border-gray-100">
           <div className="relative">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">🔍</span>
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm"><Search size={16} /></span>
             <input
               ref={inputRef}
               value={q}
               onChange={e => setQ(e.target.value)}
               placeholder="Ism yoki @username kiriting..."
-              className="w-full pl-9 pr-4 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+              className="w-full pl-9 pr-4 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
             />
             {searching && (
               <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs animate-spin">⟳</span>
@@ -135,14 +134,14 @@ export default function UserSearchModal({ open, onClose, onRoomCreated }: Props)
 
           {!q.trim() && (
             <div className="flex flex-col items-center justify-center py-10 text-gray-400">
-              <div className="text-3xl mb-2">👥</div>
+              <div className="text-3xl mb-2"><Users size={30} /></div>
               <p className="text-sm">Qidirish uchun kamida 2 belgi kiriting</p>
             </div>
           )}
 
           {q.trim().length >= 2 && !searching && results.length === 0 && !error && (
             <div className="flex flex-col items-center justify-center py-10 text-gray-400">
-              <div className="text-3xl mb-2">🔍</div>
+              <div className="text-3xl mb-2"><Search size={30} /></div>
               <p className="text-sm">"{q}" uchun hech kim topilmadi</p>
             </div>
           )}

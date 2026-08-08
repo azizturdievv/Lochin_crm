@@ -1,5 +1,6 @@
 'use client';
 
+import { X } from 'lucide-react';
 import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
@@ -47,10 +48,10 @@ export default function ExcuseModal({ record, lessonId, onClose }: Props) {
       <div className="w-full max-w-sm bg-white rounded-2xl shadow-2xl">
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
           <div>
-            <h2 className="text-base font-semibold text-gray-900">📋 Sabab kiritish</h2>
+            <h2 className="text-base font-semibold text-gray-900">Sabab kiritish</h2>
             <p className="text-xs text-gray-400 mt-0.5">{fullName}</p>
           </div>
-          <button onClick={onClose} className="w-8 h-8 rounded-xl flex items-center justify-center text-gray-400 hover:bg-gray-100">✕</button>
+          <button onClick={onClose} className="w-8 h-8 rounded-xl flex items-center justify-center text-gray-400 hover:bg-gray-100"><X size={16} /></button>
         </div>
 
         <form onSubmit={handleSubmit} className="px-6 py-5 space-y-4">
@@ -97,7 +98,7 @@ export default function ExcuseModal({ record, lessonId, onClose }: Props) {
             </button>
             <button type="submit" disabled={excuseMut.isPending || reason.length < 10}
               className="flex-1 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 disabled:opacity-60 transition">
-              {excuseMut.isPending ? 'Saqlanmoqda...' : '✓ Sabab yuborish'}
+              {excuseMut.isPending ? 'Saqlanmoqda...' : 'Sabab yuborish'}
             </button>
           </div>
         </form>

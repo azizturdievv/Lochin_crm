@@ -5,8 +5,23 @@ import { User } from '../../entities/user.entity';
 import { Role } from '../../common/enums/role.enum';
 import { TelegramService, TelegramUpdate } from './channels/telegram.service';
 
+// Raw SQL (getRawOne/getRawMany) natijalari — TypeORM ularni tiplamaydi,
+// shuning uchun har bir so'rov shakli uchun mahalliy interfeys
+interface RawCountRow { cnt?: string | number }
+interface RawTotalRow { total?: string | number }
+interface RawTotalCountRow { total?: string | number; cnt?: string | number }
+interface ParentLookupRow { student_id: string; first: string; last: string }
+interface AttendanceTopicRow { status: string; topic: string | null }
+interface PointsLogRow { action: string; points: number; desc: string | null; date: string }
+interface LessonScheduleRow {
+  date: string; start: string; end: string; room: string | null;
+  group_name: string; subject: string; status: string;
+}
+interface PaymentMonthRow { month: string; total: string | number; method: string }
+interface AttendanceStatusCountRow { status: string; cnt: string | number }
+
 const HELP_TEXT =
-  '🤖 *Ilm Academy Bot*\n\n' +
+  '🤖 *Lochin School Bot*\n\n' +
   'Mavjud buyruqlar:\n' +
   '/holat — Umumiy holat\n' +
   "/ball — To'plangan ballar\n" +
@@ -115,7 +130,7 @@ export class BotService {
         .innerJoin('lessons', 'l', 'l.id = a.lesson_id')
         .where('a.student_id = :uid', { uid: user.id })
         .andWhere('l.lesson_date = :today', { today })
-        .getRawMany();
+        .getRawMany<AttendanceTopicRow>();
 
       const paymentRow = await this.userRepo.manager
         .createQueryBuilder()
@@ -125,7 +140,7 @@ export class BotService {
         .andWhere('p.payment_month = :month', { month })
         .andWhere("p.status = 'completed'")
         .andWhere('p.deleted_at IS NULL')
-        .getRawOne();
+        .getRawOne<RawTotalRow>();
 
       const statusEmoji: Record<string, string> = {
         present: '✅', late: '⏰', absent: '❌', excused: '🟡', unexcused: '🔴',
@@ -133,7 +148,7 @@ export class BotService {
 
       const attendanceText =
         attendanceRow.length > 0
-          ? attendanceRow.map((r: any) => `${statusEmoji[r.status] ?? '?'} ${r.topic ?? 'Dars'}`).join('\n')
+          ? attendanceRow.map((r) => `${statusEmoji[r.status] ?? '?'} ${r.topic ?? 'Dars'}`).join('\n')
           : "Bugun dars yo'q";
 
       const paid = Number(paymentRow?.total ?? 0);
@@ -167,12 +182,12 @@ export class BotService {
       .andWhere('p.deleted_at IS NULL')
       .orderBy('p.created_at', 'DESC')
       .limit(5)
-      .getRawMany();
+      .getRawMany<PointsLogRow>();
 
     const historyText =
       rows.length > 0
         ? rows
-            .map((r: any) => {
+            .map((r) => {
               const sign = r.points > 0 ? '+' : '';
               const d = new Date(r.date).toLocaleDateString('uz-UZ');
               return `${sign}${r.points} — ${r.desc ?? r.action} (${d})`;
@@ -219,7 +234,7 @@ export class BotService {
       qb = qb.andWhere('l.teacher_id = :uid', { uid: user.id });
     }
 
-    const lessons = await qb.getRawMany();
+    const lessons = await qb.getRawMany<LessonScheduleRow>();
 
     if (!lessons.length) {
       await this.telegram.sendMessage(chatId, '📅 Yaqin kunlarda dars yo\'q.');
@@ -230,7 +245,7 @@ export class BotService {
       scheduled: '🔵', completed: '✅', cancelled: '❌', substituted: '🔄',
     };
 
-    const lines = lessons.map((l: any) => {
+    const lines = lessons.map((l) => {
       const d = new Date(l.date).toLocaleDateString('uz-UZ');
       const status = statusEmoji[l.status] ?? '?';
       return `${status} *${d}* — ${l.subject} (${l.start.slice(0, 5)}–${l.end.slice(0, 5)}) 🏠${l.room ?? '?'}`;
@@ -265,7 +280,7 @@ export class BotService {
       .andWhere('p.deleted_at IS NULL')
       .groupBy('p.payment_month, p.method')
       .orderBy('p.payment_month', 'DESC')
-      .getRawMany();
+      .getRawMany<PaymentMonthRow>();
 
     if (!payments.length) {
       await this.telegram.sendMessage(
@@ -276,7 +291,7 @@ export class BotService {
     }
 
     const lines = payments.map(
-      (p: any) => `✅ *${p.month}*: ${Number(p.total).toLocaleString('uz-UZ')} so'm (${p.method})`,
+      (p) => `✅ *${p.month}*: ${Number(p.total).toLocaleString('uz-UZ')} so'm (${p.method})`,
     );
 
     await this.telegram.sendMessage(chatId, `💳 *To'lov tarixi*\n\n${lines.join('\n')}`);
@@ -291,7 +306,7 @@ export class BotService {
       .from('parents', 'pr')
       .innerJoin('users', 'u', 'u.id = pr.student_id')
       .where('pr.telegram_chat_id = :chatId', { chatId })
-      .getRawOne();
+      .getRawOne<ParentLookupRow>();
 
     if (!parent) {
       await this.telegram.sendMessage(
@@ -313,10 +328,10 @@ export class BotService {
       .where('a.student_id = :sid', { sid: parent.student_id })
       .andWhere("TO_CHAR(l.lesson_date, 'YYYY-MM') = :month", { month })
       .groupBy('a.status')
-      .getRawMany();
+      .getRawMany<AttendanceStatusCountRow>();
 
     const statsMap: Record<string, number> = {};
-    (attendanceStats as any[]).forEach((r: any) => { statsMap[r.status] = Number(r.cnt); });
+    attendanceStats.forEach((r) => { statsMap[r.status] = Number(r.cnt); });
 
     const payRow = await this.userRepo.manager
       .createQueryBuilder()
@@ -326,9 +341,9 @@ export class BotService {
       .andWhere('p.payment_month = :month', { month })
       .andWhere("p.status = 'completed'")
       .andWhere('p.deleted_at IS NULL')
-      .getRawOne();
+      .getRawOne<RawTotalRow>();
 
-    const paid = Number((payRow as any)?.total ?? 0);
+    const paid = Number(payRow?.total ?? 0);
 
     await this.telegram.sendMessage(
       chatId,
@@ -361,7 +376,7 @@ export class BotService {
         .innerJoin('lessons', 'l', 'l.id = a.lesson_id')
         .where('l.lesson_date = :today', { today })
         .andWhere("a.status = 'present'")
-        .getRawOne(),
+        .getRawOne<RawCountRow>(),
 
       // Bugungi to'lovlar
       this.userRepo.manager
@@ -371,7 +386,7 @@ export class BotService {
         .where("TO_CHAR(p.created_at, 'YYYY-MM-DD') = :today", { today })
         .andWhere("p.status = 'completed'")
         .andWhere('p.deleted_at IS NULL')
-        .getRawOne(),
+        .getRawOne<RawTotalCountRow>(),
 
       // Faol o'quvchilar
       this.userRepo.manager
@@ -380,7 +395,7 @@ export class BotService {
         .from('enrollments', 'e')
         .where("e.status = 'active'")
         .andWhere('e.deleted_at IS NULL')
-        .getRawOne(),
+        .getRawOne<RawCountRow>(),
 
       // Qarzdorlar
       this.userRepo.manager
@@ -394,7 +409,7 @@ export class BotService {
           `NOT EXISTS (SELECT 1 FROM payments p WHERE p.student_id = u.id AND p.payment_month = :month AND p.status = 'completed' AND p.deleted_at IS NULL)`,
           { month },
         )
-        .getRawOne(),
+        .getRawOne<RawCountRow>(),
     ]);
 
     const fmt = (n: number) => n.toLocaleString('uz-UZ');
@@ -402,10 +417,10 @@ export class BotService {
     await this.telegram.sendMessage(
       chatId,
       `📊 *Kunlik hisobot — ${today}*\n\n` +
-        `📚 Bugungi davomat: *${Number((attendanceToday as any)?.cnt ?? 0)} ta*\n` +
-        `💰 Bugungi to'lovlar: *${fmt(Number((paymentsToday as any)?.total ?? 0))} so'm* (${(paymentsToday as any)?.cnt ?? 0} ta)\n\n` +
-        `👥 Faol o'quvchilar: *${Number((activeStudents as any)?.cnt ?? 0)} ta*\n` +
-        `⚠️ Qarzdorlar (${month}): *${Number((debtorsCount as any)?.cnt ?? 0)} ta*`,
+        `📚 Bugungi davomat: *${Number(attendanceToday?.cnt ?? 0)} ta*\n` +
+        `💰 Bugungi to'lovlar: *${fmt(Number(paymentsToday?.total ?? 0))} so'm* (${paymentsToday?.cnt ?? 0} ta)\n\n` +
+        `👥 Faol o'quvchilar: *${Number(activeStudents?.cnt ?? 0)} ta*\n` +
+        `⚠️ Qarzdorlar (${month}): *${Number(debtorsCount?.cnt ?? 0)} ta*`,
     );
   }
 }

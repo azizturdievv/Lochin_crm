@@ -144,9 +144,12 @@ export class NotificationsController {
     @Body() update: TelegramUpdate,
     @Headers('x-telegram-bot-api-secret-token') secretToken?: string,
   ) {
-    // Secret token tekshirish
+    // Secret token tekshirish — TELEGRAM_WEBHOOK_SECRET sozlanmagan bo'lsa ham
+    // so'rov rad etiladi (fail-closed): aks holda bu endpoint hech qanday
+    // tasdiqlashsiz ochiq bo'lib qolardi, Telegram'dan kelgan taqlid qilingan
+    // so'rovlar orqali botga arbitrar buyruq yuborish imkonini berardi
     const expected = process.env.TELEGRAM_WEBHOOK_SECRET;
-    if (expected && secretToken !== expected) {
+    if (!expected || secretToken !== expected) {
       return { ok: false };
     }
 

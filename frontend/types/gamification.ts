@@ -1,4 +1,6 @@
 // ─── LEADERBOARD ─────────────────────────────────────────────────────────────
+import type { LucideIcon } from 'lucide-react';
+import { AlertTriangle, BookOpen, Building2, CheckCircle2, FileText, Glasses, Handshake, PenLine, Pencil, Star, Trophy, XCircle } from 'lucide-react';
 export interface LeaderboardEntry {
   rank:            number;
   userId:          string;
@@ -33,7 +35,7 @@ export interface PointLog {
 export interface Badge {
   id:          string;
   name:        string;
-  icon:        string;
+  icon: LucideIcon;
   description: string;
   condition:   string;
   earnedAt:    string | null;
@@ -82,18 +84,18 @@ export interface VocabTestQuestion {
 }
 
 // ─── META ─────────────────────────────────────────────────────────────────────
-export const POINT_REASON_META: Record<PointReason, { label: string; icon: string; sign: '+' | '-' }> = {
-  spelling_clean:    { label: 'Xatosiz xabar',       icon: '✍️', sign: '+' },
-  spelling_self_fix: { label: 'Xatoni o\'zi tuzatdi', icon: '✏️', sign: '+' },
-  book_test:         { label: 'Kitob testi 80%+',     icon: '📖', sign: '+' },
-  duty:              { label: 'Navbat bajardi',        icon: '🏢', sign: '+' },
-  kpi_100:           { label: 'KPI 100%',              icon: '🏆', sign: '+' },
-  referral:          { label: 'Yangi o\'quvchi',       icon: '🤝', sign: '+' },
-  test_90:           { label: 'Test 90%+',             icon: '📝', sign: '+' },
-  vocab_test:        { label: 'Lug\'at testi',         icon: '📚', sign: '+' },
-  other:             { label: 'Boshqa',                icon: '⭐', sign: '+' },
-  spelling_error:    { label: 'Imlo xatosi',           icon: '❌', sign: '-' },
-  duty_missed:       { label: 'Navbat bajarilmadi',    icon: '⚠️', sign: '-' },
+export const POINT_REASON_META: Record<PointReason, { label: string; icon: LucideIcon; sign: '+' | '-' }> = {
+  spelling_clean:    { label: 'Xatosiz xabar',       icon: PenLine, sign: '+' },
+  spelling_self_fix: { label: 'Xatoni o\'zi tuzatdi', icon: Pencil, sign: '+' },
+  book_test:         { label: 'Kitob testi 80%+',     icon: BookOpen, sign: '+' },
+  duty:              { label: 'Navbat bajardi',        icon: Building2, sign: '+' },
+  kpi_100:           { label: 'KPI 100%',              icon: Trophy, sign: '+' },
+  referral:          { label: 'Yangi o\'quvchi',       icon: Handshake, sign: '+' },
+  test_90:           { label: 'Test 90%+',             icon: FileText, sign: '+' },
+  vocab_test:        { label: 'Lug\'at testi',         icon: BookOpen, sign: '+' },
+  other:             { label: 'Boshqa',                icon: Star, sign: '+' },
+  spelling_error:    { label: 'Imlo xatosi',           icon: XCircle, sign: '-' },
+  duty_missed:       { label: 'Navbat bajarilmadi',    icon: AlertTriangle, sign: '-' },
 };
 
 export const MASTERY_META: Record<MasteryLevel, { label: string; color: string; bg: string }> = {
@@ -103,9 +105,9 @@ export const MASTERY_META: Record<MasteryLevel, { label: string; color: string; 
   3: { label: 'Mustahkam',  color: 'text-emerald-700', bg: 'bg-emerald-100' },
 };
 
-export const BOOK_STATUS_META: Record<BookStatus, { label: string; icon: string; color: string }> = {
-  not_started: { label: 'Boshlanmagan', icon: '📚', color: 'text-gray-500'    },
-  reading:     { label: 'O\'qilyapti',  icon: '👓', color: 'text-blue-600'   },
-  completed:   { label: 'Tugallandi',   icon: '✅', color: 'text-emerald-600' },
-  tested:      { label: 'Test topshirildi',icon:'⭐', color: 'text-amber-600' },
+export const BOOK_STATUS_META: Record<BookStatus, { label: string; icon: LucideIcon; color: string }> = {
+  not_started: { label: 'Boshlanmagan', icon: BookOpen, color: 'text-gray-500'    },
+  reading:     { label: 'O\'qilyapti',  icon: Glasses, color: 'text-blue-600'   },
+  completed:   { label: 'Tugallandi',   icon: CheckCircle2, color: 'text-emerald-600' },
+  tested:      { label: 'Test topshirildi',icon:Star, color: 'text-amber-600' },
 };

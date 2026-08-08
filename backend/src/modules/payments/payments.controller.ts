@@ -19,9 +19,12 @@ import { CreatePaymentDto } from './dto/create-payment.dto';
 import { CreateInstallmentPlanDto } from './dto/create-installment.dto';
 import { OpenCashSessionDto, CloseCashSessionDto } from './dto/cash-session.dto';
 import { QueryPaymentDto, QueryDebtorsDto } from './dto/query-payment.dto';
+import { QueryInstallmentDto } from './dto/query-installment.dto';
+import { ExtendPaymentDto } from './dto/extend-payment.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
+import { RequirePermissions } from '../../common/decorators/require-permissions.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Role } from '../../common/enums/role.enum';
 import { User } from '../../entities/user.entity';
@@ -56,9 +59,37 @@ export class PaymentsController {
   }
 
   @Get('debtors')
-  @Roles(Role.SUPER_ADMIN, Role.MANAGER)
-  getDebtors(@Query() query: QueryDebtorsDto) {
-    return this.paymentsService.getDebtors(query);
+  @RequirePermissions('payment:debtor:read')
+  getDebtors(@Query() query: QueryDebtorsDto, @CurrentUser() user: User) {
+    return this.paymentsService.getDebtors(query, user.id, user.role);
+  }
+
+  // O'quvchi kartochkasi uchun qizil indikator (ustoz ham ko'radi)
+  @Get('debtor-status/:studentId')
+  @Roles(Role.SUPER_ADMIN, Role.MANAGER, Role.USTOZ)
+  getDebtorStatus(@Param('studentId', ParseUUIDPipe) studentId: string) {
+    return this.paymentsService.getDebtorStatus(studentId);
+  }
+
+  // To'lov avto-blok holati (o'quvchi o'zinikini, xodimlar istalganini ko'ra oladi)
+  @Get('students/:studentId/access-status')
+  @Roles(Role.SUPER_ADMIN, Role.MANAGER, Role.USTOZ, Role.STUDENT)
+  getAccessStatus(
+    @Param('studentId', ParseUUIDPipe) studentId: string,
+    @CurrentUser() user: User,
+  ) {
+    return this.paymentsService.getAccessStatus(studentId, user.id, user.role);
+  }
+
+  // Muddatni vaqtincha uzaytirish (faqat SA)
+  @Patch('students/:studentId/extend')
+  @Roles(Role.SUPER_ADMIN)
+  extendPayment(
+    @Param('studentId', ParseUUIDPipe) studentId: string,
+    @Body() dto: ExtendPaymentDto,
+    @CurrentUser() user: User,
+  ) {
+    return this.paymentsService.extendPayment(studentId, dto, user.id);
   }
 
   @Get('export/excel')
@@ -100,6 +131,14 @@ export class PaymentsController {
       'Content-Length': buffer.length,
     });
     res.end(buffer);
+  }
+
+  // MUHIM: bu ':id' dan OLDIN turishi shart — aks holda NestJS
+  // 'GET /payments/installments'ni ':id'='installments' deb noto'g'ri ushlab qoladi
+  @Get('installments')
+  @Roles(Role.SUPER_ADMIN, Role.MANAGER)
+  findAllInstallments(@Query() query: QueryInstallmentDto) {
+    return this.paymentsService.findAllInstallments(query);
   }
 
   @Get(':id')

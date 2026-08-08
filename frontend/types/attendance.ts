@@ -1,3 +1,5 @@
+import type { LucideIcon } from 'lucide-react';
+import { Ban, CheckCircle2, ClipboardList, XCircle, Clock } from 'lucide-react';
 export type AttendanceStatus = 'present' | 'late' | 'absent' | 'excused' | 'unexcused';
 
 // ─── DAVOMAT YOZUVI ────────────────────────────────────────────────────────────
@@ -55,12 +57,12 @@ export interface QrData {
 }
 
 // ─── STATIKALAR ────────────────────────────────────────────────────────────────
-export const STATUS_META: Record<AttendanceStatus, { label: string; icon: string; cls: string; dot: string }> = {
-  present:   { label: 'Keldi',      icon: '✅', cls: 'bg-emerald-100 text-emerald-700', dot: 'bg-emerald-500' },
-  late:      { label: 'Kech',       icon: '⏰', cls: 'bg-amber-100 text-amber-700',    dot: 'bg-amber-500'   },
-  absent:    { label: 'Kelmadi',    icon: '❌', cls: 'bg-red-100 text-red-700',         dot: 'bg-red-500'     },
-  excused:   { label: 'Sababli',    icon: '📋', cls: 'bg-blue-100 text-blue-700',       dot: 'bg-blue-500'    },
-  unexcused: { label: 'Sababsiz',   icon: '🚫', cls: 'bg-rose-100 text-rose-700',       dot: 'bg-rose-500'    },
+export const STATUS_META: Record<AttendanceStatus, { label: string; icon: LucideIcon; cls: string; dot: string }> = {
+  present:   { label: 'Keldi',      icon: CheckCircle2, cls: 'bg-emerald-100 text-emerald-700', dot: 'bg-emerald-500' },
+  late:      { label: 'Kech',       icon: Clock, cls: 'bg-amber-100 text-amber-700',    dot: 'bg-amber-500'   },
+  absent:    { label: 'Kelmadi',    icon: XCircle, cls: 'bg-red-100 text-red-700',         dot: 'bg-red-500'     },
+  excused:   { label: 'Sababli',    icon: ClipboardList, cls: 'bg-blue-100 text-blue-700',       dot: 'bg-blue-500'    },
+  unexcused: { label: 'Sababsiz',   icon: Ban, cls: 'bg-rose-100 text-rose-700',       dot: 'bg-rose-500'    },
 };
 
 export const STATUS_COLORS: Record<AttendanceStatus, string> = {

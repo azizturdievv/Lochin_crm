@@ -6,7 +6,7 @@ import './globals.css';
 const geist = Geist({ subsets: ['latin'], variable: '--font-geist' });
 
 export const metadata: Metadata = {
-  title: 'Ilm Academy CRM',
+  title: 'Lochin School CRM',
   description: "O'quv markazi boshqaruv tizimi",
 };
 

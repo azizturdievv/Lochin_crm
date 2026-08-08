@@ -6,11 +6,12 @@ import { Group } from '../../entities/group.entity';
 import { Subject } from '../../entities/subject.entity';
 import { User } from '../../entities/user.entity';
 import { ChatRoom } from '../../entities/chat-room.entity';
+import { Enrollment } from '../../entities/enrollment.entity';
 import { AuditLogModule } from '../audit-log/audit-log.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Group, Subject, User, ChatRoom]),
+    TypeOrmModule.forFeature([Group, Subject, User, ChatRoom, Enrollment]),
     AuditLogModule,
   ],
   controllers: [GroupsController],

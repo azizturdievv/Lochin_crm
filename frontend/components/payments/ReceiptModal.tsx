@@ -1,5 +1,6 @@
 'use client';
 
+import { Download, X } from 'lucide-react';
 import { useRef } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import api from '@/lib/api';
@@ -46,7 +47,7 @@ export default function ReceiptModal({ payment, onClose }: Props) {
         </style>
       </head><body>
         <div class="center">
-          <div class="title">ILM ACADEMY</div>
+          <div class="title">LOCHIN SCHOOL</div>
           <div class="center" style="font-size:10px; margin:2px 0">To'lov kvitansiyasi</div>
         </div>
         <div class="divider"></div>
@@ -71,7 +72,7 @@ export default function ReceiptModal({ payment, onClose }: Props) {
         <div class="row"><span>Kassir:</span><span>${payment.receivedBy.lastName} ${payment.receivedBy.firstName}</span></div>
         ${payment.notes ? `<div class="row"><span>Izoh:</span><span>${payment.notes}</span></div>` : ''}
         <div class="divider"></div>
-        <div class="center" style="font-size:10px; margin-top:8px">Rahmat! Ilm Academy</div>
+        <div class="center" style="font-size:10px; margin-top:8px">Rahmat! Lochin School</div>
       </body></html>
     `);
     win.document.close();
@@ -105,10 +106,10 @@ export default function ReceiptModal({ payment, onClose }: Props) {
       <div className="w-full max-w-sm bg-white rounded-2xl shadow-2xl overflow-hidden">
 
         {/* Header */}
-        <div className="bg-emerald-600 px-6 py-4 text-white">
+        <div className="bg-primary-600 px-6 py-4 text-white">
           <div className="flex items-center justify-between">
             <h2 className="font-bold text-lg">Kvitansiya</h2>
-            <button onClick={onClose} className="opacity-80 hover:opacity-100 transition">✕</button>
+            <button onClick={onClose} className="opacity-80 hover:opacity-100 transition"><X size={16} /></button>
           </div>
           <p className="text-emerald-100 text-xs mt-0.5">#{payment.id.slice(0,8).toUpperCase()}</p>
         </div>
@@ -117,7 +118,7 @@ export default function ReceiptModal({ payment, onClose }: Props) {
         <div ref={printRef} className="px-6 py-5 space-y-4 font-mono text-sm">
           {/* Markaz */}
           <div className="text-center border-b border-dashed border-gray-300 pb-4">
-            <p className="font-bold text-base tracking-wide">ILM ACADEMY</p>
+            <p className="font-bold text-base tracking-wide">LOCHIN SCHOOL</p>
             <p className="text-gray-400 text-xs">To'lov kvitansiyasi</p>
           </div>
 
@@ -129,7 +130,7 @@ export default function ReceiptModal({ payment, onClose }: Props) {
           </div>
 
           <div className="border-t border-dashed border-gray-300 pt-3 space-y-2">
-            <Row label="Usul"  value={`${meta.icon} ${meta.label}`} />
+            <Row label="Usul"  value={meta.label} />
             {payment.paymentMonth && <Row label="Oy"  value={payment.paymentMonth} />}
             {payment.method === 'mixed' && (
               <>
@@ -158,13 +159,13 @@ export default function ReceiptModal({ payment, onClose }: Props) {
             onClick={handlePrint}
             className="flex items-center justify-center gap-2 py-2.5 border border-gray-200 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-50 transition"
           >
-            🖨️ Chop etish
+            Chop etish
           </button>
           <button
             onClick={handleDownloadPdf}
-            className="flex items-center justify-center gap-2 py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-medium hover:bg-emerald-700 transition"
+            className="flex items-center justify-center gap-2 py-2.5 bg-primary-600 text-white rounded-xl text-sm font-medium hover:bg-primary-700 transition"
           >
-            ⬇️ PDF
+            <Download size={14} /> PDF
           </button>
         </div>
       </div>

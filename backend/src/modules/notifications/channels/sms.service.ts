@@ -3,6 +3,14 @@ import { Injectable, Logger } from '@nestjs/common';
 // Eskiz.uz SMS API integratsiyasi
 const ESKIZ_BASE = 'https://notify.eskiz.uz/api';
 
+interface EskizLoginResponse {
+  data?: { token?: string };
+}
+interface EskizSendResponse {
+  status?: string;
+  [key: string]: unknown;
+}
+
 @Injectable()
 export class SmsService {
   private readonly logger = new Logger(SmsService.name);
@@ -34,8 +42,19 @@ export class SmsService {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
       });
-      const json = (await res.json()) as any;
+
+      if (!res.ok) {
+        const errBody = await res.text().catch(() => '');
+        this.logger.error(`Eskiz login: HTTP ${res.status} — ${errBody.slice(0, 300)}`);
+        return null;
+      }
+
+      const json = (await res.json()) as EskizLoginResponse;
       this.token = json.data?.token ?? null;
+      if (!this.token) {
+        this.logger.error(`Eskiz login: kutilmagan javob shakli — ${JSON.stringify(json).slice(0, 300)}`);
+        return null;
+      }
       // 28 kunlik kesh (token 29 kunda tugaydi)
       this.tokenExpiresAt = Date.now() + 28 * 24 * 60 * 60 * 1000;
       return this.token;
@@ -67,7 +86,7 @@ export class SmsService {
         }),
       });
 
-      const json = (await res.json()) as any;
+      const json = (await res.json()) as EskizSendResponse;
 
       if (json.status === 'waiting' || json.status === 'success') {
         return true;

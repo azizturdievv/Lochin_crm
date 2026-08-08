@@ -1,5 +1,6 @@
 'use client';
 
+import { X } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
@@ -148,7 +149,7 @@ export default function BulkManualModal({ open, onClose, todayLessons }: Props) 
             <p className="text-xs text-gray-400 mt-0.5">Guruh va dars tanlang, so'ng har o'quvchi holatini belgilang</p>
           </div>
           <button onClick={onClose}
-            className="w-8 h-8 rounded-xl flex items-center justify-center text-gray-400 hover:bg-gray-100 transition">✕</button>
+            className="w-8 h-8 rounded-xl flex items-center justify-center text-gray-400 hover:bg-gray-100 transition"><X size={16} /></button>
         </div>
 
         {/* Guruh + Dars tanlash */}
@@ -158,7 +159,7 @@ export default function BulkManualModal({ open, onClose, todayLessons }: Props) 
             <select
               value={groupId}
               onChange={e => setGroupId(e.target.value)}
-              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500"
             >
               <option value="">Barcha guruhlar</option>
               {groups?.map(g => (
@@ -174,7 +175,7 @@ export default function BulkManualModal({ open, onClose, todayLessons }: Props) 
             <select
               value={lessonId}
               onChange={e => setLessonId(e.target.value)}
-              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500"
               disabled={groupLessons.length === 0}
             >
               <option value="">Tanlang</option>
@@ -214,7 +215,7 @@ export default function BulkManualModal({ open, onClose, todayLessons }: Props) 
                 {STATUSES.map(s => (
                   <button key={s} onClick={() => markAll(s)}
                     className={`px-2.5 py-1 rounded-lg text-xs font-medium border transition ${STATUS_BTN[s]}`}>
-                    {STATUS_META[s].icon} {STATUS_META[s].label}
+                    {(() => { const I = STATUS_META[s].icon; return <I size={14} className="shrink-0" />; })()} {STATUS_META[s].label}
                   </button>
                 ))}
                 <span className="ml-auto text-xs text-gray-400">{rows.length} ta o'quvchi</span>
@@ -242,7 +243,7 @@ export default function BulkManualModal({ open, onClose, todayLessons }: Props) 
                               ? STATUS_BTN[s] + ' ring-1 ring-offset-1 ring-current'
                               : 'bg-white border-gray-200 text-gray-400 hover:border-gray-300'
                           }`}>
-                          {STATUS_META[s].icon}
+                          {(() => { const I = STATUS_META[s].icon; return <I size={14} className="shrink-0" />; })()}
                           <span className="hidden sm:inline ml-1">{STATUS_META[s].label}</span>
                         </button>
                       ))}
@@ -278,8 +279,8 @@ export default function BulkManualModal({ open, onClose, todayLessons }: Props) 
             </button>
             <button onClick={handleSave}
               disabled={saving || !lessonId || rows.length === 0}
-              className="flex-1 py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-medium hover:bg-emerald-700 disabled:opacity-50 transition">
-              {saving ? `Saqlanmoqda... (${done}/${rows.length})` : `✓ ${rows.length} ta saqlash`}
+              className="flex-1 py-2.5 bg-primary-600 text-white rounded-xl text-sm font-medium hover:bg-primary-700 disabled:opacity-50 transition">
+              {saving ? `Saqlanmoqda... (${done}/${rows.length})` : `${rows.length} ta saqlash`}
             </button>
           </div>
         </div>

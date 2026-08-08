@@ -65,7 +65,7 @@ export default function QrCodeCard({ lessonId, connected }: Props) {
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex flex-col items-center gap-4">
       {/* Real-time indikator */}
       <div className="flex items-center justify-between w-full">
-        <h3 className="text-sm font-semibold text-gray-700">📱 QR Davomat</h3>
+        <h3 className="text-sm font-semibold text-gray-700">QR Davomat</h3>
         <div className="flex items-center gap-1.5">
           <span className={`w-2 h-2 rounded-full ${connected ? 'bg-emerald-500 animate-pulse' : 'bg-gray-300'}`} />
           <span className="text-xs text-gray-400">{connected ? 'Real-time' : 'Offline'}</span>
@@ -88,7 +88,7 @@ export default function QrCodeCard({ lessonId, connected }: Props) {
           {secondsLeft < 300 && secondsLeft > 0 && (
             <div className="absolute inset-0 bg-amber-500/10 rounded-xl border-2 border-amber-400 flex items-center justify-center">
               <span className="bg-amber-100 text-amber-800 text-xs font-bold px-2 py-1 rounded-full">
-                ⚠️ {fmtCountdown(secondsLeft)}
+                {fmtCountdown(secondsLeft)}
               </span>
             </div>
           )}
@@ -130,7 +130,7 @@ export default function QrCodeCard({ lessonId, connected }: Props) {
       >
         {refreshMut.isPending ? (
           <span className="w-4 h-4 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin" />
-        ) : '🔄'}
+        ) : ''}
         QR yangilash
       </button>
     </div>

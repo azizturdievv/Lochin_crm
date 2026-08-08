@@ -50,6 +50,10 @@ import { TestTimeExtension } from '../entities/test-time-extension.entity';
 import { EventQuestion } from '../entities/event-question.entity';
 import { EventSubmission } from '../entities/event-submission.entity';
 import { SpellingError } from '../entities/spelling-error.entity';
+import { Permission } from '../entities/permission.entity';
+import { RolePermission } from '../entities/role-permission.entity';
+import { Room } from '../entities/room.entity';
+import { ScheduleTimeSlot } from '../entities/schedule-time-slot.entity';
 
 export const getDatabaseConfig = (config: ConfigService): TypeOrmModuleOptions => ({
   type: 'postgres',
@@ -111,5 +115,9 @@ export const getDatabaseConfig = (config: ConfigService): TypeOrmModuleOptions =
     EventQuestion,
     EventSubmission,
     SpellingError,
+    Permission,
+    RolePermission,
+    Room,
+    ScheduleTimeSlot,
   ],
 });

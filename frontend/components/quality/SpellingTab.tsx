@@ -1,5 +1,6 @@
 'use client';
 
+import { ArrowRight, CheckCircle2 } from 'lucide-react';
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
@@ -69,12 +70,12 @@ export default function SpellingTab({ userId, showAll }: Props) {
       {/* Eng ko'p takrorlanuvchi xatolar */}
       {stats?.topErrors && stats.topErrors.length > 0 && (
         <div>
-          <h3 className="text-sm font-semibold text-gray-900 mb-3">📊 Tez-tez uchraydigan xatolar</h3>
+          <h3 className="text-sm font-semibold text-gray-900 mb-3">Tez-tez uchraydigan xatolar</h3>
           <div className="flex flex-wrap gap-2">
             {stats.topErrors.map((e, i) => (
               <div key={i} className="flex items-center gap-2 bg-red-50 border border-red-100 rounded-xl px-3 py-2">
                 <span className="text-xs text-red-700 line-through">{e.word}</span>
-                <span className="text-gray-300 text-xs">→</span>
+                <ArrowRight size={12} className="text-gray-300" />
                 <span className="text-xs text-emerald-700 font-medium">{e.correction}</span>
                 <span className="text-[10px] text-gray-400 bg-white rounded-full px-1.5 py-0.5 font-medium">{e.count}×</span>
               </div>
@@ -85,7 +86,7 @@ export default function SpellingTab({ userId, showAll }: Props) {
 
       {/* Xato jurnali */}
       <div>
-        <h3 className="text-sm font-semibold text-gray-900 mb-3">📜 Xato jurnali</h3>
+        <h3 className="text-sm font-semibold text-gray-900 mb-3">Xato jurnali</h3>
         {isLoading ? (
           <div className="space-y-2">
             {Array.from({ length: 5 }).map((_, i) => (
@@ -94,7 +95,7 @@ export default function SpellingTab({ userId, showAll }: Props) {
           </div>
         ) : logs.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-32 text-gray-400 gap-2">
-            <div className="text-3xl">✅</div>
+            <div className="text-3xl"><CheckCircle2 size={30} /></div>
             <p className="text-sm">Xatolar topilmadi</p>
           </div>
         ) : (
@@ -123,13 +124,13 @@ export default function SpellingTab({ userId, showAll }: Props) {
                 {/* Matn taqqoslash */}
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <p className="text-[10px] font-medium text-red-600 mb-1">❌ Asl matn</p>
+                    <p className="text-[10px] font-medium text-red-600 mb-1">Asl matn</p>
                     <p className="text-xs text-gray-700 bg-red-50 rounded-xl p-2 leading-relaxed">
                       {log.originalText}
                     </p>
                   </div>
                   <div>
-                    <p className="text-[10px] font-medium text-emerald-600 mb-1">✅ To'g'rilangan</p>
+                    <p className="text-[10px] font-medium text-emerald-600 mb-1">To'g'rilangan</p>
                     <p className="text-xs text-gray-700 bg-emerald-50 rounded-xl p-2 leading-relaxed">
                       {log.correctedText}
                     </p>
@@ -146,7 +147,7 @@ export default function SpellingTab({ userId, showAll }: Props) {
                         'bg-blue-50 border-blue-200'
                       }`}>
                         <span className={`line-through ${ERROR_TYPE_META[c.errorType].color}`}>{c.word}</span>
-                        <span className="text-gray-400">→</span>
+                        <ArrowRight size={14} className="text-gray-400" />
                         <span className="font-medium text-gray-700">{c.correction}</span>
                       </div>
                     ))}

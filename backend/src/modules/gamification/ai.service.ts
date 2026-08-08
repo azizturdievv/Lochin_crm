@@ -8,6 +8,11 @@ export type BookQuestion = {
   correctAnswer: string;
 };
 
+// OpenAI /v1/chat/completions javob shakli (barcha 3 chaqiruv uchun umumiy)
+interface OpenAiChatResponse {
+  choices?: Array<{ message?: { content?: string } }>;
+}
+
 @Injectable()
 export class AiService {
   private readonly logger = new Logger(AiService.name);
@@ -60,7 +65,16 @@ Faqat JSON qaytaring, boshqa matn yo'q.`;
         }),
       });
 
-      const json = (await res.json()) as any;
+      // res.ok tekshirilmasa, 429/401/500 xato javobi ham "muvaffaqiyatli, 0 ta
+      // savol" deb noto'g'ri talqin qilinardi (fetch() faqat tarmoq xatosida
+      // reject qiladi) — natijada mock'ga qaytish o'rniga bo'sh test yaratilardi
+      if (!res.ok) {
+        const errBody = await res.text().catch(() => '');
+        this.logger.error(`AI kitob savol: HTTP ${res.status} — ${errBody.slice(0, 300)}`);
+        return this.mockBookQuestions(title, count);
+      }
+
+      const json = (await res.json()) as OpenAiChatResponse;
       const content = json.choices?.[0]?.message?.content ?? '[]';
       const parsed = JSON.parse(content);
       return Array.isArray(parsed) ? parsed.slice(0, count) : this.mockBookQuestions(title, count);
@@ -117,7 +131,16 @@ Faqat JSON.`;
         }),
       });
 
-      const json = (await res.json()) as any;
+      if (!res.ok) {
+        const errBody = await res.text().catch(() => '');
+        this.logger.error(`AI ta'rif (${word}): HTTP ${res.status} — ${errBody.slice(0, 300)}`);
+        return {
+          definition: `"${word}" — ta'rif olishda xato yuz berdi.`,
+          exampleSentence: '',
+        };
+      }
+
+      const json = (await res.json()) as OpenAiChatResponse;
       const content = json.choices?.[0]?.message?.content ?? '{}';
       return JSON.parse(content);
     } catch (err) {
@@ -160,10 +183,17 @@ Faqat JSON.`;
         }),
       });
 
-      const json = (await res.json()) as any;
+      if (!res.ok) {
+        const errBody = await res.text().catch(() => '');
+        this.logger.error(`AI imlo tekshirish: HTTP ${res.status} — ${errBody.slice(0, 300)}`);
+        return { errorCount: 0, corrections: [] };
+      }
+
+      const json = (await res.json()) as OpenAiChatResponse;
       const content = json.choices?.[0]?.message?.content ?? '{"errorCount":0,"corrections":[]}';
       return JSON.parse(content);
-    } catch {
+    } catch (err) {
+      this.logger.error(`AI imlo tekshirishda xato: ${err}`);
       return { errorCount: 0, corrections: [] };
     }
   }

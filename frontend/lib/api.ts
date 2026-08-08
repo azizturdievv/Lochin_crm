@@ -37,6 +37,21 @@ api.interceptors.response.use(
   async (error) => {
     const original = error.config as AxiosRequestConfig & { _retry?: boolean };
 
+    // 2FA hali sozlanmagan (SA/Manager, majburiy) — backend TwoFaEnforcementGuard
+    // 403 + requiresTwoFaSetup bilan bloklaydi. Tokenlar hali yaroqli, faqat
+    // sozlash sahifasiga yo'naltiramiz (login qilib bo'lmaydi holatda ham ishlashi
+    // uchun — masalan eski localStorage token bilan to'g'ridan-to'g'ri /dashboard'ga
+    // kirilganda ham ushlaydi).
+    if (
+      error.response?.status === 403 &&
+      error.response?.data?.requiresTwoFaSetup &&
+      typeof window !== 'undefined' &&
+      window.location.pathname !== '/login/2fa-required'
+    ) {
+      window.location.href = '/login/2fa-required';
+      return Promise.reject(error);
+    }
+
     if (error.response?.status !== 401 || original._retry) {
       return Promise.reject(error);
     }

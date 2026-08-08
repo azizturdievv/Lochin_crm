@@ -22,9 +22,9 @@ import { User } from '../../entities/user.entity';
 export class GroupsController {
   constructor(private readonly groupsService: GroupsService) {}
 
-  // Guruhlar ro'yxati — SA, Manager, Ustoz (ustoz o'zniki)
+  // Guruhlar ro'yxati — SA, Manager, Ustoz (ustoz o'zniki), Student (o'zi o'qiydigan)
   @Get()
-  @Roles(Role.SUPER_ADMIN, Role.MANAGER, Role.USTOZ)
+  @Roles(Role.SUPER_ADMIN, Role.MANAGER, Role.USTOZ, Role.STUDENT)
   findAll(@Query() query: QueryGroupDto, @CurrentUser() user: User) {
     return this.groupsService.findAll(query, user.id, user.role);
   }
@@ -34,6 +34,13 @@ export class GroupsController {
   @Roles(Role.SUPER_ADMIN, Role.MANAGER, Role.USTOZ)
   findOne(@Param('id', ParseUUIDPipe) id: string) {
     return this.groupsService.findOne(id);
+  }
+
+  // Guruhdagi o'quvchilar ro'yxati
+  @Get(':id/students')
+  @Roles(Role.SUPER_ADMIN, Role.MANAGER, Role.USTOZ)
+  getStudents(@Param('id', ParseUUIDPipe) id: string) {
+    return this.groupsService.getStudents(id);
   }
 
   // Guruh yaratish — SA, Manager

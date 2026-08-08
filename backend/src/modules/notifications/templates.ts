@@ -38,7 +38,7 @@ export function render(template: string, vars: TemplateVars): string {
 export const TEMPLATES: Record<string, ChannelTemplate> = {
   // 1. Davomat — kelmadi (ota-onaga D+15)
   'attendance.absent': {
-    sms: '{{ism}} {{sana}} kuni {{fan}} darsiga kelmadi. Iltimos, markaz bilan bog\'laning. Ilm Academy',
+    sms: '{{ism}} {{sana}} kuni {{fan}} darsiga kelmadi. Iltimos, markaz bilan bog\'laning. Lochin School',
     telegram:
       '📚 *Davomat xabardorligi*\n\n*{{ism}}* {{sana}} kuni *{{fan}}* darsiga kelmadi.\n\n_Iltimos, o\'quvchi bilan bog\'laning._',
     pushTitle: 'Darsga kelmadi',
@@ -47,7 +47,7 @@ export const TEMPLATES: Record<string, ChannelTemplate> = {
 
   // 2. Davomat — kech qoldi
   'attendance.late': {
-    sms: '{{ism}} {{fan}} darsiga {{kech_daqiqa}} daqiqa kech qoldi. {{sana}}. Ilm Academy',
+    sms: '{{ism}} {{fan}} darsiga {{kech_daqiqa}} daqiqa kech qoldi. {{sana}}. Lochin School',
     telegram:
       '⏰ *Kech qolish*\n\n*{{ism}}* {{fan}} darsiga *{{kech_daqiqa}} daqiqa* kech qoldi.\nSana: {{sana}}',
     pushTitle: 'Kech qolish',
@@ -56,7 +56,7 @@ export const TEMPLATES: Record<string, ChannelTemplate> = {
 
   // 3. To'lov eslatmasi — qarzdorlik
   'payment.reminder': {
-    sms: '{{ism}}, {{oy}} oyi o\'quv to\'lovi amalga oshirilmagan. Markaz bilan bog\'laning. Ilm Academy',
+    sms: '{{ism}}, {{oy}} oyi o\'quv to\'lovi amalga oshirilmagan. Markaz bilan bog\'laning. Lochin School',
     telegram:
       '💳 *To\'lov eslatmasi*\n\nHurmatli *{{ism}}*!\n{{oy}} oyi uchun to\'lov amalga oshirilmagan.\n\nMarkaz kassasiga tashrif buyuring yoki menejer bilan bog\'laning.',
     pushTitle: "To'lov eslatmasi",
@@ -65,7 +65,7 @@ export const TEMPLATES: Record<string, ChannelTemplate> = {
 
   // 4. To'lov — qabul qilindi
   'payment.received': {
-    sms: '{{ism}}, {{summa}} so\'m qabul qilindi. {{oy}} to\'lovi tasdiqlandi. Ilm Academy',
+    sms: '{{ism}}, {{summa}} so\'m qabul qilindi. {{oy}} to\'lovi tasdiqlandi. Lochin School',
     telegram:
       '✅ *To\'lov qabul qilindi*\n\nHurmatli *{{ism}}*!\n*{{summa}} so\'m* muvaffaqiyatli qabul qilindi.\n{{oy}} oyi to\'lovi tasdiqlandi. 🎉',
     pushTitle: "To'lov tasdiqlandi",
@@ -74,7 +74,7 @@ export const TEMPLATES: Record<string, ChannelTemplate> = {
 
   // 5. Test natijasi
   'test.result': {
-    sms: '{{ism}}, {{fan}} testida {{ball}}% to\'pladingiz. Daraja: {{daraja}}. Ilm Academy',
+    sms: '{{ism}}, {{fan}} testida {{ball}}% to\'pladingiz. Daraja: {{daraja}}. Lochin School',
     telegram:
       '📝 *Test natijasi*\n\nHurmatli *{{ism}}*!\n{{fan}} testini yakunladingiz.\n\n🏆 Natija: *{{ball}}%*\n📊 Daraja: *{{daraja}}*',
     pushTitle: 'Test natijasi',
@@ -83,7 +83,7 @@ export const TEMPLATES: Record<string, ChannelTemplate> = {
 
   // 6. Vazifa — berildi
   'homework.assigned': {
-    sms: '{{fan}} fanidan yangi vazifa: {{sarlavha}}. Muddat: {{sana}}. Ilm Academy',
+    sms: '{{fan}} fanidan yangi vazifa: {{sarlavha}}. Muddat: {{sana}}. Lochin School',
     telegram:
       '📋 *Yangi vazifa*\n\n*{{fan}}* fanidan yangi vazifa:\n*{{sarlavha}}*\n\n📅 Topshirish muddati: {{sana}}',
     pushTitle: 'Yangi vazifa',
@@ -92,7 +92,7 @@ export const TEMPLATES: Record<string, ChannelTemplate> = {
 
   // 7. Vazifa — baholandi
   'homework.graded': {
-    sms: '{{ism}}, {{fan}} vazifangiz baholandi: {{ball}} ball. Ilm Academy',
+    sms: '{{ism}}, {{fan}} vazifangiz baholandi: {{ball}} ball. Lochin School',
     telegram:
       '✍️ *Vazifa baholandi*\n\nHurmatli *{{ism}}*!\n*{{fan}}* fanidagi vazifangiz baholandi.\n\nBaho: *{{ball}} ball*',
     pushTitle: 'Vazifa baholandi',
@@ -101,7 +101,7 @@ export const TEMPLATES: Record<string, ChannelTemplate> = {
 
   // 8. Jadval o'zgardi
   'schedule.changed': {
-    sms: '{{fan}} darsi vaqti o\'zgardi: {{dars_vaqt}}. {{sana}}. Ilm Academy',
+    sms: '{{fan}} darsi vaqti o\'zgardi: {{dars_vaqt}}. {{sana}}. Lochin School',
     telegram:
       '📅 *Jadval o\'zgardi*\n\n*{{fan}}* darsining vaqti o\'zgardi.\n⏰ Yangi vaqt: *{{dars_vaqt}}*\n📆 Sana: {{sana}}',
     pushTitle: "Jadval o'zgardi",
@@ -110,7 +110,7 @@ export const TEMPLATES: Record<string, ChannelTemplate> = {
 
   // 9. Dars bekor
   'schedule.cancelled': {
-    sms: '{{fan}} darsining {{sana}} kuni darsi bekor qilindi. Ilm Academy',
+    sms: '{{fan}} darsining {{sana}} kuni darsi bekor qilindi. Lochin School',
     telegram: '❌ *Dars bekor qilindi*\n\n*{{fan}}* darsining {{sana}} kuni darsi bekor qilindi.',
     pushTitle: 'Dars bekor',
     pushBody: '{{fan}} darsi {{sana}} bekor qilindi',
@@ -118,7 +118,7 @@ export const TEMPLATES: Record<string, ChannelTemplate> = {
 
   // 10. E'lon
   'announcement.new': {
-    sms: 'Ilm Academy: {{sarlavha}}. Batafsil CRM ilovada ko\'ring.',
+    sms: 'Lochin School: {{sarlavha}}. Batafsil CRM ilovada ko\'ring.',
     telegram: "📢 *Yangi e'lon*\n\n*{{sarlavha}}*\n\n{{ism}}\n\n_{{sana}}_",
     pushTitle: "Yangi e'lon",
     pushBody: '{{sarlavha}}',
@@ -128,23 +128,23 @@ export const TEMPLATES: Record<string, ChannelTemplate> = {
   'birthday.staff': {
     sms: '',
     telegram:
-      "🎂 *Tug'ilgan kun muborak!*\n\nHurmatli *{{ism}}*, tug'ilgan kuningiz bilan tabriklaymiz! 🎉\n\n_Ilm Academy jamoasidan_",
+      "🎂 *Tug'ilgan kun muborak!*\n\nHurmatli *{{ism}}*, tug'ilgan kuningiz bilan tabriklaymiz! 🎉\n\n_Lochin School jamoasidan_",
     pushTitle: "Tug'ilgan kun muborak! 🎂",
-    pushBody: 'Ilm Academy jamoasi sizni tabriklamoqda!',
+    pushBody: 'Lochin School jamoasi sizni tabriklamoqda!',
   },
 
   // 12. Tug'ilgan kun (o'quvchi)
   'birthday.student': {
     sms: '',
     telegram:
-      "🎂 *Tug'ilgan kun muborak!*\n\n*{{ism}}*, tug'ilgan kuningiz bilan tabriklaymiz! 🎉\n\n_Ilm Academy jamoasidan_",
+      "🎂 *Tug'ilgan kun muborak!*\n\n*{{ism}}*, tug'ilgan kuningiz bilan tabriklaymiz! 🎉\n\n_Lochin School jamoasidan_",
     pushTitle: "Tug'ilgan kun muborak! 🎂",
-    pushBody: 'Ilm Academy tabriklamoqda! 🎉',
+    pushBody: 'Lochin School tabriklamoqda! 🎉',
   },
 
   // 13. Favqulodda xabar
   'emergency.urgent': {
-    sms: 'MUHIM: {{sarlavha}}. {{ism}}. Ilm Academy',
+    sms: 'MUHIM: {{sarlavha}}. {{ism}}. Lochin School',
     telegram: '🚨 *FAVQULODDA XABAR*\n\n*{{sarlavha}}*\n\n{{ism}}',
     pushTitle: '🚨 Favqulodda',
     pushBody: '{{sarlavha}}',

@@ -97,6 +97,18 @@ export class AddQuestionDto {
   imageUrl?: string;
 }
 
+// Bitta savol javobini darhol tekshirish (Duolingo uslubi — ball yozmaydi)
+export class CheckAnswerDto {
+  @IsString()
+  testResultId: string;
+
+  @IsString()
+  questionId: string;
+
+  @IsString()
+  answer: string;
+}
+
 // Test javoblarini yuborish
 export class SubmitTestDto {
   @IsString()

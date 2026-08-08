@@ -43,7 +43,7 @@ export default function CashDenomination({ value, onChange, label }: Props) {
                 value={count === 0 ? '' : count}
                 onChange={e => onChange(denom, Math.max(0, parseInt(e.target.value) || 0))}
                 placeholder="0"
-                className="w-full px-3 py-1.5 text-sm text-center border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white"
+                className="w-full px-3 py-1.5 text-sm text-center border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white"
               />
               {/* Jami */}
               <div className="w-24 text-right">

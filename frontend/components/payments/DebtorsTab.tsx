@@ -1,5 +1,7 @@
 'use client';
 
+import { AlertTriangle, Banknote, Users } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { useState } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import api from '@/lib/api';
@@ -50,15 +52,15 @@ export default function DebtorsTab() {
 
       {/* ── XULOSA KARTALAR ──────────────────────────────────────────── */}
       <div className="grid grid-cols-3 gap-4">
-        <SummaryCard icon="👥" label="Jami qarzdor"  value={`${total} ta`}  color="gray"   />
-        <SummaryCard icon="🔴" label="Kritik"         value={`${critical} ta`} color="red"  />
-        <SummaryCard icon="💸" label="Umumiy qarz"   value={`${(totalDebt/1_000_000).toFixed(1)}M so'm`} color="amber" />
+        <SummaryCard icon={Users} label="Jami qarzdor"  value={`${total} ta`}  color="gray"   />
+        <SummaryCard icon={AlertTriangle} label="Kritik"         value={`${critical} ta`} color="red"  />
+        <SummaryCard icon={Banknote} label="Umumiy qarz"   value={`${(totalDebt/1_000_000).toFixed(1)}M so'm`} color="amber" />
       </div>
 
       {/* ── FILTRLAR ─────────────────────────────────────────────────── */}
       <div className="flex items-center gap-3 flex-wrap">
         <input type="month" value={month} onChange={e => { setMonth(e.target.value); setPage(1); }}
-          className="px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+          className="px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500" />
         {(['all','critical','normal'] as const).map(f => (
           <button key={f} onClick={() => { setFilter(f); setPage(1); }}
             className={`px-4 py-2 text-sm rounded-xl border font-medium transition-colors ${
@@ -66,7 +68,7 @@ export default function DebtorsTab() {
                 ? 'bg-gray-900 text-white border-gray-900'
                 : 'border-gray-200 text-gray-600 hover:border-gray-300'
             }`}>
-            {f === 'all' ? 'Barchasi' : f === 'critical' ? '🔴 Kritik' : '🟡 Oddiy'}
+            {f === 'all' ? 'Barchasi' : f === 'critical' ? 'Kritik' : 'Oddiy'}
           </button>
         ))}
         <span className="text-sm text-gray-400 ml-auto">{total} ta natija</span>
@@ -98,7 +100,7 @@ export default function DebtorsTab() {
               ) : debtors.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="px-6 py-16 text-center text-gray-400">
-                    <div className="text-5xl mb-3">🎉</div>
+                    <div className="text-5xl mb-3"></div>
                     <p className="font-medium text-gray-500">Qarzdorlar yo'q!</p>
                     <p className="text-sm mt-1">Bu oy barcha to'lovlar amalga oshirilgan</p>
                   </td>
@@ -131,7 +133,7 @@ export default function DebtorsTab() {
                     <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${
                       d.isCritical ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'
                     }`}>
-                      {d.isCritical ? '🔴 Kritik' : '🟡 Oddiy'}
+                      {d.isCritical ? 'Kritik' : 'Oddiy'}
                     </span>
                   </td>
                   <td className="px-4 py-3.5 text-right">
@@ -144,7 +146,7 @@ export default function DebtorsTab() {
                           : 'bg-amber-50 text-amber-700 hover:bg-amber-100'
                       }`}
                     >
-                      {notifiedIds.has(d.studentId) ? '✓ Yuborildi' : '📱 Eslatma'}
+                      {notifiedIds.has(d.studentId) ? 'Yuborildi' : 'Eslatma'}
                     </button>
                   </td>
                 </tr>
@@ -168,11 +170,11 @@ export default function DebtorsTab() {
   );
 }
 
-function SummaryCard({ icon, label, value, color }: { icon:string; label:string; value:string; color:string }) {
+function SummaryCard({ icon: Icon, label, value, color }: { icon:LucideIcon; label:string; value:string; color:string }) {
   const cls = color==='red' ? 'bg-red-50 text-red-700' : color==='amber' ? 'bg-amber-50 text-amber-700' : 'bg-gray-50 text-gray-700';
   return (
     <div className={`${cls} rounded-xl p-4`}>
-      <div className="text-xl mb-1">{icon}</div>
+      <Icon size={20} className="mb-1" />
       <p className="text-lg font-bold">{value}</p>
       <p className="text-xs opacity-70">{label}</p>
     </div>

@@ -11,6 +11,8 @@ import { Repository } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
 import * as speakeasy from 'speakeasy';
+import * as QRCode from 'qrcode';
+import { createHash } from 'crypto';
 import { User } from '../../entities/user.entity';
 import { Session } from '../../entities/session.entity';
 import { Role } from '../../common/enums/role.enum';
@@ -50,12 +52,14 @@ export class AuthService {
     const val = loginValue.trim();
 
     // Email yoki username bo'yicha qidirish
-    const user = await this.userRepository.findOne({
-      where: [
-        { email: val, isActive: true },
-        { username: val, isActive: true },
-      ],
-    });
+    // passwordHash/twoFaSecret ustunlari select:false — aniq so'ralishi kerak
+    const user = await this.userRepository
+      .createQueryBuilder('user')
+      .addSelect('user.passwordHash')
+      .addSelect('user.twoFaSecret')
+      .where('user.isActive = true')
+      .andWhere('(user.email = :val OR user.username = :val)', { val })
+      .getOne();
 
     // Xavfsizlik: user topilmasa ham bir xil xato
     if (!user) {
@@ -112,9 +116,12 @@ export class AuthService {
   }
 
   async verify2fa(dto: Verify2faDto, ipAddress?: string, userAgent?: string) {
-    const user = await this.userRepository.findOne({
-      where: { id: dto.userId, isActive: true },
-    });
+    const user = await this.userRepository
+      .createQueryBuilder('user')
+      .addSelect('user.twoFaSecret')
+      .where('user.id = :id', { id: dto.userId })
+      .andWhere('user.isActive = true')
+      .getOne();
 
     if (!user || !user.twoFaSecret) {
       throw new NotFoundException('Foydalanuvchi topilmadi yoki 2FA sozlanmagan');
@@ -143,8 +150,12 @@ export class AuthService {
   }
 
   async refreshToken(dto: RefreshTokenDto) {
+    // Refresh tokenlar bazada hash holida saqlanadi (parol kabi) — kelgan
+    // tokenni ham hash qilib solishtiramiz, hech qachon ochiq matnda qidirmaymiz
+    const tokenHash = this.hashRefreshToken(dto.refreshToken);
+
     const session = await this.sessionRepository.findOne({
-      where: { refreshToken: dto.refreshToken, isActive: true },
+      where: { refreshToken: tokenHash, isActive: true },
       relations: { user: true },
     });
 
@@ -165,6 +176,14 @@ export class AuthService {
     const accessToken = this.jwtService.sign(payload);
 
     return { accessToken };
+  }
+
+  // Refresh token hash — SHA-256 (token yuqori entropiyali tasodifiy qiymat,
+  // parol kabi sekin-hash kerak emas; bcrypt.compare uchun ochiq qidiruv shart
+  // bo'lardi, bu esa katta jadvalda samarasiz — deterministik hash indeks
+  // orqali tez va xavfsiz qidiruvga imkon beradi)
+  private hashRefreshToken(token: string): string {
+    return createHash('sha256').update(token).digest('hex');
   }
 
   async logout(sessionId: string, userId: string) {
@@ -198,15 +217,22 @@ export class AuthService {
       twoFaSecret: secret.base32,
     });
 
+    const qrCodeDataUrl = await QRCode.toDataURL(secret.otpauth_url as string);
+
     return {
       secret: secret.base32,
       otpAuthUrl: secret.otpauth_url,
+      qrCodeDataUrl,
       message: 'QR kodni skanerlang va kodni tasdiqlang',
     };
   }
 
   async confirm2fa(userId: string, code: string) {
-    const user = await this.userRepository.findOne({ where: { id: userId } });
+    const user = await this.userRepository
+      .createQueryBuilder('user')
+      .addSelect('user.twoFaSecret')
+      .where('user.id = :id', { id: userId })
+      .getOne();
 
     if (!user || !user.twoFaSecret) {
       throw new BadRequestException('2FA sozlanmagan');
@@ -262,7 +288,7 @@ export class AuthService {
 
     const session = this.sessionRepository.create({
       userId: user.id,
-      refreshToken,
+      refreshToken: this.hashRefreshToken(refreshToken),
       deviceInfo: deviceInfo ?? null,
       ipAddress: ipAddress ?? null,
       userAgent: userAgent ?? null,

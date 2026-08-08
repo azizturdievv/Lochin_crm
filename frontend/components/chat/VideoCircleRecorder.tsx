@@ -1,5 +1,6 @@
 'use client';
 
+import { X } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 
 const MAX_SECONDS = 60;
@@ -18,19 +19,29 @@ export default function VideoCircleRecorder({ onRecorded, onCancel }: Props) {
   const chunksRef = useRef<Blob[]>([]);
   const streamRef = useRef<MediaStream | null>(null);
   const timerRef  = useRef<ReturnType<typeof setInterval> | null>(null);
+  const cancelledRef = useRef(false);
+  const secondsRef = useRef(0);
 
   useEffect(() => {
+    cancelledRef.current = false;
     startPreview();
-    return () => cleanup();
+    return () => { cancelledRef.current = true; cleanup(); };
   }, []);
 
   async function startPreview() {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: true });
+      // Effect qayta ishga tushishi bilan (masalan React Strict Mode) eski
+      // so'rov kechikib kelsa — endi keraksiz stream'ni to'xtatamiz, video
+      // elementga bog'lamaymiz (aks holda .play() "interrupted" xatosi beradi)
+      if (cancelledRef.current) {
+        stream.getTracks().forEach(t => t.stop());
+        return;
+      }
       streamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        videoRef.current.play();
+        videoRef.current.play().catch(() => {});
       }
     } catch {
       setError('Kameraga ruxsat berilmadi');
@@ -47,26 +58,35 @@ export default function VideoCircleRecorder({ onRecorded, onCancel }: Props) {
     if (!stream) return;
 
     chunksRef.current = [];
+    // Timeslice bermasdan .start() chaqiramiz — shunda MediaRecorder butun
+    // yozuvni bitta yaxlit (to'g'ri yopilgan) WebM sifatida qaytaradi;
+    // davriy bo'laklarga bo'lib yig'ish ba'zan konteynerni buzib qo'yardi
     const mr = new MediaRecorder(stream, { mimeType: 'video/webm;codecs=vp9,opus' });
     mr.ondataavailable = e => { if (e.data.size > 0) chunksRef.current.push(e.data); };
     mr.onstop = () => {
       const blob = new Blob(chunksRef.current, { type: 'video/webm' });
-      onRecorded(blob, seconds);
+      // `seconds` state'i eskirgan closure orqali 0 bo'lib qolardi —
+      // shu bilan backend'ning 30-soniya minimal tekshiruvidan o'tmay,
+      // yuklash "Video yuklanmadi" xatosi bilan yiqilardi
+      onRecorded(blob, secondsRef.current);
       cleanup();
     };
 
-    mr.start(100);
+    mr.start();
     mediaRef.current = mr;
     setPhase('recording');
     setSeconds(0);
+    secondsRef.current = 0;
 
     timerRef.current = setInterval(() => {
       setSeconds(s => {
-        if (s + 1 >= MAX_SECONDS) {
+        const next = s + 1;
+        secondsRef.current = next;
+        if (next >= MAX_SECONDS) {
           stopRecording();
           return MAX_SECONDS;
         }
-        return s + 1;
+        return next;
       });
     }, 1000);
   }
@@ -112,9 +132,7 @@ export default function VideoCircleRecorder({ onRecorded, onCancel }: Props) {
         {/* Boshqaruv tugmalari */}
         <div className="flex items-center gap-4">
           <button onClick={() => { cleanup(); onCancel(); }}
-            className="w-12 h-12 rounded-full bg-gray-600 text-white flex items-center justify-center text-xl hover:bg-gray-700 transition-colors">
-            ✕
-          </button>
+            className="w-12 h-12 rounded-full bg-gray-600 text-white flex items-center justify-center text-xl hover:bg-gray-700 transition-colors"><X size={16} /></button>
 
           {phase === 'preview' && (
             <button onClick={startRecording}
@@ -139,7 +157,7 @@ export default function VideoCircleRecorder({ onRecorded, onCancel }: Props) {
 
         <p className="text-white/60 text-xs">
           {phase === 'preview' ? '⏺ Bosish orqali yozishni boshlang' :
-           phase === 'recording' ? `🔴 ${seconds}s / ${MAX_SECONDS}s` : 'Ishlanmoqda...'}
+           phase === 'recording' ? `${seconds}s / ${MAX_SECONDS}s` : 'Ishlanmoqda...'}
         </p>
       </div>
     </div>

@@ -1,5 +1,6 @@
 'use client';
 
+import { CheckCircle2 } from 'lucide-react';
 import { subjectColor, STATUS_COLORS } from '@/types/schedule';
 import type { ScheduleLesson } from '@/types/schedule';
 
@@ -19,6 +20,7 @@ export default function LessonCard({
   const subCls   = subjectColor(lesson.group.subject.id);
   const statusCl = STATUS_COLORS[lesson.status];
   const fillPct  = Math.round((lesson.group.currentStudents / lesson.group.maxStudents) * 100);
+  const teacherInitials = `${lesson.teacher.firstName.charAt(0)}${lesson.teacher.lastName.charAt(0)}`.toUpperCase();
 
   return (
     <div
@@ -27,9 +29,10 @@ export default function LessonCard({
       onDragEnd={onDragEnd}
       onClick={onClick}
       className={`
-        rounded-xl border cursor-grab active:cursor-grabbing select-none
+        rounded-xl border-l-4 border-t border-r border-b border-t-gray-100 border-r-gray-100 border-b-gray-100
+        cursor-grab active:cursor-grabbing select-none
         transition-all hover:shadow-md group relative
-        ${subCls}
+        ${subCls.bg} ${subCls.borderL} ${subCls.text}
         ${dragging ? 'opacity-40 scale-95 shadow-inner' : 'hover:scale-[1.02]'}
         ${compact ? 'px-2 py-1.5 text-xs' : 'px-3 py-2 text-sm'}
       `}
@@ -38,7 +41,7 @@ export default function LessonCard({
       {lesson.status !== 'scheduled' && (
         <div className="absolute top-1.5 right-1.5">
           <span className={`text-xs ${statusCl.text}`}>
-            {lesson.status === 'substituted' ? '🔄' : lesson.status === 'completed' ? '✅' : '🚫'}
+            {lesson.status === 'completed' ? <CheckCircle2 size={12} className="inline text-emerald-600" /> : null}
           </span>
         </div>
       )}
@@ -51,14 +54,27 @@ export default function LessonCard({
         {lesson.group.subject.name}
       </p>
 
-      {/* Ustoz — bosish → o'rinbosar */}
+      {/* Vaqt va xona */}
+      {!compact && (
+        <p className="text-[10px] opacity-70 mt-1 truncate">
+          {lesson.startTime.slice(0, 5)}–{lesson.endTime.slice(0, 5)}
+          {lesson.roomNumber ? ` · ${lesson.roomNumber}-xona` : ''}
+        </p>
+      )}
+
+      {/* Ustoz avatari — bosish → o'rinbosar */}
       {!compact && (
         <button
           onClick={e => { e.stopPropagation(); onTeacherClick(lesson); }}
-          className="text-xs mt-1.5 opacity-70 hover:opacity-100 transition-opacity underline-offset-2 hover:underline text-left truncate w-full"
+          className="flex items-center gap-1.5 mt-1.5 opacity-80 hover:opacity-100 transition-opacity text-left truncate w-full"
           title="O'rinbosar tayinlash"
         >
-          👤 {lesson.teacher.lastName} {lesson.teacher.firstName[0]}.
+          <span className="w-4 h-4 rounded-full bg-white/70 flex items-center justify-center shrink-0 text-[8px] font-bold">
+            {teacherInitials}
+          </span>
+          <span className="truncate hover:underline underline-offset-2">
+            {lesson.teacher.lastName} {lesson.teacher.firstName[0]}.
+          </span>
         </button>
       )}
 

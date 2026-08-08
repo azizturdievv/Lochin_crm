@@ -34,7 +34,10 @@ export class User extends BaseEntity {
   @Column({ type: 'varchar', nullable: true })
   phone: string | null;
 
-  @Column({ name: 'password_hash' })
+  // select:false — hech qanday so'rov standart holatda bu ustunni yuklamaydi
+  // (masalan chat xona a'zolari kabi javoblarda tasodifan chiqib ketmasligi uchun);
+  // parolni tekshirish kerak bo'lgan joyda .addSelect('user.passwordHash') orqali aniq so'raladi
+  @Column({ name: 'password_hash', select: false })
   passwordHash: string;
 
   @Column({ type: 'enum', enum: Role, default: Role.STUDENT })
@@ -44,7 +47,8 @@ export class User extends BaseEntity {
   @Column({ name: 'two_fa_enabled', default: false })
   twoFaEnabled: boolean;
 
-  @Column({ name: 'two_fa_secret', type: 'varchar', nullable: true })
+  // select:false — passwordHash bilan bir xil sabab: TOTP siri tasodifan boshqa javoblarga chiqib ketmasligi uchun
+  @Column({ name: 'two_fa_secret', type: 'varchar', nullable: true, select: false })
   twoFaSecret: string | null;
 
   // Brute force himoya
@@ -53,6 +57,10 @@ export class User extends BaseEntity {
 
   @Column({ name: 'locked_until', nullable: true, type: 'timestamptz' })
   lockedUntil: Date | null;
+
+  // To'lov avto-blok: SA tomonidan vaqtincha uzaytirilgan muddat (brute-force lockedUntil'dan farqli)
+  @Column({ name: 'payment_extended_until', nullable: true, type: 'timestamptz' })
+  paymentExtendedUntil: Date | null;
 
   @Column({ name: 'last_login_at', nullable: true, type: 'timestamptz' })
   lastLoginAt: Date | null;

@@ -9,6 +9,7 @@ import { memoryStorage } from 'multer';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
+import { BlockWhenPaymentLocked } from '../../common/decorators/block-when-payment-locked.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Role } from '../../common/enums/role.enum';
 import { User } from '../../entities/user.entity';
@@ -23,7 +24,7 @@ import { MinioService } from './minio.service';
 import { CreateSubjectDto, UpdateSubjectDto } from './dto/subject.dto';
 import { CreateMaterialDto, UpdateMaterialDto } from './dto/material.dto';
 import {
-  CreateTestDto, AddQuestionDto, SubmitTestDto,
+  CreateTestDto, AddQuestionDto, CheckAnswerDto, SubmitTestDto,
   TimeExtensionRequestDto, UpdateTestStatusDto,
 } from './dto/test.dto';
 import { CreateHomeworkDto, GradeHomeworkDto } from './dto/homework.dto';
@@ -80,6 +81,7 @@ export class MaterialsController {
 
   @Get()
   @Roles(Role.SUPER_ADMIN, Role.MANAGER, Role.USTOZ, Role.STUDENT)
+  @BlockWhenPaymentLocked()
   findAll(
     @Query('groupId') groupId?: string,
     @Query('lessonId') lessonId?: string,
@@ -91,6 +93,7 @@ export class MaterialsController {
 
   @Get(':id')
   @Roles(Role.SUPER_ADMIN, Role.MANAGER, Role.USTOZ, Role.STUDENT)
+  @BlockWhenPaymentLocked()
   findOne(@Param('id', ParseUUIDPipe) id: string) {
     return this.materialsService.findOne(id);
   }
@@ -195,14 +198,25 @@ export class TestsController {
   // Test boshlash
   @Post(':id/start')
   @Roles(Role.STUDENT)
+  @BlockWhenPaymentLocked()
   @HttpCode(HttpStatus.OK)
   startTest(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: User) {
     return this.testsService.startTest(id, user.id);
   }
 
+  // Bitta savolni darhol tekshirish (Duolingo uslubi — ball yozmaydi)
+  @Post('check-answer')
+  @Roles(Role.STUDENT)
+  @BlockWhenPaymentLocked()
+  @HttpCode(HttpStatus.OK)
+  checkAnswer(@Body() dto: CheckAnswerDto, @CurrentUser() user: User) {
+    return this.testsService.checkAnswer(dto, user.id);
+  }
+
   // Javob yuborish
   @Post('submit')
   @Roles(Role.STUDENT)
+  @BlockWhenPaymentLocked()
   @HttpCode(HttpStatus.OK)
   submit(@Body() dto: SubmitTestDto, @CurrentUser() user: User) {
     return this.testsService.submitTest(dto, user.id);
@@ -254,8 +268,15 @@ export class HomeworkController {
 
   @Get('group/:groupId')
   @Roles(Role.SUPER_ADMIN, Role.MANAGER, Role.USTOZ, Role.STUDENT)
-  findByGroup(@Param('groupId', ParseUUIDPipe) groupId: string) {
-    return this.homeworkService.findByGroup(groupId);
+  findByGroup(@Param('groupId', ParseUUIDPipe) groupId: string, @CurrentUser() user: User) {
+    return this.homeworkService.findByGroup(groupId, user.id, user.role);
+  }
+
+  // Vazifa yaratishda dars tanlash uchun — guruhning so'nggi darslari
+  @Get('lessons/:groupId')
+  @Roles(Role.SUPER_ADMIN, Role.MANAGER, Role.USTOZ)
+  findLessons(@Param('groupId', ParseUUIDPipe) groupId: string) {
+    return this.homeworkService.findLessonsByGroup(groupId);
   }
 
   @Get(':id/submissions')
@@ -274,6 +295,7 @@ export class HomeworkController {
   // Vazifa topshirish — JSON matn
   @Post(':id/submit')
   @Roles(Role.STUDENT)
+  @BlockWhenPaymentLocked()
   @HttpCode(HttpStatus.OK)
   submit(
     @Param('id', ParseUUIDPipe) id: string,
@@ -286,6 +308,7 @@ export class HomeworkController {
   // Vazifa topshirish — fayl bilan (multipart)
   @Post(':id/submit/file')
   @Roles(Role.STUDENT)
+  @BlockWhenPaymentLocked()
   @UseInterceptors(FileInterceptor('file', MEMORY_UPLOAD))
   @HttpCode(HttpStatus.OK)
   async submitFile(

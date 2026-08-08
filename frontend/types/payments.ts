@@ -1,3 +1,5 @@
+import type { LucideIcon } from 'lucide-react';
+import { Banknote, CreditCard, Landmark, Shuffle, Smartphone, Zap } from 'lucide-react';
 export type PaymentMethod = 'cash' | 'card' | 'bank' | 'payme' | 'click' | 'mixed';
 export type PaymentStatus = 'pending' | 'completed' | 'refunded' | 'cancelled';
 export type PaymentType   = 'tuition' | 'registration' | 'book' | 'other';
@@ -28,6 +30,13 @@ export interface PaymentsResponse {
   totalPages:  number;
 }
 
+export interface AccessStatus {
+  isLocked:      boolean;
+  isDebtor:      boolean;
+  daysOverdue:   number;
+  extendedUntil: string | null;
+}
+
 export interface Debtor {
   studentId:        string;
   studentName:      string;
@@ -50,6 +59,7 @@ export interface InstallmentSchedule {
 export interface InstallmentPlan {
   id:           string;
   studentId:    string;
+  student?:     { id: string; firstName: string; lastName: string };
   totalAmount:  number;
   partsCount:   number;
   paidCount:    number;
@@ -81,13 +91,23 @@ export interface CashBreakdown {
 
 export const CASH_DENOMINATIONS = [200_000, 100_000, 50_000, 10_000, 5_000] as const;
 
-export const METHOD_META: Record<PaymentMethod, { label: string; icon: string; color: string }> = {
-  cash:  { label: 'Naqd',   icon: '💵', color: 'emerald' },
-  card:  { label: 'Karta',  icon: '💳', color: 'blue'    },
-  bank:  { label: 'Bank',   icon: '🏦', color: 'purple'  },
-  payme: { label: 'Payme',  icon: '📱', color: 'cyan'    },
-  click: { label: 'Click',  icon: '⚡', color: 'orange'  },
-  mixed: { label: 'Aralash',icon: '🔀', color: 'amber'   },
+export const METHOD_META: Record<PaymentMethod, { label: string; icon: LucideIcon; color: string }> = {
+  cash:  { label: 'Naqd',   icon: Banknote, color: 'emerald' },
+  card:  { label: 'Karta',  icon: CreditCard, color: 'blue'    },
+  bank:  { label: 'Bank',   icon: Landmark, color: 'purple'  },
+  payme: { label: 'Payme',  icon: Smartphone, color: 'cyan'    },
+  click: { label: 'Click',  icon: Zap, color: 'orange'  },
+  mixed: { label: 'Aralash',icon: Shuffle, color: 'amber'   },
+};
+
+// To'lov usuli chip rangi — Tailwind statik tahlili uchun to'liq klass nomlari
+export const METHOD_CHIP_CLS: Record<PaymentMethod, string> = {
+  cash:  'bg-emerald-100 text-emerald-700',
+  card:  'bg-blue-100 text-blue-700',
+  bank:  'bg-purple-100 text-purple-700',
+  payme: 'bg-cyan-100 text-cyan-700',
+  click: 'bg-orange-100 text-orange-700',
+  mixed: 'bg-amber-100 text-amber-700',
 };
 
 export const STATUS_META: Record<PaymentStatus, { label: string; cls: string }> = {

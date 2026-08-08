@@ -96,7 +96,7 @@ export default function AttendanceStats({ lessonData, weeklyData }: Props) {
       {/* Haftalik trend */}
       {weeklyData && weeklyData.length > 0 && (
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-          <h4 className="text-sm font-semibold text-gray-700 mb-3">📈 7 kunlik davomat %</h4>
+          <h4 className="text-sm font-semibold text-gray-700 mb-3">7 kunlik davomat %</h4>
           <ResponsiveContainer width="100%" height={150}>
             <BarChart data={weeklyData} barSize={18}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />

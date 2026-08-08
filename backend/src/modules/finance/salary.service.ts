@@ -183,9 +183,9 @@ export class SalaryService {
       })
       .andWhere('ls.deleted_at IS NULL')
       .select('ls.sub_payment AS sub_payment')
-      .getRawMany();
+      .getRawMany<{ sub_payment: string | number | null }>();
 
-    const subAmount: bigint = subRows.reduce((s: bigint, r: any) => s + BigInt(r.sub_payment ?? 0), 0n);
+    const subAmount: bigint = subRows.reduce((s, r) => s + BigInt(r.sub_payment ?? 0), 0n);
 
     // Asl o'qituvchi sifatida o'rinbosar ishlatgan darslar (chegirma)
     const deductRows = await this.subRepo
@@ -198,9 +198,9 @@ export class SalaryService {
       })
       .andWhere('ls.deleted_at IS NULL')
       .select('ls.original_deduction AS original_deduction')
-      .getRawMany();
+      .getRawMany<{ original_deduction: string | number | null }>();
 
-    const deduction: bigint = deductRows.reduce((s: bigint, r: any) => s + BigInt(r.original_deduction ?? 0), 0n);
+    const deduction: bigint = deductRows.reduce((s, r) => s + BigInt(r.original_deduction ?? 0), 0n);
 
     const raw: bigint = baseAmount + kpiBonus + subAmount - deduction;
     const totalAmount: bigint = raw < 0n ? 0n : raw;
@@ -260,8 +260,8 @@ export class SalaryService {
       try {
         const record = await this.calculateMonthly(cfg.teacherId, periodMonth, actorId);
         results.push(record);
-      } catch (err: any) {
-        errors.push({ teacherId: cfg.teacherId, error: err.message });
+      } catch (err) {
+        errors.push({ teacherId: cfg.teacherId, error: err instanceof Error ? err.message : String(err) });
       }
     }
 

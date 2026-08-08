@@ -14,6 +14,8 @@ import { User } from '../../entities/user.entity';
 import { Group } from '../../entities/group.entity';
 import { Enrollment } from '../../entities/enrollment.entity';
 import { AuditLogModule } from '../audit-log/audit-log.module';
+import { QualityModule } from '../quality/quality.module';
+import { PaymentsModule } from '../payments/payments.module';
 
 @Module({
   imports: [
@@ -36,6 +38,8 @@ import { AuditLogModule } from '../audit-log/audit-log.module';
     }),
 
     AuditLogModule,
+    QualityModule,
+    PaymentsModule,
   ],
   controllers: [ChatController],
   providers: [

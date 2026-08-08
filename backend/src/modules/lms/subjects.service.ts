@@ -50,8 +50,8 @@ export class SubjectsService {
 
     const subjects = await qb.getMany();
 
-    // Har fan bo'yicha statistika
-    const stats = await this.subjectRepo.query(
+    // Har fan bo'yicha statistika (guruh/o'quvchi)
+    const groupStats = await this.subjectRepo.query(
       `SELECT
         g.subject_id,
         COUNT(DISTINCT g.id) AS groups,
@@ -62,16 +62,61 @@ export class SubjectsService {
        GROUP BY g.subject_id`,
     );
 
-    const statsMap = new Map(
-      stats.map((s: Record<string, string>) => [
-        s.subject_id,
-        { groups: Number(s.groups), students: Number(s.students) },
-      ]),
+    // Materiallar soni (guruh orqali — material to'g'ridan-to'g'ri fanga bog'lanmagan)
+    const materialStats = await this.subjectRepo.query(
+      `SELECT g.subject_id, COUNT(m.id) AS count
+       FROM materials m
+       INNER JOIN groups g ON g.id = m.group_id
+       WHERE m.deleted_at IS NULL
+       GROUP BY g.subject_id`,
     );
+
+    // Testlar soni (test to'g'ridan-to'g'ri fanga bog'langan)
+    const testStats = await this.subjectRepo.query(
+      `SELECT subject_id, COUNT(id) AS count
+       FROM tests
+       WHERE deleted_at IS NULL
+       GROUP BY subject_id`,
+    );
+
+    // Vazifalar soni (guruh orqali)
+    const homeworkStats = await this.subjectRepo.query(
+      `SELECT g.subject_id, COUNT(h.id) AS count
+       FROM homework h
+       INNER JOIN groups g ON g.id = h.group_id
+       WHERE h.deleted_at IS NULL
+       GROUP BY g.subject_id`,
+    );
+
+    // O'rtacha test bali (yakunlangan urinishlar bo'yicha)
+    const avgScoreStats = await this.subjectRepo.query(
+      `SELECT t.subject_id, AVG(tr.score) AS avg
+       FROM test_results tr
+       INNER JOIN tests t ON t.id = tr.test_id
+       WHERE tr.deleted_at IS NULL AND tr.finished_at IS NOT NULL
+       GROUP BY t.subject_id`,
+    );
+
+    const toMap = (rows: Record<string, string>[], valueKey: string) =>
+      new Map(rows.map((r) => [r.subject_id, Number(r[valueKey])]));
+
+    const groupMap = new Map(
+      groupStats.map((s: Record<string, string>) => [s.subject_id, { groups: Number(s.groups), students: Number(s.students) }]),
+    );
+    const materialsMap = toMap(materialStats, 'count');
+    const testsMap = toMap(testStats, 'count');
+    const homeworkMap = toMap(homeworkStats, 'count');
+    const avgScoreMap = toMap(avgScoreStats, 'avg');
 
     return subjects.map((s) => ({
       ...s,
-      stats: statsMap.get(s.id) ?? { groups: 0, students: 0 },
+      stats: {
+        ...(groupMap.get(s.id) ?? { groups: 0, students: 0 }),
+        materialsCount: materialsMap.get(s.id) ?? 0,
+        testsCount: testsMap.get(s.id) ?? 0,
+        homeworkCount: homeworkMap.get(s.id) ?? 0,
+        avgScore: avgScoreMap.has(s.id) ? Math.round(avgScoreMap.get(s.id)! * 10) / 10 : null,
+      },
     }));
   }
 

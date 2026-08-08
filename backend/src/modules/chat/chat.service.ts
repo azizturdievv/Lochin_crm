@@ -15,6 +15,8 @@ import { Enrollment, EnrollmentStatus } from '../../entities/enrollment.entity';
 import { Role } from '../../common/enums/role.enum';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { ModerationService, ModerationLevel } from './moderation.service';
+import { SpellingService } from '../quality/spelling.service';
+import { PaymentsService } from '../payments/payments.service';
 import { CreateRoomDto } from './dto/chat.dto';
 
 type SendMessagePayload = {
@@ -51,6 +53,8 @@ export class ChatService {
     private enrollmentRepo: Repository<Enrollment>,
     private moderation: ModerationService,
     private auditLog: AuditLogService,
+    private spelling: SpellingService,
+    private paymentsService: PaymentsService,
   ) {}
 
   // ─── XONA YARATISH ────────────────────────────────────────────────────────
@@ -176,16 +180,18 @@ export class ChatService {
       });
     }
 
-    // Manager: faqat e'lonlar va guruh sinfxonalari
+    // Manager: e'lonlar va guruh sinfxonalari (barchasi) + o'zi a'zo bo'lgan boshqa xonalar (shaxsiy va h.k.)
     if (actorRole === Role.MANAGER) {
-      return this.roomRepo.find({
-        where: [
-          { isActive: true, type: ChatRoomType.ANNOUNCEMENTS },
-          { isActive: true, type: ChatRoomType.GROUP_CLASS },
-        ],
-        relations: { members: true },
-        order: { lastMessageAt: 'DESC' },
-      });
+      return this.roomRepo
+        .createQueryBuilder('r')
+        .leftJoinAndSelect('r.members', 'members')
+        .where('r.is_active = true')
+        .andWhere(
+          '(r.type IN (:...broadTypes) OR members.id = :uid)',
+          { broadTypes: [ChatRoomType.ANNOUNCEMENTS, ChatRoomType.GROUP_CLASS], uid: userId },
+        )
+        .orderBy('r.last_message_at', 'DESC')
+        .getMany();
     }
 
     // Ustoz, student, ota-ona: faqat o'zi a'zo bo'lgan xonalar
@@ -230,13 +236,21 @@ export class ChatService {
       return true;
     }
 
-    // Manager faqat e'lonlar va guruh sinfxonalari
+    // Manager: e'lonlar va guruh sinfxonalari — hammasi; boshqa turdagi xonalar — a'zolik bo'yicha
     if (actorRole === Role.MANAGER) {
       const room = await this.roomRepo.findOne({
         where: { id: roomId },
         select: { type: true },
       });
-      return room?.type === ChatRoomType.ANNOUNCEMENTS || room?.type === ChatRoomType.GROUP_CLASS;
+      if (room?.type === ChatRoomType.ANNOUNCEMENTS || room?.type === ChatRoomType.GROUP_CLASS) {
+        return true;
+      }
+      const memberRoom = await this.roomRepo
+        .createQueryBuilder('r')
+        .innerJoin('r.members', 'm', 'm.id = :uid', { uid: userId })
+        .where('r.id = :rid', { rid: roomId })
+        .getOne();
+      return !!memberRoom;
     }
 
     const room = await this.roomRepo
@@ -260,17 +274,15 @@ export class ChatService {
       return actorRole === Role.MANAGER;
     }
 
-    // Manager faqat guruh sinfxonasiga yoza oladi
-    if (actorRole === Role.MANAGER) {
-      return room.type === ChatRoomType.GROUP_CLASS;
-    }
-
     return this.checkRoomAccess(roomId, userId, actorRole);
   }
 
   // ─── XABAR YUBORISH ───────────────────────────────────────────────────────
   async sendMessage(payload: SendMessagePayload): Promise<SendResult> {
-    const room = await this.roomRepo.findOne({ where: { id: payload.roomId } });
+    const room = await this.roomRepo.findOne({
+      where: { id: payload.roomId },
+      relations: { members: true },
+    });
     if (!room) return { blocked: true, reason: 'Xona topilmadi' };
 
     // Yozish ruxsatini tekshirish
@@ -283,9 +295,26 @@ export class ChatService {
     const canWrite = await this.canWriteToRoom(payload.roomId, payload.senderId, sender.role);
     if (!canWrite) return { blocked: true, reason: 'Bu xonaga yozish ruxsati yo\'q' };
 
+    // To'lov avto-blok: qulflangan o'quvchi faqat xodim (SA/Manager) bilan xonada yoza oladi
+    if (sender.role === Role.STUDENT) {
+      const access = await this.paymentsService.getAccessStatus(payload.senderId);
+      if (access.isLocked) {
+        const others = (room.members ?? []).filter((m) => m.id !== payload.senderId);
+        const isStaffRoom = others.length > 0 && others.every(
+          (m) => m.role === Role.SUPER_ADMIN || m.role === Role.MANAGER,
+        );
+        if (!isStaffRoom) {
+          return {
+            blocked: true,
+            reason: 'To\'lov muddati o\'tgan. Faqat administratsiya bilan bog\'lanish mumkin.',
+          };
+        }
+      }
+    }
+
     // Matn moderatsiya
     if (payload.content && (payload.type ?? MessageType.TEXT) === MessageType.TEXT) {
-      const modResult = this.moderation.moderate(payload.content, payload.senderId);
+      const modResult = await this.moderation.moderate(payload.content, payload.senderId, sender.role);
 
       if (modResult.level === ModerationLevel.BLOCKED) {
         await this.auditLog.log({
@@ -299,6 +328,10 @@ export class ChatService {
       }
 
       const msg = await this.saveAndReturn(payload, modResult.level === ModerationLevel.WARNING ? (modResult.reason ?? null) : null);
+
+      // AI imlo tekshiruvi — xabar yetkazilishini kutmasdan fonda ishlaydi
+      this.spelling.checkAndSave(payload.content, payload.senderId, sender.role, msg.id).catch(() => {});
+
       return {
         message: msg,
         blocked: false,
@@ -425,8 +458,8 @@ export class ChatService {
     roomId?: string;
     recipientId?: string;
   }): Promise<VideoMessage> {
-    if (opts.durationSeconds < 30 || opts.durationSeconds > 60) {
-      throw new BadRequestException('Video xabar 30-60 soniya bo\'lishi kerak');
+    if (opts.durationSeconds > 60) {
+      throw new BadRequestException('Video xabar 60 soniyadan oshmasligi kerak');
     }
 
     const vm = this.videoRepo.create({

@@ -6,9 +6,10 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, In } from 'typeorm';
 import { Homework } from '../../entities/homework.entity';
 import { HomeworkSubmission, SubmissionStatus } from '../../entities/homework-submission.entity';
+import { Lesson } from '../../entities/lesson.entity';
 import { Enrollment, EnrollmentStatus } from '../../entities/enrollment.entity';
 import { User } from '../../entities/user.entity';
 import { PointsLog, PointsAction } from '../../entities/points-log.entity';
@@ -40,9 +41,21 @@ export class HomeworkService {
     private pointsRepo: Repository<PointsLog>,
     @InjectRepository(Notification)
     private notifRepo: Repository<Notification>,
+    @InjectRepository(Lesson)
+    private lessonRepo: Repository<Lesson>,
     private minioService: MinioService,
     private auditLog: AuditLogService,
   ) {}
+
+  // ─── GURUH DARSLARI (vazifa yaratishda tanlash uchun) ─────────────────────
+  async findLessonsByGroup(groupId: string) {
+    return this.lessonRepo.find({
+      where: { groupId },
+      order: { lessonDate: 'DESC' },
+      take: 20,
+      select: { id: true, lessonDate: true, startTime: true, endTime: true, topic: true },
+    });
+  }
 
   // ─── VAZIFA YARATISH (USTOZ) ──────────────────────────────────────────────
   async create(dto: CreateHomeworkDto, actorId: string, actorRole: string) {
@@ -191,11 +204,24 @@ export class HomeworkService {
   }
 
   // ─── RO'YXAT ─────────────────────────────────────────────────────────────
-  async findByGroup(groupId: string) {
-    return this.homeworkRepo.find({
+  async findByGroup(groupId: string, actorId: string, actorRole: string) {
+    const homeworks = await this.homeworkRepo.find({
       where: { groupId },
       order: { dueDate: 'DESC' },
     });
+
+    if (actorRole !== Role.STUDENT || homeworks.length === 0) return homeworks;
+
+    // O'quvchi uchun: har vazifaga o'zining topshirig'ini biriktirish
+    const submissions = await this.submissionRepo.find({
+      where: { studentId: actorId, homeworkId: In(homeworks.map((h) => h.id)) },
+    });
+    const byHomeworkId = new Map(submissions.map((s) => [s.homeworkId, s]));
+
+    return homeworks.map((h) => ({
+      ...h,
+      mySubmission: byHomeworkId.get(h.id) ?? null,
+    }));
   }
 
   async getSubmissions(homeworkId: string) {

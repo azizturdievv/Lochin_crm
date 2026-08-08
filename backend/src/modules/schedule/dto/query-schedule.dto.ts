@@ -53,6 +53,11 @@ export class ConflictCheckDto {
   @IsOptional()
   @IsString()
   excludeLessonId?: string;
+
+  // Guruh ID — berilsa, xona sig'imi ham tekshiriladi
+  @IsOptional()
+  @IsString()
+  groupId?: string;
 }
 
 export class AnalysisQueryDto {

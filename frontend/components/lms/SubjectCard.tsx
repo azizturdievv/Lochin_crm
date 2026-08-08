@@ -1,6 +1,7 @@
 'use client';
 
 import type { Subject } from '@/types/lms';
+import { getSubjectVisual } from '@/types/lms';
 
 interface Props {
   subject:  Subject;
@@ -10,6 +11,7 @@ interface Props {
 
 export default function SubjectCard({ subject, active, onClick }: Props) {
   const avg = subject.stats?.avgScore;
+  const visual = getSubjectVisual(subject);
 
   return (
     <button
@@ -22,9 +24,9 @@ export default function SubjectCard({ subject, active, onClick }: Props) {
     >
       <div
         className={`w-10 h-10 rounded-xl flex items-center justify-center text-xl shrink-0`}
-        style={{ background: subject.color + '20' }}
+        style={{ background: visual.color + '20' }}
       >
-        {subject.icon}
+        <visual.icon size={14} className="shrink-0" />
       </div>
 
       <div className="flex-1 min-w-0">

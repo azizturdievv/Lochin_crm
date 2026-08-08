@@ -1,5 +1,6 @@
 'use client';
 
+import { ChevronLeft, PenLine, Search, TrendingUp } from 'lucide-react';
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
@@ -45,6 +46,8 @@ export default function QualityPage() {
 
   const showStudentList  = isSA || isManager || isUstoz;
   const showStaffSpelling = isSA;
+  const hasLeftPanel = showStudentList || showStaffSpelling;
+  const hasSelection = !!selectedStudent || !!selectedStaff;
 
   // O'quvchilar ro'yxati (SA/Manager/Ustoz uchun)
   const { data: students = [] } = useQuery<Student[]>({
@@ -78,10 +81,12 @@ export default function QualityPage() {
   return (
     <div className="flex h-[calc(100vh-4rem)] overflow-hidden bg-gray-50">
       {/* ─── Chap panel (SA/Manager/Ustoz uchun filtr) ──────────── */}
-      {(showStudentList || showStaffSpelling) && (
-        <div className="w-64 shrink-0 bg-white border-r border-gray-100 flex flex-col">
+      {hasLeftPanel && (
+        <div className={`shrink-0 bg-white border-r border-gray-100 flex-col ${
+          hasSelection ? 'hidden md:flex md:w-64' : 'flex w-full md:w-64'
+        }`}>
           <div className="px-4 py-4 border-b border-gray-100">
-            <h2 className="text-sm font-semibold text-gray-900">🔍 Sifat nazorati</h2>
+            <h2 className="text-sm font-semibold text-gray-900">Sifat nazorati</h2>
             <p className="text-xs text-gray-400 mt-0.5">Foydalanuvchi tanlang</p>
           </div>
 
@@ -102,7 +107,7 @@ export default function QualityPage() {
                       }}
                       className={`w-full flex items-center gap-2 px-3 py-2 rounded-xl text-left text-xs transition-colors ${
                         selectedStudent?.id === s.id
-                          ? 'bg-emerald-50 text-emerald-800 font-medium'
+                          ? 'bg-primary-50 text-primary-800 font-medium'
                           : 'text-gray-600 hover:bg-gray-50'
                       }`}
                     >
@@ -153,13 +158,21 @@ export default function QualityPage() {
       )}
 
       {/* ─── Asosiy content ─────────────────────────────────────── */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+      <div className={`flex-col min-w-0 overflow-hidden ${
+        hasLeftPanel && !hasSelection ? 'hidden md:flex md:flex-1' : 'flex w-full md:flex-1'
+      }`}>
         {/* Sarlavha */}
-        <div className="px-6 py-4 bg-white border-b border-gray-100 shrink-0">
-          <div className="flex items-center gap-4 mb-4">
-            <div className="w-10 h-10 rounded-2xl bg-blue-50 flex items-center justify-center text-xl shrink-0">
-              🔍
-            </div>
+        <div className="px-4 md:px-6 py-4 bg-white border-b border-gray-100 shrink-0">
+          <div className="flex items-center gap-3 md:gap-4 mb-4">
+            {hasLeftPanel && (
+              <button
+                onClick={() => { setSelectedStudent(null); setSelectedStaff(null); }}
+                className="md:hidden shrink-0 -ml-1 text-gray-400 hover:text-gray-600 w-8 h-8 flex items-center justify-center rounded-xl hover:bg-gray-100"
+              >
+                <ChevronLeft size={22} />
+              </button>
+            )}
+            <div className="w-10 h-10 rounded-2xl bg-blue-50 flex items-center justify-center text-xl shrink-0"><Search size={16} /></div>
             <div className="min-w-0">
               <h1 className="text-base font-bold text-gray-900">
                 {selectedStudent
@@ -185,8 +198,8 @@ export default function QualityPage() {
           {/* Tab navigatsiya */}
           <div className="flex gap-1">
             {[
-              { id: 'spelling',  label: 'Imlo xatolari',  icon: '✍️', show: true },
-              { id: 'progress',  label: 'O\'sish grafigi', icon: '📈', show: !selectedStaff },
+              { id: 'spelling',  label: 'Imlo xatolari',  icon: PenLine, show: true },
+              { id: 'progress',  label: 'O\'sish grafigi', icon: TrendingUp, show: !selectedStaff },
             ].filter(t => t.show).map(t => (
               <button
                 key={t.id}
@@ -197,7 +210,7 @@ export default function QualityPage() {
                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                 }`}
               >
-                {t.icon} {t.label}
+                <t.icon size={14} className="shrink-0" /> {t.label}
               </button>
             ))}
           </div>

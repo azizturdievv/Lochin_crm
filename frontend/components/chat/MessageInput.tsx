@@ -1,5 +1,7 @@
 'use client';
 
+import { Film, Image as ImageIcon, Mic, Paperclip, Send, Video } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { useState, useRef, useCallback } from 'react';
 import api from '@/lib/api';
 import AudioRecorder from './AudioRecorder';
@@ -23,6 +25,7 @@ export default function MessageInput({ roomId, readOnly, onSend, onTyping, onSto
   const [toast,      setToast]     = useState<string | null>(null);
   const fileInputRef  = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
+  const videoInputRef = useRef<HTMLInputElement>(null);
   const typingTimer   = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   function showToast(msg: string) {
@@ -97,6 +100,7 @@ export default function MessageInput({ roomId, readOnly, onSend, onTyping, onSto
     try {
       const form = new FormData();
       form.append('file', blob, `video-circle-${Date.now()}.webm`);
+      form.append('durationSeconds', String(Math.round(dur)));
       const res  = await api.post<{ url: string }>('/chat/upload/video-circle', form, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
@@ -125,14 +129,14 @@ export default function MessageInput({ roomId, readOnly, onSend, onTyping, onSto
   if (readOnly) {
     return (
       <div className="flex items-center justify-center h-14 bg-gray-50 border-t border-gray-100">
-        <p className="text-sm text-gray-400">📢 Bu kanalda faqat o'qish mumkin</p>
+        <p className="text-sm text-gray-400">Bu kanalda faqat o'qish mumkin</p>
       </div>
     );
   }
 
   return (
     <div
-      className={`border-t border-gray-100 transition-colors ${dragOver ? 'bg-emerald-50' : 'bg-white'}`}
+      className={`border-t border-gray-100 transition-colors ${dragOver ? 'bg-primary-50' : 'bg-white'}`}
       onDragOver={e => { e.preventDefault(); setDragOver(true); }}
       onDragLeave={() => setDragOver(false)}
       onDrop={handleDrop}
@@ -141,7 +145,7 @@ export default function MessageInput({ roomId, readOnly, onSend, onTyping, onSto
       {dragOver && (
         <div className="absolute inset-0 z-10 flex items-center justify-center bg-emerald-50/90 pointer-events-none">
           <div className="text-center">
-            <div className="text-4xl mb-2">📎</div>
+            <div className="text-4xl mb-2"></div>
             <p className="text-emerald-700 font-medium">Faylni tashlang</p>
           </div>
         </div>
@@ -170,10 +174,11 @@ export default function MessageInput({ roomId, readOnly, onSend, onTyping, onSto
         <div className="flex items-end gap-2 px-4 py-3">
           {/* Media tugmalari */}
           <div className="flex items-center gap-1 shrink-0">
-            <MediaBtn icon="🖼️" title="Rasm yuborish" onClick={() => imageInputRef.current?.click()} />
-            <MediaBtn icon="📎" title="Fayl yuborish" onClick={() => fileInputRef.current?.click()} />
-            <MediaBtn icon="🎤" title="Audio yozish"  onClick={() => setMode('audio')} />
-            <MediaBtn icon="🎥" title="Video doira"   onClick={() => setMode('video_circle')} />
+            <MediaBtn icon={ImageIcon} title="Rasm yuborish" onClick={() => imageInputRef.current?.click()} />
+            <MediaBtn icon={Paperclip} title="Fayl yuborish" onClick={() => fileInputRef.current?.click()} />
+            <MediaBtn icon={Mic} title="Audio yozish"  onClick={() => setMode('audio')} />
+            <MediaBtn icon={Film} title="Video yuborish" onClick={() => videoInputRef.current?.click()} />
+            <MediaBtn icon={Video} title="Video doira"   onClick={() => setMode('video_circle')} />
           </div>
 
           {/* Matn kiritish */}
@@ -184,7 +189,7 @@ export default function MessageInput({ roomId, readOnly, onSend, onTyping, onSto
               onKeyDown={handleKeyDown}
               placeholder="Xabar yozing... (Enter = yuborish, Shift+Enter = yangi qator)"
               rows={1}
-              className="w-full resize-none bg-gray-50 border border-gray-200 rounded-2xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent max-h-32 overflow-y-auto"
+              className="w-full resize-none bg-gray-50 border border-gray-200 rounded-2xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent max-h-32 overflow-y-auto"
               style={{ minHeight: '42px' }}
             />
           </div>
@@ -193,11 +198,11 @@ export default function MessageInput({ roomId, readOnly, onSend, onTyping, onSto
           <button
             onClick={sendText}
             disabled={!text.trim() || uploading}
-            className="w-10 h-10 bg-emerald-600 text-white rounded-xl flex items-center justify-center hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shrink-0"
+            className="w-10 h-10 bg-primary-600 text-white rounded-xl flex items-center justify-center hover:bg-primary-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shrink-0"
           >
             {uploading
               ? <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-              : '➤'}
+              : <Send size={16} />}
           </button>
         </div>
       )}
@@ -207,6 +212,8 @@ export default function MessageInput({ roomId, readOnly, onSend, onTyping, onSto
         onChange={e => { Array.from(e.target.files ?? []).forEach(f => uploadAndSend(f, '/chat/upload/image', 'image')); e.target.value = ''; }} />
       <input ref={fileInputRef} type="file" className="hidden" multiple
         onChange={e => { Array.from(e.target.files ?? []).forEach(f => uploadAndSend(f, '/chat/upload/file', 'file')); e.target.value = ''; }} />
+      <input ref={videoInputRef} type="file" accept="video/*" className="hidden"
+        onChange={e => { const f = e.target.files?.[0]; if (f) uploadAndSend(f, '/chat/upload/video', 'video'); e.target.value = ''; }} />
 
       {/* Toast */}
       {toast && (
@@ -218,11 +225,11 @@ export default function MessageInput({ roomId, readOnly, onSend, onTyping, onSto
   );
 }
 
-function MediaBtn({ icon, title, onClick }: { icon: string; title: string; onClick: () => void }) {
+function MediaBtn({ icon: Icon, title, onClick }: { icon: LucideIcon; title: string; onClick: () => void }) {
   return (
     <button onClick={onClick} title={title}
       className="w-9 h-9 rounded-xl text-gray-500 hover:bg-gray-100 hover:text-gray-700 flex items-center justify-center text-base transition-colors">
-      {icon}
+      <Icon size={18} />
     </button>
   );
 }

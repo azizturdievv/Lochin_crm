@@ -68,7 +68,7 @@ export class SendMessageDto {
   durationSeconds?: number;
 }
 
-// Video xabar yuborish (Circle, 30-60 sek)
+// Video xabar yuborish (Circle, maks. 60 sek)
 export class SendVideoMessageDto {
   @IsOptional()
   @IsUUID()
@@ -79,7 +79,7 @@ export class SendVideoMessageDto {
   recipientId?: string;
 
   @IsInt()
-  @Min(30)
+  @Min(1)
   @Max(60)
   durationSeconds: number;
 }

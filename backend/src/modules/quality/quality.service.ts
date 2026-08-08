@@ -211,7 +211,7 @@ export class QualityService {
         type: true,
         createdAt: true,
         score: true,
-      } as any,
+      },
       order: { createdAt: 'DESC' },
     });
 

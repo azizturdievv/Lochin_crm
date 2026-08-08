@@ -6,8 +6,9 @@ import {
   Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { Event, EventType, CompetitionStatus } from '../../entities/event.entity';
+import { EventParticipant } from '../../entities/event-participant.entity';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { Role } from '../../common/enums/role.enum';
 import { CreateEventDto, UpdateEventDto, QueryEventDto } from './dto/event.dto';
@@ -19,6 +20,8 @@ export class EventsService {
   constructor(
     @InjectRepository(Event)
     private eventRepo: Repository<Event>,
+    @InjectRepository(EventParticipant)
+    private participantRepo: Repository<EventParticipant>,
     private auditLog: AuditLogService,
   ) {}
 
@@ -58,7 +61,7 @@ export class EventsService {
   }
 
   // ─── RO'YXAT ──────────────────────────────────────────────────────────────
-  async findAll(query: QueryEventDto): Promise<{ data: Event[]; total: number }> {
+  async findAll(query: QueryEventDto, userId?: string, userRole?: string) {
     const qb = this.eventRepo
       .createQueryBuilder('e')
       .leftJoinAndSelect('e.createdBy', 'u')
@@ -73,27 +76,124 @@ export class EventsService {
     const page  = query.page  ?? 1;
     const limit = query.limit ?? 20;
 
-    const [data, total] = await qb
+    const [events, total] = await qb
       .orderBy('e.event_date', 'DESC')
       .skip((page - 1) * limit)
       .take(limit)
       .getManyAndCount();
 
+    if (events.length === 0) return { data: [], total };
+
+    const eventIds = events.map((e) => e.id);
+
+    // Har bir tadbir uchun ishtirokchilar soni
+    const counts = await this.participantRepo
+      .createQueryBuilder('p')
+      .select('p.event_id', 'eventId')
+      .addSelect('COUNT(*)', 'count')
+      .where('p.event_id IN (:...ids)', { ids: eventIds })
+      .andWhere('p.deleted_at IS NULL')
+      .groupBy('p.event_id')
+      .getRawMany<{ eventId: string; count: string }>();
+    const countByEvent = new Map(counts.map((c) => [c.eventId, Number(c.count)]));
+
+    // Joriy foydalanuvchining ishtiroki — faqat o'quvchi uchun ma'noli
+    let myParticipationByEvent = new Map<string, EventParticipant>();
+    if (userId && userRole === Role.STUDENT) {
+      const mine = await this.participantRepo.find({
+        where: { eventId: In(eventIds), studentId: userId },
+      });
+      myParticipationByEvent = new Map(mine.map((p) => [p.eventId, p]));
+    }
+
+    const data = events.map((e) =>
+      this.toResponse(
+        e,
+        countByEvent.get(e.id) ?? 0,
+        myParticipationByEvent.get(e.id) ?? null,
+      ),
+    );
+
     return { data, total };
   }
 
   // ─── BITTA ────────────────────────────────────────────────────────────────
-  async findOne(id: string): Promise<Event> {
+  async findOne(id: string, userId?: string, userRole?: string) {
     const event = await this.eventRepo.findOne({
       where: { id },
       relations: { createdBy: true },
     });
     if (!event) throw new NotFoundException('Tadbir topilmadi');
-    return event;
+
+    const participantsCount = await this.participantRepo.count({
+      where: { eventId: id },
+    });
+
+    let myParticipation: EventParticipant | null = null;
+    if (userId && userRole === Role.STUDENT) {
+      myParticipation = await this.participantRepo.findOne({
+        where: { eventId: id, studentId: userId },
+      });
+    }
+
+    return this.toResponse(event, participantsCount, myParticipation);
+  }
+
+  // ─── YORDAMCHI: xom entity → frontend kontrakti ──────────────────────────
+  // Entity'da yo'q, lekin frontendga kerak bo'lgan hisoblanadigan maydonlar:
+  // status (event_date/is_active/competition_status'dan chiqariladi),
+  // hasFee/feeAmount (entry_fee'dan), participantsCount, myParticipation.
+  private toResponse(
+    event: Event,
+    participantsCount: number,
+    myParticipation: EventParticipant | null,
+  ) {
+    return {
+      id:                   event.id,
+      title:                event.title,
+      type:                 event.type,
+      description:          event.description,
+      eventDate:            event.eventDate,
+      startTime:            event.startTime,
+      location:             event.location,
+      maxParticipants:      event.maxParticipants,
+      registrationDeadline: event.registrationDeadline,
+      hasFee:               Number(event.entryFee) > 0,
+      feeAmount:            Number(event.entryFee) || null,
+      isOnline:             event.isOnline,
+      questionCount:        event.questionCount,
+      timeLimit:            event.timeLimit,
+      competitionStatus:    event.competitionStatus,
+      results:              event.results,
+      status:               this.computeStatus(event),
+      participantsCount,
+      myParticipation,
+      createdBy:            event.createdById,
+      organizer:            event.createdBy
+        ? { firstName: event.createdBy.firstName, lastName: event.createdBy.lastName }
+        : undefined,
+      createdAt:            event.createdAt,
+    };
+  }
+
+  // Entityda alohida "status" ustuni yo'q — is_active, event_date va (onlayn
+  // tadbirlar uchun) competition_status asosida chiqariladi.
+  private computeStatus(event: Event): 'upcoming' | 'ongoing' | 'completed' | 'cancelled' {
+    if (!event.isActive) return 'cancelled';
+    if (event.isOnline && event.competitionStatus === CompetitionStatus.ONGOING) return 'ongoing';
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const eventDay = new Date(event.eventDate);
+    eventDay.setHours(0, 0, 0, 0);
+
+    if (eventDay.getTime() === today.getTime()) return 'ongoing';
+    if (eventDay.getTime() > today.getTime()) return 'upcoming';
+    return 'completed';
   }
 
   // ─── YANGILASH ────────────────────────────────────────────────────────────
-  async update(id: string, dto: UpdateEventDto, actorId: string, actorRole: string): Promise<Event> {
+  async update(id: string, dto: UpdateEventDto, actorId: string, actorRole: string) {
     const event = await this.findOne(id);
 
     if (event.competitionStatus === CompetitionStatus.ONGOING) {

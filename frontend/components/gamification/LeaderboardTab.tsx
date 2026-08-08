@@ -1,11 +1,12 @@
 'use client';
 
+import { Trophy } from 'lucide-react';
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
 import type { LeaderboardEntry } from '@/types/gamification';
 
-type Period = 'month' | 'all';
+type Period = 'monthly' | 'all';
 type FilterRole = 'all' | 'student' | 'ustoz' | 'manager';
 
 const ROLE_LABELS: Record<string, string> = {
@@ -19,13 +20,13 @@ const PODIUM_COLOR = ['bg-amber-400', 'bg-gray-300', 'bg-amber-600'];
 const PODIUM_SIZE  = ['h-24', 'h-20', 'h-16'];
 
 export default function LeaderboardTab() {
-  const [period, setPeriod] = useState<Period>('month');
+  const [period, setPeriod] = useState<Period>('monthly');
   const [role,   setRole]   = useState<FilterRole>('all');
 
   const { data: entries = [], isLoading } = useQuery({
     queryKey: ['leaderboard', period, role],
     queryFn:  () => api.get<LeaderboardEntry[]>('/gamification/leaderboard', {
-      params: { period, role: role === 'all' ? undefined : role, limit: 50 },
+      params: { period, role, limit: 50 },
     }).then(r => r.data),
   });
 
@@ -42,7 +43,7 @@ export default function LeaderboardTab() {
       {/* Filtr */}
       <div className="flex items-center gap-3 flex-wrap">
         <div className="flex gap-1 bg-gray-100 p-1 rounded-xl">
-          {(['month', 'all'] as Period[]).map(p => (
+          {(['monthly', 'all'] as Period[]).map(p => (
             <button
               key={p}
               onClick={() => setPeriod(p)}
@@ -50,7 +51,7 @@ export default function LeaderboardTab() {
                 period === p ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500'
               }`}
             >
-              {p === 'month' ? '📅 Bu oy' : '🏆 Jami'}
+              {p === 'monthly' ? 'Bu oy' : 'Jami'}
             </button>
           ))}
         </div>
@@ -61,11 +62,11 @@ export default function LeaderboardTab() {
               onClick={() => setRole(r)}
               className={`text-xs px-3 py-1.5 rounded-xl font-medium transition-colors border ${
                 role === r
-                  ? 'bg-emerald-600 text-white border-emerald-600'
+                  ? 'bg-primary-600 text-white border-emerald-600'
                   : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
               }`}
             >
-              {r === 'all' ? '👥 Barchasi' : ROLE_LABELS[r]}
+              {r === 'all' ? 'Barchasi' : ROLE_LABELS[r]}
             </button>
           ))}
         </div>
@@ -79,7 +80,7 @@ export default function LeaderboardTab() {
         </div>
       ) : entries.length === 0 ? (
         <div className="flex flex-col items-center justify-center h-48 text-gray-400 gap-2">
-          <div className="text-4xl">🏆</div>
+          <div className="text-4xl"><Trophy size={36} /></div>
           <p className="text-sm">Ma'lumot topilmadi</p>
         </div>
       ) : (
@@ -87,7 +88,7 @@ export default function LeaderboardTab() {
           {/* ─── Podium (Top 3) ─── */}
           {top3.length === 3 && (
             <div className="bg-gradient-to-b from-amber-50 to-white rounded-3xl p-6">
-              <h3 className="text-center text-sm font-semibold text-amber-700 mb-6">🏆 Top 3</h3>
+              <h3 className="text-center text-sm font-semibold text-amber-700 mb-6">Top 3</h3>
               <div className="flex items-end justify-center gap-4">
                 {podiumOrder.map((entry, i) => {
                   const isFirst  = entry.rank === 1;
@@ -95,7 +96,7 @@ export default function LeaderboardTab() {
                   return (
                     <div key={entry.userId} className="flex flex-col items-center gap-2 min-w-0">
                       {/* Toj (1-o'rin uchun) */}
-                      {isFirst && <div className="text-2xl">👑</div>}
+                      {isFirst && <div className="text-2xl"></div>}
 
                       {/* Avatar */}
                       <div className={`rounded-full border-4 flex items-center justify-center text-sm font-bold text-white ${
@@ -121,7 +122,7 @@ export default function LeaderboardTab() {
                       <div className={`w-20 ${PODIUM_SIZE[podiumI]} ${PODIUM_COLOR[podiumI]} rounded-t-xl flex flex-col items-center justify-start pt-2 gap-0.5`}>
                         <span className="text-white font-black text-lg">{entry.rank}</span>
                         <span className="text-white/80 text-[10px] font-medium">
-                          {period === 'month' ? entry.thisMonthPoints : entry.totalPoints} ⭐
+                          {period === 'monthly' ? entry.thisMonthPoints : entry.totalPoints}
                         </span>
                       </div>
                     </div>
@@ -160,23 +161,23 @@ export default function LeaderboardTab() {
                   </p>
                   <p className="text-[10px] text-gray-400">
                     {ROLE_LABELS[entry.role] ?? entry.role}
-                    {entry.streak > 1 && ` · 🔥 ${entry.streak} kun`}
+                    {entry.streak > 1 && ` · ${entry.streak} kun`}
                   </p>
                 </div>
 
                 {/* Badge'lar */}
                 {entry.badgeCount > 0 && (
                   <div className="shrink-0 text-xs text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full font-medium">
-                    🏅 {entry.badgeCount}
+                    {entry.badgeCount}
                   </div>
                 )}
 
                 {/* Ballar */}
                 <div className="shrink-0 text-right">
                   <div className="text-sm font-bold text-gray-900">
-                    {period === 'month' ? entry.thisMonthPoints : entry.totalPoints}
+                    {period === 'monthly' ? entry.thisMonthPoints : entry.totalPoints}
                   </div>
-                  <div className="text-[10px] text-gray-400">⭐ ball</div>
+                  <div className="text-[10px] text-gray-400">ball</div>
                 </div>
               </div>
             ))}

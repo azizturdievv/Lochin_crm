@@ -6,7 +6,7 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, In } from 'typeorm';
 import { Test, TestStatus, TestDifficulty } from '../../entities/test.entity';
 import { TestQuestion } from '../../entities/test-question.entity';
 import { TestResult } from '../../entities/test-result.entity';
@@ -20,6 +20,7 @@ import { AuditLogService } from '../audit-log/audit-log.service';
 import {
   CreateTestDto,
   AddQuestionDto,
+  CheckAnswerDto,
   SubmitTestDto,
   TimeExtensionRequestDto,
   UpdateTestStatusDto,
@@ -293,6 +294,34 @@ export class TestsService {
     };
   }
 
+  // ─── BITTA SAVOLNI DARHOL TEKSHIRISH (Duolingo uslubi) ───────────────────
+  // Ball yozmaydi/oshirmaydi — faqat to'g'ri/xato ko'rsatadi. Javob darhol
+  // result.answers'ga yoziladi — shu bilan "peek" (qayta-qayta sinab ko'rish)
+  // oldini oladi va yakuniy submitTest() uchun ma'lumot manbai bo'ladi.
+  async checkAnswer(dto: CheckAnswerDto, studentId: string) {
+    const result = await this.resultRepo.findOne({ where: { id: dto.testResultId, studentId } });
+    if (!result) throw new NotFoundException('Test natijasi topilmadi');
+    if (result.finishedAt) throw new ConflictException('Bu test allaqachon yakunlangan');
+
+    const existing = (result.answers ?? {}) as Record<string, string>;
+    if (existing[dto.questionId] !== undefined) {
+      throw new ConflictException('Bu savol allaqachon tekshirilgan');
+    }
+
+    const question = await this.questionRepo.findOne({
+      where: { id: dto.questionId, testId: result.testId },
+    });
+    if (!question) throw new NotFoundException('Savol topilmadi');
+
+    const correct = question.correctAnswer === dto.answer;
+
+    await this.resultRepo.update(result.id, {
+      answers: { ...existing, [dto.questionId]: dto.answer },
+    });
+
+    return { correct, correctAnswer: question.correctAnswer };
+  }
+
   // ─── TEST JAVOBLARINI YUBORISH ────────────────────────────────────────────
   async submitTest(dto: SubmitTestDto, studentId: string) {
     const result = await this.resultRepo.findOne({
@@ -481,17 +510,31 @@ export class TestsService {
       order: { score: 'DESC' },
     });
 
-    // Score method bo'yicha eng yaxshi natijani hisoblash
+    // Score method bo'yicha har o'quvchi uchun hisobga olinadigan natijani aniqlash
     const studentBest = new Map<string, TestResult>();
-    for (const r of results) {
-      const current = studentBest.get(r.studentId);
-      if (!current) { studentBest.set(r.studentId, r); continue; }
 
-      if (test.scoreMethod === 'best' && r.score > current.score) {
-        studentBest.set(r.studentId, r);
-      } else if (test.scoreMethod === 'last' &&
-                 new Date(r.startedAt) > new Date(current.startedAt)) {
-        studentBest.set(r.studentId, r);
+    if (test.scoreMethod === 'average') {
+      // O'rtacha: barcha urinishlarni guruhlab, sun'iy "o'rtacha ball"li natija yasaymiz
+      const byStudent = new Map<string, TestResult[]>();
+      for (const r of results) {
+        if (!byStudent.has(r.studentId)) byStudent.set(r.studentId, []);
+        byStudent.get(r.studentId)!.push(r);
+      }
+      for (const [studentId, attempts] of byStudent) {
+        const avgScore = attempts.reduce((s, r) => s + Number(r.score), 0) / attempts.length;
+        studentBest.set(studentId, { ...attempts[0], score: Math.round(avgScore * 10) / 10 } as TestResult);
+      }
+    } else {
+      for (const r of results) {
+        const current = studentBest.get(r.studentId);
+        if (!current) { studentBest.set(r.studentId, r); continue; }
+
+        if (test.scoreMethod === 'best' && r.score > current.score) {
+          studentBest.set(r.studentId, r);
+        } else if (test.scoreMethod === 'last' &&
+                   new Date(r.startedAt) > new Date(current.startedAt)) {
+          studentBest.set(r.studentId, r);
+        }
       }
     }
 
@@ -528,9 +571,10 @@ export class TestsService {
   async findAll(query: { subjectId?: string; status?: TestStatus }, actorId: string, actorRole: string) {
     const qb = this.testRepo.createQueryBuilder('t')
       .innerJoin('t.subject', 's')
+      .leftJoin('t.createdBy', 'creator')
       .addSelect(['t.id','t.title','t.status','t.timeLimitMinutes','t.maxAttempts',
-                  't.scoreMethod','t.questionsToShow','t.createdAt',
-                  's.id','s.name']);
+                  't.scoreMethod','t.questionsToShow','t.totalQuestions','t.isBaseline','t.createdAt',
+                  's.id','s.name','creator.firstName','creator.lastName']);
 
     if (actorRole === Role.USTOZ) {
       qb.where('t.created_by = :uid', { uid: actorId });
@@ -538,7 +582,37 @@ export class TestsService {
     if (query.subjectId) qb.andWhere('t.subject_id = :sid', { sid: query.subjectId });
     if (query.status) qb.andWhere('t.status = :st', { st: query.status });
 
-    return qb.orderBy('t.created_at', 'DESC').getMany();
+    const tests = await qb.orderBy('t.created_at', 'DESC').getMany();
+
+    if (actorRole !== Role.STUDENT || tests.length === 0) return tests;
+
+    // Talaba uchun — o'z natijalari va qolgan urinishlar sonini biriktiramiz
+    const testIds = tests.map((t) => t.id);
+    const myResults = await this.resultRepo.find({
+      where: { studentId: actorId, testId: In(testIds) },
+      order: { createdAt: 'DESC' },
+    });
+
+    const byTest = new Map<string, TestResult[]>();
+    for (const r of myResults) {
+      if (!byTest.has(r.testId)) byTest.set(r.testId, []);
+      byTest.get(r.testId)!.push(r);
+    }
+
+    return tests.map((t) => {
+      const attempts = byTest.get(t.id) ?? [];
+      const best = attempts.reduce<TestResult | null>(
+        (b, r) => (!b || Number(r.score) > Number(b.score) ? r : b), null,
+      );
+      const bestOrLatest = t.scoreMethod === 'best' ? best : (attempts[0] ?? null);
+      // decimal ustun pg orqali satr sifatida qaytadi — frontend .toFixed() ishlatadi
+      const myResult = bestOrLatest ? { ...bestOrLatest, score: Number(bestOrLatest.score) } : null;
+      return {
+        ...t,
+        myResult,
+        myAttemptsLeft: Math.max(0, t.maxAttempts - attempts.length),
+      };
+    });
   }
 
   async findOne(id: string) {

@@ -6,7 +6,7 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource } from 'typeorm';
+import { Repository, DataSource, EntityManager } from 'typeorm';
 import { LessonSubstitution, AbsenceReason } from '../../entities/lesson-substitution.entity';
 import { TeacherAbsence } from '../../entities/teacher-absence.entity';
 import { Lesson, LessonStatus } from '../../entities/lesson.entity';
@@ -397,14 +397,26 @@ export class SubstitutionService {
 
   // ─── YORDAMCHI: MAOSH YOZUVI YANGILASH ────────────────────────────────────
   private async updateSalaryRecord(
-    em: any,
+    em: EntityManager,
     teacherId: string,
     periodMonth: string,
     amount: bigint,
     type: 'sub' | 'deduction',
   ): Promise<void> {
+    // Bir xil o'qituvchi+oy uchun ikkita o'rinbosarlik deyarli bir vaqtda
+    // yaratilsa (masalan bir kunda bir nechta darsga sababli yo'qlik), ikkalasi
+    // ham "existing" ni bir xil holatda o'qib, biri ikkinchisining += qo'shimchasini
+    // "yutib yuborishi" (lost update) yoki hatto ikkita alohida yozuv yaratib
+    // qo'yishi mumkin edi (teacher_id+period_month'da UNIQUE yo'q edi, pastga
+    // qarang). Advisory lock shu kalit bo'yicha butun operatsiyani serializatsiya
+    // qiladi — tranzaksiya tugaguncha ushlab turadi, avtomatik bo'shatiladi.
+    await em.query('SELECT pg_advisory_xact_lock(hashtext($1)::bigint)', [
+      `salary_record:${teacherId}:${periodMonth}`,
+    ]);
+
     const existing = await em.findOne(SalaryRecord, {
       where: { teacherId, periodMonth },
+      lock: { mode: 'pessimistic_write' },
     });
 
     if (existing) {
@@ -448,13 +460,22 @@ export class SubstitutionService {
 
   // ─── YORDAMCHI: MAOSH YOZUVINI TESKARI QAYTARISH ──────────────────────────
   private async revertSalaryRecord(
-    em: any,
+    em: EntityManager,
     teacherId: string,
     periodMonth: string,
     amount: bigint,
     type: 'sub' | 'deduction',
   ): Promise<void> {
-    const existing = await em.findOne(SalaryRecord, { where: { teacherId, periodMonth } });
+    // updateSalaryRecord'dagi bilan bir xil sabab — parallel bekor qilish/
+    // tayinlashlar bir-birining hisobini "yutib yubormasligi" uchun
+    await em.query('SELECT pg_advisory_xact_lock(hashtext($1)::bigint)', [
+      `salary_record:${teacherId}:${periodMonth}`,
+    ]);
+
+    const existing = await em.findOne(SalaryRecord, {
+      where: { teacherId, periodMonth },
+      lock: { mode: 'pessimistic_write' },
+    });
     if (!existing) return;
 
     if (existing.status !== SalaryRecordStatus.CALCULATED) {
@@ -495,7 +516,7 @@ export class SubstitutionService {
     substitutionId: string;
     substituteTeacher: User;
     originalTeacher: User | null;
-    lesson: Lesson & { group?: any };
+    lesson: Lesson & { group?: Group };
     reason: AbsenceReason;
     subPayment: bigint;
     originalDeduction: bigint;

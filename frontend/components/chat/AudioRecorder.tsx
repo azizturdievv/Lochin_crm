@@ -1,5 +1,6 @@
 'use client';
 
+import { X } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 
 interface Props {
@@ -13,6 +14,7 @@ export default function AudioRecorder({ onRecorded, onCancel }: Props) {
   const mediaRef  = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const timerRef  = useRef<ReturnType<typeof setInterval> | null>(null);
+  const secondsRef = useRef(0);
 
   useEffect(() => {
     startRecording();
@@ -22,21 +24,27 @@ export default function AudioRecorder({ onRecorded, onCancel }: Props) {
   async function startRecording() {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      // Timeslice bermasdan .start() chaqiramiz — shunda MediaRecorder butun
+      // yozuvni bitta yaxlit (to'g'ri yopilgan) WebM sifatida qaytaradi;
+      // davriy bo'laklarga bo'lib yig'ish ba'zan konteynerni buzib qo'yardi
       const mr     = new MediaRecorder(stream, { mimeType: 'audio/webm;codecs=opus' });
       chunksRef.current = [];
+      secondsRef.current = 0;
 
       mr.ondataavailable = e => { if (e.data.size > 0) chunksRef.current.push(e.data); };
       mr.onstop = () => {
         const blob = new Blob(chunksRef.current, { type: 'audio/webm' });
         stream.getTracks().forEach(t => t.stop());
-        onRecorded(blob, seconds);
+        // `seconds` state'i eskirgan closure orqali 0 bo'lib qolardi —
+        // xabar davomiyligi doim "0:00" ko'rinishining sababi shu edi
+        onRecorded(blob, secondsRef.current);
       };
 
-      mr.start(100);
+      mr.start();
       mediaRef.current = mr;
       setRecording(true);
 
-      timerRef.current = setInterval(() => setSeconds(s => s + 1), 1000);
+      timerRef.current = setInterval(() => setSeconds(s => { secondsRef.current = s + 1; return s + 1; }), 1000);
     } catch {
       onCancel();
     }
@@ -85,14 +93,14 @@ export default function AudioRecorder({ onRecorded, onCancel }: Props) {
       </div>
 
       {/* Bekor */}
-      <button onClick={handleCancel} className="text-gray-400 hover:text-gray-600 text-sm px-1 transition-colors">✕</button>
+      <button onClick={handleCancel} className="text-gray-400 hover:text-gray-600 text-sm px-1 transition-colors"><X size={16} /></button>
 
       {/* Yuborish */}
       <button
         onClick={handleStop}
         className="bg-red-500 text-white text-xs font-medium px-3 py-1.5 rounded-xl hover:bg-red-600 transition-colors"
       >
-        ✓ Yuborish
+        Yuborish
       </button>
     </div>
   );

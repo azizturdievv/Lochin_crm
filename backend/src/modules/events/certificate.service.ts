@@ -191,6 +191,14 @@ export class CertificateService {
     });
   }
 
+  // ─── TADBIR UCHUN BARCHA SERTIFIKATLAR (admin ro'yxati) ──────────────────
+  async findByEvent(eventId: string): Promise<Certificate[]> {
+    return this.certRepo.find({
+      where: { eventId },
+      relations: { student: true },
+    });
+  }
+
   // ─── PDF YARATISH ──────────────────────────────────────────────────────────
   private async buildPdf(data: {
     studentName:      string;

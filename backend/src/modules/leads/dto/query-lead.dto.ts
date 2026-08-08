@@ -38,7 +38,7 @@ export class QueryLeadDto {
 
   // Faqat 15 daqiqa javob olmaganlar
   @IsOptional()
-  @Transform(({ value }) => value === 'true')
+  @Transform(({ obj, key }) => obj[key] === 'true' || obj[key] === true)
   alertOnly?: boolean;
 
   @IsOptional()

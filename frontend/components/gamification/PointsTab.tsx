@@ -1,5 +1,6 @@
 'use client';
 
+import { Lock, Star } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { POINT_REASON_META } from '@/types/gamification';
@@ -49,21 +50,21 @@ export default function PointsTab({ userId }: Props) {
       <div className="grid grid-cols-3 gap-3">
         <div className="bg-amber-50 rounded-2xl p-4 text-center">
           <div className="text-2xl font-bold text-amber-700">{totalPoints}</div>
-          <div className="text-xs text-amber-600 mt-0.5">Jami ball ⭐</div>
+          <div className="text-xs text-amber-600 mt-0.5">Jami ball</div>
         </div>
         <div className="bg-emerald-50 rounded-2xl p-4 text-center">
           <div className="text-2xl font-bold text-emerald-700">{earnedBadges.length}</div>
-          <div className="text-xs text-emerald-600 mt-0.5">Badge 🏅</div>
+          <div className="text-xs text-emerald-600 mt-0.5">Badge </div>
         </div>
         <div className="bg-blue-50 rounded-2xl p-4 text-center">
           <div className="text-2xl font-bold text-blue-700">{logs.length}</div>
-          <div className="text-xs text-blue-600 mt-0.5">Amal 📊</div>
+          <div className="text-xs text-blue-600 mt-0.5">Amal </div>
         </div>
       </div>
 
       {/* ─── Badge'lar ─── */}
       <div>
-        <h3 className="text-sm font-semibold text-gray-900 mb-3">🏅 Badge'lar</h3>
+        <h3 className="text-sm font-semibold text-gray-900 mb-3">Badge'lar</h3>
         {badgesLoading ? (
           <div className="flex gap-3 flex-wrap">
             {Array.from({ length: 6 }).map((_, i) => (
@@ -85,7 +86,7 @@ export default function PointsTab({ userId }: Props) {
                       className="flex flex-col items-center gap-1 bg-amber-50 border border-amber-200 rounded-2xl p-3 w-20 text-center"
                       title={b.description}
                     >
-                      <span className="text-2xl">{b.icon}</span>
+                      <span className="text-2xl"><b.icon size={14} className="shrink-0" /></span>
                       <span className="text-[10px] font-medium text-amber-700 leading-tight">{b.name}</span>
                       {b.earnedAt && (
                         <span className="text-[9px] text-gray-400">
@@ -109,9 +110,9 @@ export default function PointsTab({ userId }: Props) {
                       className="flex flex-col items-center gap-1 bg-gray-50 border border-gray-200 rounded-2xl p-3 w-20 text-center opacity-60"
                       title={b.condition}
                     >
-                      <span className="text-2xl grayscale">{b.icon}</span>
+                      <span className="text-2xl grayscale"><b.icon size={14} className="shrink-0" /></span>
                       <span className="text-[10px] font-medium text-gray-500 leading-tight">{b.name}</span>
-                      <span className="text-[9px] text-gray-400">🔒</span>
+                      <span className="text-[9px] text-gray-400"><Lock size={16} /></span>
                     </div>
                   ))}
                 </div>
@@ -123,7 +124,7 @@ export default function PointsTab({ userId }: Props) {
 
       {/* ─── Ball tarixi ─── */}
       <div>
-        <h3 className="text-sm font-semibold text-gray-900 mb-3">📊 Ball tarixi</h3>
+        <h3 className="text-sm font-semibold text-gray-900 mb-3">Ball tarixi</h3>
         {logsLoading ? (
           <div className="space-y-2">
             {Array.from({ length: 8 }).map((_, i) => (
@@ -136,7 +137,7 @@ export default function PointsTab({ userId }: Props) {
           <div className="space-y-1.5">
             {logs.map(log => {
               const meta = POINT_REASON_META[log.reasonType] ?? {
-                label: log.reason, icon: '⭐', sign: '+',
+                label: log.reason, icon: Star, sign: '+',
               };
               const isPositive = log.points > 0;
               return (
@@ -144,7 +145,7 @@ export default function PointsTab({ userId }: Props) {
                   key={log.id}
                   className="flex items-center gap-3 px-4 py-3 bg-white border border-gray-100 rounded-xl hover:border-gray-200 transition-colors"
                 >
-                  <span className="text-xl shrink-0">{meta.icon}</span>
+                  <span className="text-xl shrink-0"><meta.icon size={14} className="shrink-0" /></span>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm text-gray-900 truncate">{log.reason}</p>
                     <p className="text-[10px] text-gray-400">{relTime(log.createdAt)}</p>
@@ -154,7 +155,7 @@ export default function PointsTab({ userId }: Props) {
                       ? 'text-emerald-700 bg-emerald-50'
                       : 'text-red-600 bg-red-50'
                   }`}>
-                    {isPositive ? '+' : ''}{log.points} ⭐
+                    {isPositive ? '+' : ''}{log.points}
                   </span>
                 </div>
               );

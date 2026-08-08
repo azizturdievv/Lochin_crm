@@ -112,7 +112,7 @@ export class LeaderboardQueryDto {
 
   @IsOptional()
   @IsString()
-  role?: 'student' | 'staff'; // default: student
+  role?: 'all' | 'student' | 'ustoz' | 'manager'; // default: all
 
   @IsOptional()
   @IsInt()

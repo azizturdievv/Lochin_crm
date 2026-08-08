@@ -1,5 +1,6 @@
 'use client';
 
+import { ChevronLeft } from 'lucide-react';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
@@ -7,7 +8,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import api from '@/lib/api';
 import { useAuthStore } from '@/store/auth.store';
-import type { LoginResponse, TwoFAResponse } from '@/types';
+import type { LoginResponse, TwoFAResponse, User } from '@/types';
 
 // ─── VALIDATSIYA SXEMALARI ────────────────────────────────────────────────────
 const loginSchema = z.object({
@@ -61,7 +62,7 @@ export default function LoginPage() {
       if (body.accessToken && body.refreshToken && body.user) {
         setTokens(body.accessToken, body.refreshToken);
         setUser(body.user);
-        router.replace('/dashboard');
+        redirectAfterAuth(body.user);
       }
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { message?: string } } })
@@ -81,24 +82,58 @@ export default function LoginPage() {
       const { accessToken, refreshToken, user } = res.data;
       setTokens(accessToken, refreshToken);
       setUser(user);
-      router.replace('/dashboard');
+      redirectAfterAuth(user);
     } catch {
       setApiError('Noto\'g\'ri kod. Qayta urinib ko\'ring.');
       twoFAForm.setValue('code', '');
     }
   }
 
+  // SA/Manager uchun 2FA hali yoqilmagan bo'lsa — dashboard'ga emas, majburiy
+  // sozlash sahifasiga yuboriladi (backend TwoFaEnforcementGuard baribir
+  // dashboard'dagi barcha so'rovlarni bloklaydi, shuning uchun bu yerda oldindan
+  // to'g'ri yo'naltirish kerak)
+  function redirectAfterAuth(user: User) {
+    const needsSetup = (user.role === 'super_admin' || user.role === 'manager') && !user.twoFaEnabled;
+    router.replace(needsSetup ? '/login/2fa-required' : '/dashboard');
+  }
+
   // ─── RENDER ───────────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-emerald-50 to-teal-100 px-4">
+    <div className="min-h-screen flex">
+
+      {/* Chap panel — brend (faqat lg va undan katta ekranda) */}
+      {/* Tailwind gradient utility bu loyihada compile bo'lmagani uchun inline style ishlatildi */}
+      <div
+        className="hidden lg:flex lg:w-1/2 items-center justify-center p-12 relative overflow-hidden"
+        style={{ background: 'linear-gradient(to bottom right, #3D5EE1, #2C44A9)' }}
+      >
+        <div className="absolute -top-24 -right-24 w-96 h-96 rounded-full bg-white/5" />
+        <div className="absolute -bottom-32 -left-16 w-80 h-80 rounded-full bg-white/5" />
+        <div className="relative z-10 text-center text-white max-w-sm">
+          <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-white p-3 mb-6 shadow-lg">
+            <img src="/icon.png" alt="Lochin School" className="w-full h-full object-contain" />
+          </div>
+          <h1 className="text-3xl font-bold mb-3">Lochin School CRM</h1>
+          <p className="text-primary-100 text-sm leading-relaxed">
+            O'quv markazingizni boshqarish uchun professional platforma
+          </p>
+        </div>
+      </div>
+
+      {/* O'ng panel — forma */}
+      <div className="flex-1 flex items-center justify-center bg-gray-50 px-4 py-12">
       <div className="w-full max-w-md">
 
-        {/* Logo */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-emerald-600 shadow-lg mb-4">
-            <span className="text-white text-2xl font-bold">IA</span>
+        {/* Logo — faqat kichik ekranda (lg'da chap panelda ko'rsatiladi) */}
+        <div className="lg:hidden text-center mb-8">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-white border border-gray-100 shadow-lg mb-4 p-2.5">
+            <img src="/icon.png" alt="Lochin School" className="w-full h-full object-contain" />
           </div>
-          <h1 className="text-2xl font-bold text-gray-900">Ilm Academy CRM</h1>
+          <h1 className="text-2xl font-bold text-gray-900">Lochin School CRM</h1>
+        </div>
+
+        <div className="text-center mb-8">
           <p className="text-gray-500 text-sm mt-1">
             {step === 'login' ? 'Hisobingizga kiring' : 'Tasdiqlash kodini kiriting'}
           </p>
@@ -119,7 +154,7 @@ export default function LoginPage() {
                   type="text"
                   autoComplete="username"
                   placeholder="admin@ilmacademy.uz yoki aziz_001"
-                  className="w-full px-4 py-2.5 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent text-sm transition"
+                  className="w-full px-4 py-2.5 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm transition"
                 />
                 {loginForm.formState.errors.identifier && (
                   <p className="text-red-500 text-xs mt-1">
@@ -137,7 +172,7 @@ export default function LoginPage() {
                   type="password"
                   autoComplete="current-password"
                   placeholder="••••••••"
-                  className="w-full px-4 py-2.5 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent text-sm transition"
+                  className="w-full px-4 py-2.5 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm transition"
                 />
                 {loginForm.formState.errors.password && (
                   <p className="text-red-500 text-xs mt-1">
@@ -155,7 +190,7 @@ export default function LoginPage() {
               <button
                 type="submit"
                 disabled={loginForm.formState.isSubmitting}
-                className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-medium py-2.5 rounded-xl transition-colors"
+                className="w-full bg-primary-600 hover:bg-primary-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-medium py-2.5 rounded-xl transition-colors"
               >
                 {loginForm.formState.isSubmitting ? 'Kirmoqda...' : 'Kirish'}
               </button>
@@ -165,10 +200,10 @@ export default function LoginPage() {
           {/* ── 2FA FORMA ───────────────────────────────────────────── */}
           {step === '2fa' && (
             <form onSubmit={twoFAForm.handleSubmit(on2FA)} className="space-y-5">
-              <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 text-sm text-emerald-800">
+              <div className="bg-primary-50 border border-primary-200 rounded-xl p-4 text-sm text-primary-800">
                 {twoFAType === 'sms'
-                  ? '📱 Telefon raqamingizga 6 raqamli kod yuborildi.'
-                  : '🔐 Google Authenticator ilovasidagi 6 raqamli kodni kiriting.'}
+                  ? 'Telefon raqamingizga 6 raqamli kod yuborildi.'
+                  : 'Google Authenticator ilovasidagi 6 raqamli kodni kiriting.'}
               </div>
 
               <div>
@@ -182,7 +217,7 @@ export default function LoginPage() {
                   autoComplete="one-time-code"
                   maxLength={6}
                   placeholder="000000"
-                  className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 text-center text-2xl tracking-widest font-mono transition"
+                  className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-primary-500 text-center text-2xl tracking-widest font-mono transition"
                 />
                 {twoFAForm.formState.errors.code && (
                   <p className="text-red-500 text-xs mt-1">
@@ -200,7 +235,7 @@ export default function LoginPage() {
               <button
                 type="submit"
                 disabled={twoFAForm.formState.isSubmitting}
-                className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white font-medium py-2.5 rounded-xl transition-colors"
+                className="w-full bg-primary-600 hover:bg-primary-700 disabled:opacity-60 text-white font-medium py-2.5 rounded-xl transition-colors"
               >
                 {twoFAForm.formState.isSubmitting ? 'Tekshirilmoqda...' : 'Tasdiqlash'}
               </button>
@@ -210,11 +245,12 @@ export default function LoginPage() {
                 onClick={() => { setStep('login'); setApiError(''); }}
                 className="w-full text-sm text-gray-500 hover:text-gray-700 transition-colors"
               >
-                ← Orqaga qaytish
+                <ChevronLeft size={14} /> Orqaga qaytish
               </button>
             </form>
           )}
         </div>
+      </div>
       </div>
     </div>
   );

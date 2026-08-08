@@ -1,5 +1,7 @@
 'use client';
 
+import { BookOpen, Calendar, CheckCircle2, ChevronLeft, FileText, Mail, PenLine, Pencil, School, Smartphone, Star, X } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { useState } from 'react';
 import { use } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -10,7 +12,9 @@ import {
 } from 'recharts';
 import api from '@/lib/api';
 import StudentModal from '@/components/students/StudentModal';
+import ExtendPaymentModal from '@/components/payments/ExtendPaymentModal';
 import type { StudentDetail, EnrollmentRecord } from '@/types/students';
+import { useAuthStore } from '@/store/auth.store';
 
 // ─── API ──────────────────────────────────────────────────────────────────────
 const fetchStudent = (id: string) =>
@@ -31,11 +35,21 @@ const ENROLL_STATUS: Record<string, { label: string; cls: string }> = {
 export default function StudentDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const qc     = useQueryClient();
+  const currentUser = useAuthStore(s => s.user);
   const [editOpen, setEditOpen] = useState(false);
+  const [extendOpen, setExtendOpen] = useState(false);
 
   const { data: student, isLoading, isError } = useQuery({
     queryKey: ['student', id],
     queryFn:  () => fetchStudent(id),
+  });
+
+  const canSeeDebt = currentUser?.role === 'super_admin' || currentUser?.role === 'manager' || currentUser?.role === 'ustoz';
+  const canExtend  = currentUser?.role === 'super_admin';
+  const { data: debtStatus } = useQuery({
+    queryKey: ['student-debtor-status', id],
+    queryFn:  () => api.get<{ isDebtor: boolean }>(`/payments/debtor-status/${id}`).then(r => r.data),
+    enabled:  !!student && canSeeDebt,
   });
 
   const { data: progress } = useQuery({
@@ -55,10 +69,10 @@ export default function StudentDetailPage({ params }: { params: Promise<{ id: st
   if (isError || !student) {
     return (
       <div className="flex flex-col items-center justify-center py-24 text-gray-400">
-        <div className="text-5xl mb-3">😕</div>
+        <div className="text-5xl mb-3"></div>
         <p className="font-medium">O'quvchi topilmadi</p>
-        <Link href="/dashboard/students" className="mt-4 text-sm text-emerald-600 hover:underline">
-          ← Ro'yxatga qaytish
+        <Link href="/dashboard/students" className="mt-4 text-sm text-primary-600 hover:underline">
+          <ChevronLeft size={16} /> Ro'yxatga qaytish
         </Link>
       </div>
     );
@@ -105,6 +119,20 @@ export default function StudentDetailPage({ params }: { params: Promise<{ id: st
                 }`}>
                   {student.isActive ? 'Faol' : 'Arxivlangan'}
                 </span>
+                {debtStatus?.isDebtor && (
+                  <span className="flex items-center gap-1.5 text-xs font-medium px-2.5 py-0.5 rounded-full bg-red-100 text-red-700">
+                    <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
+                    Joriy oy uchun qarzdor
+                  </span>
+                )}
+                {canExtend && (
+                  <button
+                    onClick={() => setExtendOpen(true)}
+                    className="text-xs font-medium px-2.5 py-0.5 rounded-full border border-gray-200 text-gray-500 hover:border-emerald-300 hover:text-emerald-700 transition-colors"
+                  >
+                    Muddatni uzaytirish
+                  </button>
+                )}
                 <span className="text-gray-400 text-xs">
                   {new Date(student.createdAt).toLocaleDateString('uz-UZ', { year:'numeric', month:'long', day:'numeric' })} dan
                 </span>
@@ -116,17 +144,17 @@ export default function StudentDetailPage({ params }: { params: Promise<{ id: st
             onClick={() => setEditOpen(true)}
             className="flex items-center gap-2 px-4 py-2 text-sm font-medium border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors"
           >
-            ✏️ Tahrirlash
+            <Pencil size={14} /> Tahrirlash
           </button>
         </div>
 
         {/* Kontaktlar */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6 pt-5 border-t border-gray-100">
-          <InfoItem icon="📧" label="Email"  value={student.email ?? '—'} />
-          <InfoItem icon="📱" label="Telefon" value={student.phone ?? '—'} />
-          <InfoItem icon="🎂" label="Tug'ilgan"
+          <InfoItem icon={Mail} label="Email"  value={student.email ?? '—'} />
+          <InfoItem icon={Smartphone} label="Telefon" value={student.phone ?? '—'} />
+          <InfoItem icon={Calendar} label="Tug'ilgan"
             value={student.birthDate ? new Date(student.birthDate).toLocaleDateString('uz-UZ') : '—'} />
-          <InfoItem icon="⭐" label="Ball" value={String(student.totalPoints)} />
+          <InfoItem icon={Star} label="Ball" value={String(student.totalPoints)} />
         </div>
       </div>
 
@@ -135,7 +163,7 @@ export default function StudentDetailPage({ params }: { params: Promise<{ id: st
 
         {/* Radar progress grafigi */}
         <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
-          <h3 className="text-base font-semibold text-gray-900 mb-4">📊 O'quvchi profili</h3>
+          <h3 className="text-base font-semibold text-gray-900 mb-4">O'quvchi profili</h3>
           {progress && radarData.length > 0 ? (
             <div className="grid grid-cols-2 gap-6 items-center">
               <ResponsiveContainer width="100%" height={220}>
@@ -154,10 +182,10 @@ export default function StudentDetailPage({ params }: { params: Promise<{ id: st
               </ResponsiveContainer>
 
               <div className="space-y-3">
-                <StatRow icon="✅" label="Davomat"  value={`${progress.attendance?.rate ?? 0}%`}      color="emerald" />
-                <StatRow icon="📝" label="Test o'rt." value={`${progress.tests?.avg ?? 0}%`}           color="blue"    />
-                <StatRow icon="📚" label="Vazifa"   value={`${progress.homework?.completion ?? 0}%`}  color="purple"  />
-                <StatRow icon="✍️" label="Imlo xato" value={`${progress.spelling?.errorCount ?? 0} ta`} color="amber"  />
+                <StatRow icon={CheckCircle2} label="Davomat"  value={`${progress.attendance?.rate ?? 0}%`}      color="emerald" />
+                <StatRow icon={FileText} label="Test o'rt." value={`${progress.tests?.avg ?? 0}%`}           color="blue"    />
+                <StatRow icon={BookOpen} label="Vazifa"   value={`${progress.homework?.completion ?? 0}%`}  color="purple"  />
+                <StatRow icon={PenLine} label="Imlo xato" value={`${progress.spelling?.errorCount ?? 0} ta`} color="amber"  />
               </div>
             </div>
           ) : (
@@ -169,7 +197,7 @@ export default function StudentDetailPage({ params }: { params: Promise<{ id: st
 
         {/* Ota-ona */}
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
-          <h3 className="text-base font-semibold text-gray-900 mb-4">👪 Ota-ona</h3>
+          <h3 className="text-base font-semibold text-gray-900 mb-4">Ota-ona</h3>
           {student.parents?.length ? (
             <div className="space-y-4">
               {student.parents.map((p) => (
@@ -180,8 +208,8 @@ export default function StudentDetailPage({ params }: { params: Promise<{ id: st
                       <span className="text-xs bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded-full">Asosiy</span>
                     )}
                   </div>
-                  <p className="text-xs text-gray-500">📱 {p.phone}</p>
-                  {p.phone2 && <p className="text-xs text-gray-500">📱 {p.phone2}</p>}
+                  <p className="text-xs text-gray-500">{p.phone}</p>
+                  {p.phone2 && <p className="text-xs text-gray-500">{p.phone2}</p>}
                   {p.relation && (
                     <p className="text-xs text-gray-400 capitalize">{p.relation}</p>
                   )}
@@ -198,7 +226,7 @@ export default function StudentDetailPage({ params }: { params: Promise<{ id: st
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
           <h3 className="text-base font-semibold text-gray-900">
-            🏫 Guruhlar
+            Guruhlar
             <span className="ml-2 text-sm font-normal text-gray-400">
               ({student.enrollments?.length ?? 0} ta)
             </span>
@@ -207,7 +235,7 @@ export default function StudentDetailPage({ params }: { params: Promise<{ id: st
 
         {!student.enrollments?.length ? (
           <div className="py-12 text-center text-gray-400">
-            <p className="text-4xl mb-2">🏫</p>
+            <p className="text-4xl mb-2"><School size={36} /></p>
             <p className="text-sm">Hali guruhga yozilmagan</p>
           </div>
         ) : (
@@ -218,7 +246,7 @@ export default function StudentDetailPage({ params }: { params: Promise<{ id: st
                 <div key={enr.id} className="flex items-center justify-between px-6 py-4 hover:bg-gray-50 transition-colors">
                   <div className="flex items-center gap-4">
                     <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center shrink-0">
-                      <span className="text-blue-600 text-sm">📚</span>
+                      <span className="text-blue-600 text-sm"><BookOpen size={16} /></span>
                     </div>
                     <div>
                       <p className="font-medium text-gray-900 text-sm">{enr.group.name}</p>
@@ -243,9 +271,7 @@ export default function StudentDetailPage({ params }: { params: Promise<{ id: st
                         disabled={unenrollMut.isPending}
                         className="text-xs text-red-400 hover:text-red-600 transition-colors disabled:opacity-40"
                         title="Guruhdan chiqarish"
-                      >
-                        ✕
-                      </button>
+                      ><X size={16} /></button>
                     )}
                   </div>
                 </div>
@@ -261,17 +287,24 @@ export default function StudentDetailPage({ params }: { params: Promise<{ id: st
         student={student}
         onClose={() => setEditOpen(false)}
       />
+
+      {/* Muddat uzaytirish modali */}
+      <ExtendPaymentModal
+        open={extendOpen}
+        studentId={id}
+        onClose={() => setExtendOpen(false)}
+      />
     </div>
   );
 }
 
 // ─── YORDAMCHI KOMPONENTLAR ───────────────────────────────────────────────────
-function InfoItem({ icon, label, value }: { icon: string; label: string; value: string }) {
+function InfoItem({ icon: Icon, label, value }: { icon: LucideIcon; label: string; value: string }) {
   return (
     <div>
       <p className="text-xs text-gray-400 mb-0.5">{label}</p>
       <p className="text-sm font-medium text-gray-900 flex items-center gap-1.5">
-        <span>{icon}</span> {value}
+        <Icon size={14} className="text-gray-400" /> {value}
       </p>
     </div>
   );
@@ -284,14 +317,14 @@ const STAT_COLORS = {
   amber:   'bg-amber-500',
 } as const;
 
-function StatRow({ icon, label, value, color }: {
-  icon: string; label: string; value: string; color: keyof typeof STAT_COLORS;
+function StatRow({ icon: Icon, label, value, color }: {
+  icon: LucideIcon; label: string; value: string; color: keyof typeof STAT_COLORS;
 }) {
   return (
     <div className="flex items-center justify-between">
       <div className="flex items-center gap-2">
         <div className={`w-2 h-2 rounded-full ${STAT_COLORS[color]}`} />
-        <span className="text-sm text-gray-600">{icon} {label}</span>
+        <span className="text-sm text-gray-600 inline-flex items-center gap-1.5"><Icon size={14} /> {label}</span>
       </div>
       <span className="text-sm font-semibold text-gray-900">{value}</span>
     </div>

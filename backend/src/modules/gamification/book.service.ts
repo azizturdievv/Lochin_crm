@@ -5,12 +5,12 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, FindOptionsWhere } from 'typeorm';
 import { Book } from '../../entities/book.entity';
 import { BookTest } from '../../entities/book-test.entity';
 import { PointsAction } from '../../entities/points-log.entity';
 import { AuditLogService } from '../audit-log/audit-log.service';
-import { AiService } from './ai.service';
+import { AiService, BookQuestion } from './ai.service';
 import { PointsService } from './points.service';
 import { BadgeService } from './badge.service';
 import { CreateBookDto, AssignBookDto, SubmitBookTestDto } from './dto/gamification.dto';
@@ -79,7 +79,7 @@ export class BookService {
 
   // ─── KITOBLAR RO'YXATI ────────────────────────────────────────────────────
   async findAll(month?: string): Promise<Book[]> {
-    const where: any = { isActive: true };
+    const where: FindOptionsWhere<Book> = { isActive: true };
     if (month) where.assignedMonth = month;
     return this.bookRepo.find({ where, order: { createdAt: 'DESC' } });
   }
@@ -92,7 +92,7 @@ export class BookService {
   }
 
   // ─── AI TEST YARATISH (SA) ─────────────────────────────────────────────────
-  async generateTest(bookId: string, actorId: string, actorRole: string): Promise<{ bookId: string; questions: any[] }> {
+  async generateTest(bookId: string, actorId: string, actorRole: string): Promise<{ bookId: string; questions: BookQuestion[] }> {
     const book = await this.bookRepo.findOne({ where: { id: bookId } });
     if (!book) throw new NotFoundException('Kitob topilmadi');
 
@@ -129,9 +129,11 @@ export class BookService {
       throw new ConflictException('Bu kitob testini allaqachon muvaffaqiyatli topshirgansiz');
     }
 
-    // Aktiv test bormi
+    // Aktiv test bormi (completedAt bo'yicha filtr shart emas — TypeORM
+    // undefined qiymatli kalitlarni WHERE'dan chetlab o'tadi, keyingi qatorda
+    // JS darajasida tekshiriladi)
     const active = await this.testRepo.findOne({
-      where: { bookId, userId, completedAt: undefined as any },
+      where: { bookId, userId },
     });
     if (active?.completedAt === null) {
       return active; // Mavjud testni davom ettirish

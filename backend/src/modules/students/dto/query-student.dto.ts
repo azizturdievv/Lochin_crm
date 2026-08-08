@@ -17,13 +17,13 @@ export class QueryStudentDto {
   subjectId?: string;
 
   @IsOptional()
-  @Transform(({ value }) => value === 'true')
+  @Transform(({ obj, key }) => obj[key] === 'true' || obj[key] === true)
   @IsBoolean()
   isActive?: boolean;
 
   // Qarzdorlar filteri
   @IsOptional()
-  @Transform(({ value }) => value === 'true')
+  @Transform(({ obj, key }) => obj[key] === 'true' || obj[key] === true)
   @IsBoolean()
   hasDebt?: boolean;
 

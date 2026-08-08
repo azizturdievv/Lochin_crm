@@ -35,7 +35,7 @@ export class ExportService {
       .getMany();
 
     const wb = new ExcelJS.Workbook();
-    wb.creator = 'Ilm Academy CRM';
+    wb.creator = 'Lochin School CRM';
     wb.created = new Date();
 
     const ws = wb.addWorksheet(`To'lovlar — ${month}`, {
@@ -44,7 +44,7 @@ export class ExportService {
 
     // Sarlavha
     ws.mergeCells('A1:K1');
-    ws.getCell('A1').value = `ILM ACADEMY — To'lovlar hisoboti (${month})`;
+    ws.getCell('A1').value = `LOCHIN SCHOOL — To'lovlar hisoboti (${month})`;
     ws.getCell('A1').font = { bold: true, size: 14 };
     ws.getCell('A1').alignment = { horizontal: 'center' };
 
@@ -158,7 +158,7 @@ export class ExportService {
     const ws = wb.addWorksheet(`Qarzdorlar — ${month}`);
 
     ws.mergeCells('A1:F1');
-    ws.getCell('A1').value = `ILM ACADEMY — Qarzdorlar (${month})`;
+    ws.getCell('A1').value = `LOCHIN SCHOOL — Qarzdorlar (${month})`;
     ws.getCell('A1').font = { bold: true, size: 14 };
     ws.getCell('A1').alignment = { horizontal: 'center' };
 
@@ -198,7 +198,7 @@ export class ExportService {
 
       // Sarlavha
       doc.fontSize(18).font('Helvetica-Bold')
-        .text('ILM ACADEMY', { align: 'center' });
+        .text('LOCHIN SCHOOL', { align: 'center' });
       doc.fontSize(13).font('Helvetica')
         .text(`To'lovlar hisoboti — ${month}`, { align: 'center' });
       doc.moveDown(0.5);

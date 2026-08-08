@@ -1,12 +1,16 @@
 'use client';
 
+import { AlertTriangle, Archive, ChevronDown, ChevronUp, ChevronsUpDown, ClipboardList, Eye, LayoutGrid, List, Pencil, Plus, School, Search, Star, Users } from 'lucide-react';
+import PageHeader from '@/components/ui/PageHeader';
 import { useState, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import api from '@/lib/api';
 import { useDebounce } from '@/hooks/useDebounce';
 import StudentModal from '@/components/students/StudentModal';
 import EnrollModal from '@/components/students/EnrollModal';
+import StudentCard from '@/components/students/StudentCard';
 import type { StudentsResponse, Student } from '@/types/students';
 
 interface Subject { id: string; name: string; }
@@ -34,8 +38,10 @@ const ROWS_PER_PAGE = 20;
 // ─── ASOSIY SAHIFA ────────────────────────────────────────────────────────────
 export default function StudentsPage() {
   const qc = useQueryClient();
+  const searchParams = useSearchParams();
 
-  const [search,   setSearch]   = useState('');
+  // Global qidiruv (⌘K) orqali "?q=" bilan kelinsa, boshlang'ich qidiruv shu bo'ladi
+  const [search,   setSearch]   = useState(() => searchParams.get('q') ?? '');
   const [isActive, setIsActive] = useState<boolean | undefined>(true);
   const [hasDebt,  setHasDebt]  = useState<boolean | undefined>(undefined);
   const [page,     setPage]     = useState(1);
@@ -45,6 +51,7 @@ export default function StudentsPage() {
   const [sortBy,   setSortBy]   = useState('createdAt');
   const [sortOrder,setSortOrder]= useState<'ASC'|'DESC'>('DESC');
   const [groupId,  setGroupId]  = useState('');
+  const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
 
   const debouncedSearch = useDebounce(search, 400);
 
@@ -102,32 +109,41 @@ export default function StudentsPage() {
     <div className="space-y-5">
 
       {/* ── SARLAVHA ─────────────────────────────────────────────────── */}
-      <div className="flex items-center justify-between gap-4 flex-wrap">
-        <div>
-          <h2 className="text-xl font-bold text-gray-900">O'quvchilar</h2>
-          <p className="text-gray-500 text-sm mt-0.5">
-            Jami: <span className="font-medium text-gray-700">{total}</span> ta
-          </p>
+      <PageHeader title="O'quvchilar" crumbs={[{ label: 'Dashboard', href: '/dashboard' }, { label: "O'quvchilar" }]}>
+        <span className="text-xs text-gray-500 bg-white border border-gray-200 rounded-xl px-3 py-2.5">
+          Jami: <b className="text-gray-900">{total}</b> ta
+        </span>
+        <div className="flex items-center bg-white border border-gray-200 rounded-xl p-0.5">
+          <button
+            onClick={() => setViewMode('list')}
+            title="Jadval ko'rinishi"
+            className={`p-2 rounded-lg transition-colors ${viewMode === 'list' ? 'bg-primary-50 text-primary-600' : 'text-gray-400 hover:text-gray-600'}`}
+          ><List size={16} /></button>
+          <button
+            onClick={() => setViewMode('grid')}
+            title="Grid ko'rinishi"
+            className={`p-2 rounded-lg transition-colors ${viewMode === 'grid' ? 'bg-primary-50 text-primary-600' : 'text-gray-400 hover:text-gray-600'}`}
+          ><LayoutGrid size={16} /></button>
         </div>
         <button
           onClick={() => setModal({ open: true, student: null })}
-          className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium rounded-xl transition-colors shadow-sm"
+          className="flex items-center gap-2 px-4 py-2.5 bg-primary-600 hover:bg-primary-700 text-white text-sm font-medium rounded-xl transition-colors shadow-sm"
         >
-          <span>+</span> Yangi o'quvchi
+          <Plus size={16} /> Yangi o'quvchi
         </button>
-      </div>
+      </PageHeader>
 
       {/* ── FILTER VA QIDIRUV ─────────────────────────────────────────── */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
         <div className="flex flex-wrap gap-3">
           {/* Qidiruv */}
           <div className="relative flex-1 min-w-48">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">🔍</span>
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm"><Search size={16} /></span>
             <input
               value={search}
               onChange={e => { setSearch(e.target.value); setPage(1); }}
               placeholder="Ism, email yoki telefon..."
-              className="w-full pl-9 pr-4 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+              className="w-full pl-9 pr-4 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
             />
           </div>
 
@@ -138,7 +154,7 @@ export default function StudentsPage() {
               setIsActive(e.target.value === '' ? undefined : e.target.value === 'true');
               setPage(1);
             }}
-            className="px-3 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white min-w-32"
+            className="px-3 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white min-w-32"
           >
             <option value="true">Faol</option>
             <option value="false">Arxivlangan</option>
@@ -152,7 +168,7 @@ export default function StudentsPage() {
               setHasDebt(e.target.value === '' ? undefined : e.target.value === 'true');
               setPage(1);
             }}
-            className="px-3 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white min-w-32"
+            className="px-3 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white min-w-32"
           >
             <option value="">To'lov holati</option>
             <option value="true">Qarzdor</option>
@@ -163,7 +179,7 @@ export default function StudentsPage() {
           <select
             value={groupId}
             onChange={e => { setGroupId(e.target.value); setPage(1); }}
-            className="px-3 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white min-w-36"
+            className="px-3 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white min-w-36"
           >
             <option value="">Barcha guruhlar</option>
             {groups?.map((g: GroupOption) => (
@@ -177,7 +193,7 @@ export default function StudentsPage() {
               onClick={() => { setSearch(''); setIsActive(true); setHasDebt(undefined); setGroupId(''); setPage(1); }}
               className="px-3 py-2.5 text-sm text-gray-500 hover:text-gray-700 border border-gray-200 rounded-xl hover:bg-gray-50 transition"
             >
-              ✕ Tozalash
+              Tozalash
             </button>
           )}
         </div>
@@ -186,7 +202,7 @@ export default function StudentsPage() {
       {/* ── TANLANGAN GURUH USTOZI ──────────────────────────────────── */}
       {selectedGroup && (
         <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 flex items-center gap-3">
-          <span className="text-blue-500 text-lg">🏫</span>
+          <span className="text-blue-500 text-lg"><School size={16} /></span>
           <div>
             <p className="text-sm font-medium text-blue-800">{selectedGroup.name}</p>
             <p className="text-xs text-blue-600">
@@ -198,7 +214,44 @@ export default function StudentsPage() {
         </div>
       )}
 
-      {/* ── JADVAL ───────────────────────────────────────────────────── */}
+      {/* ── JADVAL / GRID ────────────────────────────────────────────── */}
+      {viewMode === 'grid' ? (
+        <div className="space-y-4">
+          {isLoading ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              {Array.from({ length: 8 }).map((_, i) => (
+                <div key={i} className="bg-white border border-gray-100 rounded-2xl p-4 h-56 animate-pulse" />
+              ))}
+            </div>
+          ) : isError ? (
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm px-6 py-16 text-center text-gray-400">
+              <AlertTriangle size={36} className="mx-auto mb-2" />
+              <p>Ma'lumot yuklanmadi. Qayta urinib ko'ring.</p>
+            </div>
+          ) : students.length === 0 ? (
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm px-6 py-16 text-center text-gray-400">
+              <Users size={32} className="mx-auto mb-3 text-gray-300" />
+              <p className="font-medium text-gray-500">O'quvchi topilmadi</p>
+              <p className="text-sm mt-1">Qidiruv yoki filtrlarni o'zgartiring</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              {students.map((s) => (
+                <StudentCard
+                  key={s.id}
+                  student={s}
+                  onEdit={() => setModal({ open: true, student: s })}
+                  onDelete={() => setDeleteId(s.id)}
+                  onEnroll={() => setEnrollId({ id: s.id, name: `${s.lastName} ${s.firstName}` })}
+                />
+              ))}
+            </div>
+          )}
+          {totalPages > 1 && (
+            <Pagination page={page} totalPages={totalPages} total={total} rowsPerPage={ROWS_PER_PAGE} onPage={setPage} />
+          )}
+        </div>
+      ) : (
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -228,14 +281,14 @@ export default function StudentsPage() {
               ) : isError ? (
                 <tr>
                   <td colSpan={7} className="px-6 py-12 text-center text-gray-400">
-                    <div className="text-4xl mb-2">⚠️</div>
+                    <div className="text-4xl mb-2"><AlertTriangle size={36} /></div>
                     <p>Ma'lumot yuklanmadi. Qayta urinib ko'ring.</p>
                   </td>
                 </tr>
               ) : students.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="px-6 py-16 text-center text-gray-400">
-                    <div className="text-5xl mb-3">👥</div>
+                    <div className="text-5xl mb-3"><Users size={16} /></div>
                     <p className="font-medium text-gray-500">O'quvchi topilmadi</p>
                     <p className="text-sm mt-1">Qidiruv yoki filtrlarni o'zgartiring</p>
                   </td>
@@ -257,36 +310,12 @@ export default function StudentsPage() {
 
         {/* Pagination */}
         {totalPages > 1 && (
-          <div className="flex items-center justify-between px-6 py-4 border-t border-gray-100 bg-gray-50">
-            <p className="text-xs text-gray-500">
-              {(page - 1) * ROWS_PER_PAGE + 1}–{Math.min(page * ROWS_PER_PAGE, total)} / {total}
-            </p>
-            <div className="flex items-center gap-1">
-              <PageBtn disabled={page === 1} onClick={() => setPage(1)} label="«" />
-              <PageBtn disabled={page === 1} onClick={() => setPage(p => p - 1)} label="‹" />
-              {getPageNumbers(page, totalPages).map((p, i) =>
-                p === '...' ? (
-                  <span key={`ellipsis-${i}`} className="px-2 text-gray-400 text-xs">…</span>
-                ) : (
-                  <button
-                    key={p}
-                    onClick={() => setPage(Number(p))}
-                    className={`w-8 h-8 rounded-lg text-xs font-medium transition-colors ${
-                      p === page
-                        ? 'bg-emerald-600 text-white'
-                        : 'text-gray-600 hover:bg-gray-200'
-                    }`}
-                  >
-                    {p}
-                  </button>
-                ),
-              )}
-              <PageBtn disabled={page === totalPages} onClick={() => setPage(p => p + 1)} label="›" />
-              <PageBtn disabled={page === totalPages} onClick={() => setPage(totalPages)} label="»" />
-            </div>
+          <div className="border-t border-gray-100 bg-gray-50 px-6 py-4">
+            <Pagination page={page} totalPages={totalPages} total={total} rowsPerPage={ROWS_PER_PAGE} onPage={setPage} />
           </div>
         )}
       </div>
+      )}
 
       {/* ── MODALAR ──────────────────────────────────────────────────── */}
       {enrollId && (
@@ -307,7 +336,7 @@ export default function StudentsPage() {
       {deleteId && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
           <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-sm w-full">
-            <div className="text-3xl mb-3">⚠️</div>
+            <div className="text-3xl mb-3"><AlertTriangle size={30} /></div>
             <h3 className="font-semibold text-gray-900 mb-1">O'quvchini arxivlash</h3>
             <p className="text-gray-500 text-sm mb-5">
               O'quvchi arxivlanadi. Ma'lumotlar saqlanib qoladi.
@@ -371,7 +400,7 @@ function StudentRow({ student, onEdit, onDelete, onEnroll }: {
       {/* Ball */}
       <td className="px-4 py-3.5">
         <span className="inline-flex items-center gap-1 text-sm font-medium text-amber-600">
-          ⭐ {student.totalPoints}
+          <Star size={12} className="inline" /> {student.totalPoints}
         </span>
       </td>
 
@@ -391,21 +420,13 @@ function StudentRow({ student, onEdit, onDelete, onEnroll }: {
       <td className="px-4 py-3.5">
         <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
           <Link href={`/dashboard/students/${student.id}`}
-            className="p-1.5 rounded-lg hover:bg-blue-50 text-blue-500 transition-colors text-sm" title="Ko'rish">
-            👁
-          </Link>
+            className="p-1.5 rounded-lg hover:bg-blue-50 text-blue-500 transition-colors text-sm" title="Ko'rish"><Eye size={16} /></Link>
           <button onClick={onEnroll}
-            className="p-1.5 rounded-lg hover:bg-emerald-50 text-emerald-500 transition-colors text-sm" title="Guruhga yozish">
-            📋
-          </button>
+            className="p-1.5 rounded-lg hover:bg-emerald-50 text-emerald-500 transition-colors text-sm" title="Guruhga yozish"><ClipboardList size={16} /></button>
           <button onClick={onEdit}
-            className="p-1.5 rounded-lg hover:bg-amber-50 text-amber-500 transition-colors text-sm" title="Tahrirlash">
-            ✏️
-          </button>
+            className="p-1.5 rounded-lg hover:bg-amber-50 text-amber-500 transition-colors text-sm" title="Tahrirlash"><Pencil size={16} /></button>
           <button onClick={onDelete}
-            className="p-1.5 rounded-lg hover:bg-red-50 text-red-400 transition-colors text-sm" title="Arxivlash">
-            🗃️
-          </button>
+            className="p-1.5 rounded-lg hover:bg-red-50 text-red-400 transition-colors text-sm" title="Arxivlash"><Archive size={16} /></button>
         </div>
       </td>
     </tr>
@@ -426,10 +447,43 @@ function SortTh({ label, field, current, order, onSort, extraCls = '' }: {
       <span className="flex items-center gap-1">
         {label}
         <span className={`transition-opacity ${active ? 'opacity-100' : 'opacity-0 group-hover:opacity-50'}`}>
-          {active ? (order === 'ASC' ? '↑' : '↓') : '↕'}
+          {active ? (order === 'ASC' ? <ChevronUp size={12} /> : <ChevronDown size={12} />) : <ChevronsUpDown size={12} />}
         </span>
       </span>
     </th>
+  );
+}
+
+function Pagination({ page, totalPages, total, rowsPerPage, onPage }: {
+  page: number; totalPages: number; total: number; rowsPerPage: number; onPage: (p: number | ((prev: number) => number)) => void;
+}) {
+  return (
+    <div className="flex items-center justify-between">
+      <p className="text-xs text-gray-500">
+        {(page - 1) * rowsPerPage + 1}–{Math.min(page * rowsPerPage, total)} / {total}
+      </p>
+      <div className="flex items-center gap-1">
+        <PageBtn disabled={page === 1} onClick={() => onPage(1)} label="«" />
+        <PageBtn disabled={page === 1} onClick={() => onPage(p => p - 1)} label="‹" />
+        {getPageNumbers(page, totalPages).map((p, i) =>
+          p === '...' ? (
+            <span key={`ellipsis-${i}`} className="px-2 text-gray-400 text-xs">…</span>
+          ) : (
+            <button
+              key={p}
+              onClick={() => onPage(Number(p))}
+              className={`w-8 h-8 rounded-lg text-xs font-medium transition-colors ${
+                p === page ? 'bg-primary-600 text-white' : 'text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              {p}
+            </button>
+          ),
+        )}
+        <PageBtn disabled={page === totalPages} onClick={() => onPage(p => p + 1)} label="›" />
+        <PageBtn disabled={page === totalPages} onClick={() => onPage(totalPages)} label="»" />
+      </div>
+    </div>
   );
 }
 

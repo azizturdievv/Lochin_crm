@@ -1,5 +1,6 @@
 'use client';
 
+import { Star } from 'lucide-react';
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
@@ -40,9 +41,8 @@ interface ProfileData {
 
 type Tab = 'main' | 'login' | 'extra';
 
-const INPUT  = 'w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition';
+const INPUT  = 'w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition';
 const LABEL  = 'block text-xs font-medium text-gray-600 mb-1.5';
-const GRADES = Array.from({ length: 11 }, (_, i) => i + 1);
 const ROLE_LABELS: Record<string, string> = {
   super_admin: 'Super Admin', manager: 'Manager', ustoz: 'Ustoz', student: "O'quvchi",
 };
@@ -75,9 +75,9 @@ export default function ProfilePage() {
   });
 
   const TABS: { key: Tab; label: string }[] = [
-    { key: 'main',  label: '👤 Asosiy' },
-    { key: 'login', label: '🔐 Kirish' },
-    { key: 'extra', label: '📊 Qo\'shimcha' },
+    { key: 'main',  label: 'Asosiy' },
+    { key: 'login', label: 'Kirish' },
+    { key: 'extra', label: 'Qo\'shimcha' },
   ];
 
   if (isLoading) {
@@ -201,7 +201,7 @@ function AvatarCard({ profile, onUpdated, setUser, user }: {
           className="absolute inset-0 rounded-2xl bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer disabled:cursor-wait"
         >
           <span className="text-white text-xs font-medium">
-            {uploading ? '⏳' : '📷'}
+            {uploading ? '⏳' : ''}
           </span>
         </button>
 
@@ -220,8 +220,8 @@ function AvatarCard({ profile, onUpdated, setUser, user }: {
           {profile.email && <span>{profile.email}</span>}
         </p>
         <div className="flex items-center gap-3 mt-2">
-          <span className="text-xs text-gray-400">⭐ {profile.totalPoints} ball</span>
-          {profile.twoFaEnabled && <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">🔐 2FA faol</span>}
+          <span className="text-xs text-gray-400"><Star size={12} className="inline" /> {profile.totalPoints} ball</span>
+          {profile.twoFaEnabled && <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">2FA faol</span>}
           <span className="text-xs text-gray-400">
             {new Date(profile.createdAt).toLocaleDateString('uz-UZ')} dan a'zo
           </span>
@@ -235,6 +235,49 @@ function AvatarCard({ profile, onUpdated, setUser, user }: {
 
 // ─── ASOSIY TAB ──────────────────────────────────────────────────────────────
 function MainTab({ profile, mut }: {
+  profile: ProfileData;
+  mut: ReturnType<typeof useMutation<ProfileData, unknown, object>>;
+}) {
+  // O'quvchi — bu ma'lumotlar enrollment yozuvi, faqat SA/Manager o'zgartira oladi
+  if (profile.role === 'student') {
+    return (
+      <div className="space-y-4">
+        <div className="bg-amber-50 border border-amber-200 text-amber-800 text-xs px-3 py-2.5 rounded-xl">
+          Bu ma'lumotlarni faqat administrator o'zgartira oladi. O'zgartirish kerak bo'lsa, administratorga murojaat qiling.
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <ReadOnlyField label="Familiya" value={profile.lastName} />
+          <ReadOnlyField label="Ism" value={profile.firstName} />
+        </div>
+        {profile.middleName && <ReadOnlyField label="Otasining ismi" value={profile.middleName} />}
+        <div className="grid grid-cols-2 gap-4">
+          <ReadOnlyField label="Telefon" value={profile.phone ?? '—'} />
+          <ReadOnlyField label="Tug'ilgan sana" value={profile.birthDate ? new Date(profile.birthDate).toLocaleDateString('uz-UZ') : '—'} />
+        </div>
+        <ReadOnlyField label="Manzil" value={profile.address ?? '—'} />
+        {(profile.schoolName || profile.schoolGrade) && (
+          <div className="grid grid-cols-2 gap-4 pt-2 border-t border-gray-100">
+            <ReadOnlyField label="Maktab nomi" value={profile.schoolName ?? '—'} />
+            <ReadOnlyField label="Sinf" value={profile.schoolGrade ? `${profile.schoolGrade}-sinf` : '—'} />
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  return <EditableMainTab profile={profile} mut={mut} />;
+}
+
+function ReadOnlyField({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <label className={LABEL}>{label}</label>
+      <div className="w-full px-3 py-2.5 text-sm bg-gray-50 border border-gray-100 rounded-xl text-gray-600">{value}</div>
+    </div>
+  );
+}
+
+function EditableMainTab({ profile, mut }: {
   profile: ProfileData;
   mut: ReturnType<typeof useMutation<ProfileData, unknown, object>>;
 }) {
@@ -284,45 +327,13 @@ function MainTab({ profile, mut }: {
         <input value={form.address} onChange={e => set('address', e.target.value)} className={INPUT} placeholder="Toshkent, Chilonzor..." />
       </div>
 
-      {/* Maktab (faqat student) */}
-      {profile.role === 'student' && <StudentSchoolFields profileGrade={profile.schoolGrade} profileSchool={profile.schoolName} mut={mut} />}
-
       {mut.isError && <p className="text-red-500 text-sm bg-red-50 px-3 py-2 rounded-xl">{getMsg(mut.error)}</p>}
-      {mut.isSuccess && <p className="text-emerald-600 text-sm bg-emerald-50 px-3 py-2 rounded-xl">✓ Saqlandi</p>}
+      {mut.isSuccess && <p className="text-emerald-600 text-sm bg-emerald-50 px-3 py-2 rounded-xl">Saqlandi</p>}
 
       <button onClick={handleSave} disabled={mut.isPending}
-        className="w-full py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-medium hover:bg-emerald-700 disabled:opacity-60 transition">
+        className="w-full py-2.5 bg-primary-600 text-white rounded-xl text-sm font-medium hover:bg-primary-700 disabled:opacity-60 transition">
         {mut.isPending ? 'Saqlanmoqda...' : 'Saqlash'}
       </button>
-    </div>
-  );
-}
-
-function StudentSchoolFields({ profileGrade, profileSchool, mut }: {
-  profileGrade: number | null;
-  profileSchool: string | null;
-  mut: ReturnType<typeof useMutation<ProfileData, unknown, object>>;
-}) {
-  const [school, setSchool] = useState(profileSchool ?? '');
-  const [grade, setGrade] = useState<number | ''>(profileGrade ?? '');
-
-  function save() {
-    mut.mutate({ schoolName: school, schoolGrade: grade || undefined });
-  }
-
-  return (
-    <div className="grid grid-cols-2 gap-4 pt-2 border-t border-gray-100">
-      <div>
-        <label className={LABEL}>Maktab nomi</label>
-        <input value={school} onChange={e => setSchool(e.target.value)} className={INPUT} placeholder="1-maktab" />
-      </div>
-      <div>
-        <label className={LABEL}>Sinf (1-11)</label>
-        <select value={grade} onChange={e => setGrade(e.target.value ? Number(e.target.value) : '')} className={INPUT}>
-          <option value="">Tanlang</option>
-          {GRADES.map(g => <option key={g} value={g}>{g}-sinf</option>)}
-        </select>
-      </div>
     </div>
   );
 }
@@ -349,7 +360,7 @@ function LoginTab({ profile, mut }: {
     setPwLoading(true);
     try {
       await api.post('/users/change-password', { oldPassword: pwForm.old, newPassword: pwForm.new });
-      setPwSuccess('✓ Parol muvaffaqiyatli o\'zgartirildi');
+      setPwSuccess('Parol muvaffaqiyatli o\'zgartirildi');
       setPwForm({ old: '', new: '', confirm: '' });
     } catch (err) {
       setPwError(getMsg(err));
@@ -377,10 +388,10 @@ function LoginTab({ profile, mut }: {
           <input value={email} onChange={e => setEmail(e.target.value)} type="email" className={INPUT} placeholder="email@example.com" />
         </div>
         {mut.isError && <p className="text-red-500 text-sm bg-red-50 px-3 py-2 rounded-xl">{getMsg(mut.error)}</p>}
-        {mut.isSuccess && <p className="text-emerald-600 text-sm bg-emerald-50 px-3 py-2 rounded-xl">✓ Saqlandi</p>}
+        {mut.isSuccess && <p className="text-emerald-600 text-sm bg-emerald-50 px-3 py-2 rounded-xl">Saqlandi</p>}
         <button onClick={() => mut.mutate({ username: username || undefined, email: email || undefined })}
           disabled={mut.isPending}
-          className="px-4 py-2 bg-emerald-600 text-white rounded-xl text-sm font-medium hover:bg-emerald-700 disabled:opacity-60 transition">
+          className="px-4 py-2 bg-primary-600 text-white rounded-xl text-sm font-medium hover:bg-primary-700 disabled:opacity-60 transition">
           {mut.isPending ? 'Saqlanmoqda...' : 'Saqlash'}
         </button>
       </div>
@@ -409,7 +420,7 @@ function LoginTab({ profile, mut }: {
         {pwSuccess && <p className="text-emerald-600 text-sm bg-emerald-50 px-3 py-2 rounded-xl">{pwSuccess}</p>}
         <button onClick={handlePwChange} disabled={pwLoading}
           className="px-4 py-2 bg-gray-800 text-white rounded-xl text-sm font-medium hover:bg-gray-900 disabled:opacity-60 transition">
-          {pwLoading ? 'Saqlanmoqda...' : '🔐 Parolni o\'zgartirish'}
+          {pwLoading ? 'Saqlanmoqda...' : 'Parolni o\'zgartirish'}
         </button>
       </div>
     </div>
@@ -464,7 +475,7 @@ function ExtraTab({ profile }: { profile: ProfileData }) {
                 <span className={`px-3 py-1 rounded-full text-xs font-medium ${
                   profile.payments.paidThisMonth ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'
                 }`}>
-                  {profile.payments.paidThisMonth ? '✓ Bu oy to\'langan' : '⚠ To\'lov kerak'}
+                  {profile.payments.paidThisMonth ? 'Bu oy to\'langan' : 'To\'lov kerak'}
                 </span>
               </div>
             </div>
@@ -553,9 +564,9 @@ function ExtraTab({ profile }: { profile: ProfileData }) {
       {/* SUPER ADMIN */}
       {role === 'super_admin' && (
         <div className="text-center py-8 text-gray-400">
-          <div className="text-4xl mb-2">🛡️</div>
+          <div className="text-4xl mb-2"></div>
           <p className="text-sm">Super Admin — to'liq huquqlar</p>
-          <p className="text-xs mt-1">⭐ Jami: {profile.totalPoints} ball</p>
+          <p className="text-xs mt-1">Jami: {profile.totalPoints} ball</p>
         </div>
       )}
     </div>

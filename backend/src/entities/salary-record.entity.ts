@@ -1,4 +1,4 @@
-import { Entity, Column, ManyToOne, JoinColumn } from 'typeorm';
+import { Entity, Column, ManyToOne, JoinColumn, Index } from 'typeorm';
 import { BaseEntity } from './base.entity';
 import { User } from './user.entity';
 
@@ -8,7 +8,11 @@ export enum SalaryRecordStatus {
   PAID = 'paid',
 }
 
+// Har bir o'qituvchi uchun oyiga faqat bitta maosh yozuvi bo'lishi kerak —
+// advisory lock (substitution.service.ts) asosiy himoya, bu esa DB darajasidagi
+// zaxira (masalan advisory lock qo'llanilmagan boshqa kod yo'li bo'lsa ham ushlaydi)
 @Entity('salary_records')
+@Index(['teacherId', 'periodMonth'], { unique: true })
 export class SalaryRecord extends BaseEntity {
   @ManyToOne(() => User)
   @JoinColumn({ name: 'teacher_id' })

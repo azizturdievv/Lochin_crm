@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
+import { ConfigService } from '@nestjs/config';
 import { Payment, PaymentMethod, PaymentStatus, PaymentType } from '../../entities/payment.entity';
 import { InstallmentPlan } from '../../entities/installment-plan.entity';
 import { CashSession, CashSessionStatus } from '../../entities/cash-session.entity';
@@ -18,6 +19,8 @@ import { CreatePaymentDto } from './dto/create-payment.dto';
 import { CreateInstallmentPlanDto } from './dto/create-installment.dto';
 import { OpenCashSessionDto, CloseCashSessionDto } from './dto/cash-session.dto';
 import { QueryPaymentDto, QueryDebtorsDto } from './dto/query-payment.dto';
+import { QueryInstallmentDto } from './dto/query-installment.dto';
+import { ExtendPaymentDto } from './dto/extend-payment.dto';
 
 // Kvitansiya raqami generatori: RCP-20260528-0001 formatida
 async function generateReceiptNumber(repo: Repository<Payment>): Promise<string> {
@@ -36,6 +39,13 @@ async function generateReceiptNumber(repo: Repository<Payment>): Promise<string>
     : 1;
 
   return `${prefix}${String(seq).padStart(4, '0')}`;
+}
+
+// schedule JSON'ida faqat paidAt saqlanadi — frontend esa isPaid (boolean) kutadi
+function withIsPaid(
+  schedule: { part: number; amount: bigint; dueDate: string; paidAt?: string }[],
+) {
+  return schedule.map((s) => ({ ...s, isPaid: !!s.paidAt }));
 }
 
 // Kupyuralar bo'yicha jami hisoblash
@@ -62,7 +72,12 @@ export class PaymentsService {
     private notificationRepo: Repository<Notification>,
     private dataSource: DataSource,
     private auditLog: AuditLogService,
+    private configService: ConfigService,
   ) {}
+
+  private get paymentLockGraceDays(): number {
+    return parseInt(this.configService.get<string>('PAYMENT_LOCK_GRACE_DAYS', '15'), 10);
+  }
 
   // ─── TO'LOV YARATISH ──────────────────────────────────────────────────────
   async create(dto: CreatePaymentDto, actorId: string, actorRole: string) {
@@ -102,91 +117,137 @@ export class PaymentsService {
       if (plan.isCompleted) throw new BadRequestException('Muddatli to\'lov allaqachon yakunlangan');
     }
 
-    const receiptNumber = await generateReceiptNumber(this.paymentRepo);
+    // Smena ID berilgan bo'lsa — mavjudligi, ochiqligi va shu kassirga tegishliligi
+    // tekshiriladi. Avval hech qanday tekshiruv yo'q edi — istalgan (hatto yopiq
+    // yoki boshqa kassirning) smenaga to'lov "yopishtirib" qo'yish mumkin edi,
+    // bu smena yopilishida hisoblangan kassa balansini buzardi.
+    if (dto.cashSessionId) {
+      const session = await this.cashSessionRepo.findOne({ where: { id: dto.cashSessionId } });
+      if (!session) throw new NotFoundException('Smena topilmadi');
+      if (session.status !== CashSessionStatus.OPEN) {
+        throw new BadRequestException('Bu smena yopiq — unga to\'lov qo\'shib bo\'lmaydi');
+      }
+      if (session.cashierId !== actorId) {
+        throw new ForbiddenException('Bu smena boshqa kassirga tegishli');
+      }
+    }
+
     const now = new Date();
     const paymentMonth =
       dto.paymentMonth ??
       `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 
-    const queryRunner = this.dataSource.createQueryRunner();
-    await queryRunner.connect();
-    await queryRunner.startTransaction();
+    // Kvitansiya raqami generatsiyasi tranzaksiya ichida, konflikt bo'lsa qayta
+    // urinish bilan — bir vaqtda 2 ta kassir to'lov qabul qilsa, ikkalasi ham
+    // "oxirgi raqam+1"ni bir xil o'qib olib, bir xil raqamni hosil qilishi mumkin
+    // edi (receipt_number ustunida UNIQUE bor, shuning uchun bu avval xatoni
+    // "500 Internal Server Error" sifatida chiqarardi — endi avtomatik tuzatiladi)
+    const MAX_RECEIPT_ATTEMPTS = 3;
+    let lastErr: unknown;
 
-    try {
-      const payment = queryRunner.manager.create(Payment, {
-        studentId: dto.studentId,
-        receivedById: actorId,
-        amount: BigInt(Math.round(dto.amount)),
-        method: dto.method,
-        type: dto.type ?? PaymentType.TUITION,
-        status: PaymentStatus.COMPLETED,
-        paymentMonth,
-        receiptNumber,
-        notes: dto.notes ?? null,
-        cashBreakdown: (dto.cashBreakdown as Record<string, number>) ?? null,
-        cashAmount: BigInt(Math.round(dto.cashAmount ?? (dto.method === PaymentMethod.CASH ? dto.amount : 0))),
-        cardAmount: BigInt(Math.round(dto.cardAmount ?? (dto.method === PaymentMethod.CARD ? dto.amount : 0))),
-        cashSessionId: dto.cashSessionId ?? null,
-        installmentPlanId: dto.installmentPlanId ?? null,
-        installmentPart: dto.installmentPart ?? null,
-        receiptPrinted: false,
-      });
+    for (let attempt = 0; attempt < MAX_RECEIPT_ATTEMPTS; attempt++) {
+      const queryRunner = this.dataSource.createQueryRunner();
+      await queryRunner.connect();
+      await queryRunner.startTransaction();
 
-      await queryRunner.manager.save(payment);
+      try {
+        const receiptNumber = await generateReceiptNumber(queryRunner.manager.getRepository(Payment));
 
-      // Muddatli to'lovni yangilash
-      if (dto.installmentPlanId && dto.installmentPart) {
-        await this.updateInstallmentPart(
-          queryRunner,
-          dto.installmentPlanId,
-          dto.installmentPart,
-          payment.id,
-        );
-      }
-
-      await queryRunner.commitTransaction();
-
-      await this.auditLog.log({
-        userId: actorId,
-        userRole: actorRole,
-        action: 'PAYMENT_CREATED',
-        entityName: 'payments',
-        entityId: payment.id,
-        newValues: {
-          amount: dto.amount,
-          method: dto.method,
+        const payment = queryRunner.manager.create(Payment, {
           studentId: dto.studentId,
+          receivedById: actorId,
+          amount: BigInt(Math.round(dto.amount)),
+          method: dto.method,
+          type: dto.type ?? PaymentType.TUITION,
+          status: PaymentStatus.COMPLETED,
+          paymentMonth,
           receiptNumber,
-        },
-      });
+          notes: dto.notes ?? null,
+          cashBreakdown: (dto.cashBreakdown as Record<string, number>) ?? null,
+          cashAmount: BigInt(Math.round(dto.cashAmount ?? (dto.method === PaymentMethod.CASH ? dto.amount : 0))),
+          cardAmount: BigInt(Math.round(dto.cardAmount ?? (dto.method === PaymentMethod.CARD ? dto.amount : 0))),
+          cashSessionId: dto.cashSessionId ?? null,
+          installmentPlanId: dto.installmentPlanId ?? null,
+          installmentPart: dto.installmentPart ?? null,
+          receiptPrinted: false,
+        });
 
-      const result = await this.paymentRepo.findOne({
-        where: { id: payment.id },
-        relations: { student: true },
-      });
+        await queryRunner.manager.save(payment);
 
-      return {
-        ...result,
-        receipt: this.buildReceiptData(result!),
-      };
-    } catch (err) {
-      await queryRunner.rollbackTransaction();
-      throw err;
-    } finally {
-      await queryRunner.release();
+        // Muddatli to'lovni yangilash
+        if (dto.installmentPlanId && dto.installmentPart) {
+          await this.updateInstallmentPart(
+            queryRunner,
+            dto.installmentPlanId,
+            dto.installmentPart,
+            payment.id,
+          );
+        }
+
+        await queryRunner.commitTransaction();
+
+        await this.auditLog.log({
+          userId: actorId,
+          userRole: actorRole,
+          action: 'PAYMENT_CREATED',
+          entityName: 'payments',
+          entityId: payment.id,
+          newValues: {
+            amount: dto.amount,
+            method: dto.method,
+            studentId: dto.studentId,
+            receiptNumber,
+          },
+        });
+
+        const result = await this.paymentRepo.findOne({
+          where: { id: payment.id },
+          relations: { student: true },
+        });
+
+        return {
+          ...result,
+          receipt: this.buildReceiptData(result!),
+        };
+      } catch (err) {
+        await queryRunner.rollbackTransaction();
+
+        // Postgres 23505 = unique_violation — receipt_number to'qnashuvida qayta
+        // urinamiz (TypeORM constraint nomini xesh sifatida generatsiya qiladi,
+        // masalan "UQ_a6659e..." — ustun nomi bo'yicha moslashtirib bo'lmaydi,
+        // shuning uchun kod bo'yicha tekshiramiz). Boshqa xatolar (masalan
+        // updateInstallmentPart'dagi ConflictException) darhol tashlanadi
+        const isUniqueViolation = (err as { code?: string })?.code === '23505';
+
+        if (!isUniqueViolation) throw err;
+        lastErr = err;
+      } finally {
+        await queryRunner.release();
+      }
     }
+
+    throw lastErr;
   }
 
   // ─── TO'LOVLAR RO'YXATI ──────────────────────────────────────────────────
   async findAll(query: QueryPaymentDto, actorId: string, actorRole: string) {
-    const { page = 1, limit = 20 } = query;
+    const { page = 1, limit = 20, sortBy = 'createdAt', sortOrder = 'DESC' } = query;
+    // Xavfsiz ustun xaritasi — ixtiyoriy xom SQL ustun nomi kiritilishining oldini oladi
+    const SORT_COLUMNS: Record<string, string> = {
+      student:   'st.lastName',
+      amount:    'p.amount',
+      createdAt: 'p.created_at',
+    };
+    const sortColumn = SORT_COLUMNS[sortBy] ?? 'p.created_at';
 
     const qb = this.paymentRepo
       .createQueryBuilder('p')
       .leftJoin('p.student', 'st')
       .leftJoin('p.receivedBy', 'rb')
       .where('p.deleted_at IS NULL')
-      .addSelect([
+      // .addSelect emas .select — aks holda p.id ikki marta tanlanib
+      // DISTINCT ostki so'rovida "ambiguous column" (42702) xatosini beradi
+      .select([
         'p.id', 'p.amount', 'p.method', 'p.status', 'p.type',
         'p.receiptNumber', 'p.paymentMonth', 'p.createdAt', 'p.notes',
         'p.cashAmount', 'p.cardAmount', 'p.installmentPart',
@@ -202,11 +263,14 @@ export class PaymentsService {
     if (query.dateFrom) qb.andWhere('p.created_at >= :from', { from: new Date(query.dateFrom) });
     if (query.dateTo) qb.andWhere('p.created_at <= :to', { to: new Date(query.dateTo) });
 
-    const [data, total] = await qb
-      .orderBy('p.created_at', 'DESC')
+    // getManyAndCount() bir nechta join+addSelect bilan "ambiguous column" (42702)
+    // xatosiga olib keladi — count va ro'yxatni alohida so'rov bilan olamiz
+    const total = await qb.getCount();
+    const data = await qb
+      .orderBy(sortColumn, sortOrder)
       .skip((page - 1) * limit)
       .take(limit)
-      .getManyAndCount();
+      .getMany();
 
     return { data, total, page, limit, totalPages: Math.ceil(total / limit) };
   }
@@ -221,7 +285,7 @@ export class PaymentsService {
   }
 
   // ─── QARZDORLAR RO'YXATI ─────────────────────────────────────────────────
-  async getDebtors(query: QueryDebtorsDto) {
+  async getDebtors(query: QueryDebtorsDto, actorId?: string, actorRole?: string) {
     const { page = 1, limit = 50 } = query;
     const now = new Date();
     const month =
@@ -260,23 +324,171 @@ export class PaymentsService {
     if (query.groupId) qb.andWhere('g.id = :gid', { gid: query.groupId });
     if (query.subjectId) qb.andWhere('s.id = :sid', { sid: query.subjectId });
 
-    const totalQb = qb.clone();
-    const rawData = await qb
-      .orderBy('u.last_name', 'ASC')
-      .offset((page - 1) * limit)
-      .limit(limit)
-      .getRawMany();
+    // Ustoz — faqat o'z guruhidagi qarzdorlarni ko'radi
+    if (actorRole === Role.USTOZ) {
+      qb.andWhere('g.teacher_id = :teacherId', { teacherId: actorId });
+    }
 
-    const totalRaw = await totalQb.getCount();
+    const rawRows = await qb.orderBy('u.last_name', 'ASC').getRawMany();
+
+    // Bitta o'quvchi bir nechta guruhda qarzdor bo'lishi mumkin — o'quvchi bo'yicha guruhlaymiz
+    const byStudent = new Map<
+      string,
+      { studentId: string; studentName: string; phone: string | null; monthPrice: number; groups: string[] }
+    >();
+    for (const r of rawRows) {
+      const monthlyPrice = Number(r.monthlyPrice) || 0;
+      const existing = byStudent.get(r.id);
+      if (existing) {
+        existing.monthPrice += monthlyPrice;
+        existing.groups.push(r.groupName);
+      } else {
+        byStudent.set(r.id, {
+          studentId: r.id,
+          studentName: `${r.firstName} ${r.lastName}`,
+          phone: r.phone,
+          monthPrice: monthlyPrice,
+          groups: [r.groupName],
+        });
+      }
+    }
+
+    const allDebtors = Array.from(byStudent.values());
+    const total = allDebtors.length;
+    const paged = allDebtors.slice((page - 1) * limit, (page - 1) * limit + limit);
+
+    const studentIds = paged.map((d) => d.studentId);
+    const lastPaymentMap = new Map<string, Date>();
+    const paidMonthsMap = new Map<string, Set<string>>();
+    if (studentIds.length > 0) {
+      const lastPayments = await this.paymentRepo
+        .createQueryBuilder('p')
+        .select('p.studentId', 'studentId')
+        .addSelect('MAX(p.createdAt)', 'lastDate')
+        .where('p.studentId IN (:...ids)', { ids: studentIds })
+        .andWhere('p.status = :status', { status: PaymentStatus.COMPLETED })
+        .groupBy('p.studentId')
+        .getRawMany();
+      for (const row of lastPayments) lastPaymentMap.set(row.studentId, row.lastDate);
+
+      // Qarz oylari sonini hisoblash uchun — oxirgi 12 oy ichida qaysi oylar to'langan
+      const paidMonthRows = await this.paymentRepo
+        .createQueryBuilder('p')
+        .select('p.studentId', 'studentId')
+        .addSelect('p.paymentMonth', 'month')
+        .where('p.studentId IN (:...ids)', { ids: studentIds })
+        .andWhere('p.status = :status', { status: PaymentStatus.COMPLETED })
+        .groupBy('p.studentId')
+        .addGroupBy('p.paymentMonth')
+        .getRawMany();
+      for (const row of paidMonthRows) {
+        if (!paidMonthsMap.has(row.studentId)) paidMonthsMap.set(row.studentId, new Set());
+        paidMonthsMap.get(row.studentId)!.add(row.month);
+      }
+    }
+
+    // "YYYY-MM" oyni `delta` oy orqaga/oldinga suradi
+    const shiftMonth = (m: string, delta: number): string => {
+      const [y, mo] = m.split('-').map(Number);
+      const d = new Date(y, mo - 1 + delta, 1);
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    };
+
+    const data = paged.map((d) => {
+      const paidMonths = paidMonthsMap.get(d.studentId) ?? new Set<string>();
+      // Joriy oydan orqaga qarab, ketma-ket to'lanmagan oylar sonini sanaymiz (maks. 12 oy)
+      let debtMonths = 0;
+      for (let i = 0; i < 12; i++) {
+        if (!paidMonths.has(shiftMonth(month, -i))) debtMonths++;
+        else break;
+      }
+      return {
+        studentId: d.studentId,
+        studentName: d.studentName,
+        phone: d.phone,
+        groups: d.groups,
+        debtMonths,
+        debtAmount: d.monthPrice * debtMonths,
+        isCritical: debtMonths >= 2,
+        lastPaymentDate: lastPaymentMap.get(d.studentId) ?? null,
+      };
+    });
 
     return {
       month,
-      data: rawData,
-      total: totalRaw,
+      data,
+      total,
       page,
       limit,
-      totalPages: Math.ceil(totalRaw / limit),
+      totalPages: Math.ceil(total / limit),
     };
+  }
+
+  // O'quvchi kartochkasi uchun — joriy oy bo'yicha qarzdormi (qizil indikator)
+  async getDebtorStatus(studentId: string): Promise<{ isDebtor: boolean; month: string }> {
+    const now = new Date();
+    const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+
+    const paid = await this.paymentRepo.exists({
+      where: {
+        studentId,
+        paymentMonth: month,
+        status: PaymentStatus.COMPLETED,
+      },
+    });
+
+    return { isDebtor: !paid, month };
+  }
+
+  // ─── TO'LOV AVTO-BLOK: KIRISH HOLATI ──────────────────────────────────────
+  async getAccessStatus(
+    studentId: string,
+    requesterId?: string,
+    requesterRole?: string,
+  ): Promise<{ isLocked: boolean; isDebtor: boolean; daysOverdue: number; extendedUntil: Date | null }> {
+    if (requesterRole === Role.STUDENT && requesterId !== studentId) {
+      throw new ForbiddenException('Faqat o\'z holatingizni ko\'rishingiz mumkin');
+    }
+
+    const student = await this.userRepo.findOne({ where: { id: studentId } });
+    if (!student) throw new NotFoundException('O\'quvchi topilmadi');
+
+    const { isDebtor } = await this.getDebtorStatus(studentId);
+    const now = new Date();
+    const daysOverdue = now.getDate();
+
+    const extendedUntil = student.paymentExtendedUntil;
+    const hasActiveExtension = !!extendedUntil && extendedUntil > now;
+
+    const isLocked = !hasActiveExtension && isDebtor && daysOverdue >= this.paymentLockGraceDays;
+
+    return { isLocked, isDebtor, daysOverdue, extendedUntil };
+  }
+
+  // ─── TO'LOV AVTO-BLOK: SA MUDDATNI UZAYTIRISH ─────────────────────────────
+  async extendPayment(
+    studentId: string,
+    dto: ExtendPaymentDto,
+    actorId: string,
+  ): Promise<{ message: string }> {
+    const student = await this.userRepo.findOne({ where: { id: studentId } });
+    if (!student) throw new NotFoundException('O\'quvchi topilmadi');
+
+    const until = new Date(dto.until);
+    const oldValues = { paymentExtendedUntil: student.paymentExtendedUntil };
+
+    await this.userRepo.update(studentId, { paymentExtendedUntil: until });
+
+    await this.auditLog.log({
+      userId: actorId,
+      action: 'PAYMENT_EXTENSION_GRANTED',
+      entityName: 'users',
+      entityId: studentId,
+      oldValues,
+      newValues: { paymentExtendedUntil: until.toISOString(), reason: dto.reason },
+    });
+
+    return { message: 'Muddat muvaffaqiyatli uzaytirildi' };
   }
 
   // ─── MUDDATLI TO'LOV ─────────────────────────────────────────────────────
@@ -332,10 +544,13 @@ export class PaymentsService {
   }
 
   async getInstallmentPlan(id: string) {
-    const plan = await this.installmentRepo.findOne({
-      where: { id },
-      relations: { student: true },
-    });
+    const plan = await this.installmentRepo
+      .createQueryBuilder('ip')
+      .withDeleted() // arxivlangan (soft-deleted) o'quvchi ismi ham ko'rinishi uchun
+      .leftJoinAndSelect('ip.student', 'st')
+      .where('ip.id = :id', { id })
+      .andWhere('ip.deleted_at IS NULL')
+      .getOne();
     if (!plan) throw new NotFoundException('Muddatli to\'lov rejasi topilmadi');
 
     const payments = await this.paymentRepo.find({
@@ -343,7 +558,32 @@ export class PaymentsService {
       order: { createdAt: 'ASC' },
     });
 
-    return { ...plan, payments };
+    return { ...plan, schedule: withIsPaid(plan.schedule), payments };
+  }
+
+  // ─── MUDDATLI TO'LOV RO'YXATI ─────────────────────────────────────────────
+  async findAllInstallments(query: QueryInstallmentDto) {
+    const { page = 1, limit = 20 } = query;
+
+    const qb = this.installmentRepo
+      .createQueryBuilder('ip')
+      .withDeleted() // arxivlangan (soft-deleted) o'quvchi ismi ham ko'rinishi uchun
+      .leftJoinAndSelect('ip.student', 'st')
+      .where('ip.deleted_at IS NULL');
+
+    if (query.studentId) qb.andWhere('ip.student_id = :sid', { sid: query.studentId });
+    if (query.isCompleted !== undefined) qb.andWhere('ip.is_completed = :ic', { ic: query.isCompleted });
+
+    const total = await qb.getCount();
+    const items = await qb
+      .orderBy('ip.created_at', 'DESC')
+      .skip((page - 1) * limit)
+      .take(limit)
+      .getMany();
+
+    const data = items.map((p) => ({ ...p, schedule: withIsPaid(p.schedule) }));
+
+    return { data, total, page, limit, totalPages: Math.ceil(total / limit) };
   }
 
   // ─── SMENA (CASH SESSION) ─────────────────────────────────────────────────
@@ -543,7 +783,7 @@ export class PaymentsService {
     const now = new Date(payment.createdAt);
     return {
       header: {
-        title: 'ILM ACADEMY',
+        title: 'LOCHIN SCHOOL',
         subtitle: 'To\'lov kvitansiyasi',
       },
       receiptNumber: payment.receiptNumber,
@@ -616,10 +856,22 @@ export class PaymentsService {
     partNumber: number,
     paymentId: string,
   ) {
+    // pessimistic_write (SELECT ... FOR UPDATE) — shu qatorni boshqa parallel
+    // to'lov tranzaksiyasi tugagunicha bloklaydi. Bu bo'lmasa, ikkita bir xil
+    // qism uchun deyarli bir vaqtda yuborilgan to'lov (masalan ikki marta
+    // bosilgan tugma yoki ikki kassir) ikkalasi ham "hali to'lanmagan" holatni
+    // o'qib, ikkalasi ham qismni to'langan deb belgilab, real pulni ikki marta
+    // hisoblab qo'yishi mumkin edi
     const plan = await queryRunner.manager.findOne(InstallmentPlan, {
       where: { id: planId },
+      lock: { mode: 'pessimistic_write' },
     });
     if (!plan) return;
+
+    const alreadyPaid = plan.schedule.find((s) => s.part === partNumber)?.paidAt;
+    if (alreadyPaid) {
+      throw new ConflictException(`${partNumber}-qism allaqachon to'langan`);
+    }
 
     const updatedSchedule = plan.schedule.map((s) => {
       if (s.part === partNumber) {

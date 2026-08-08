@@ -273,10 +273,11 @@ export class CompetitionService {
   // ─── JONLI NATIJALAR (leaderboard) ────────────────────────────────────────
   async getLeaderboard(eventId: string): Promise<{
     participants: Array<{
-      rank: number;
+      rank: number | null;
       participantId: string;
       studentName: string;
       score: number | null;
+      timeTaken: number | null;
       submittedAt: Date | null;
     }>;
     totalSubmitted: number;
@@ -289,26 +290,49 @@ export class CompetitionService {
       .leftJoinAndSelect('p.student', 's')
       .where('p.event_id = :eventId', { eventId })
       .andWhere('p.deleted_at IS NULL')
-      .orderBy('p.score', 'DESC', 'NULLS LAST')
-      .addOrderBy('p.registered_at', 'ASC')
       .getMany();
 
     const submissions = await this.submissionRepo.find({
       where: { eventId },
-      select: { participantId: true, submittedAt: true },
+      select: { participantId: true, submittedAt: true, timeTaken: true },
     });
-    const subMap = new Map(submissions.map((s) => [s.participantId, s.submittedAt]));
+    const subMap = new Map(submissions.map((s) => [s.participantId, s]));
 
-    const ranked = participants.map((p, i) => ({
-      rank:          i + 1,
+    // Ball qo'ygan va qo'ymagan ishtirokchilarni ajratamiz — ball yo'q bo'lsa
+    // hali reytingda emas (rank: null), oxirida ko'rsatiladi
+    const withScore = participants.filter((p) => p.score !== null);
+    const withoutScore = participants.filter((p) => p.score === null);
+
+    const placeById = this.computeRanking(
+      withScore.map((p) => ({
+        id:        p.id,
+        score:     Number(p.score),
+        timeTaken: subMap.get(p.id)?.timeTaken ?? null,
+      })),
+    );
+
+    const rankedWithScore = [...withScore]
+      .sort((a, b) => (placeById.get(a.id) ?? 0) - (placeById.get(b.id) ?? 0))
+      .map((p) => ({
+        rank:          placeById.get(p.id) ?? null,
+        participantId: p.id,
+        studentName:   `${p.student.firstName} ${p.student.lastName}`,
+        score:         Number(p.score),
+        timeTaken:     subMap.get(p.id)?.timeTaken ?? null,
+        submittedAt:   subMap.get(p.id)?.submittedAt ?? null,
+      }));
+
+    const rankedWithoutScore = withoutScore.map((p) => ({
+      rank:          null,
       participantId: p.id,
       studentName:   `${p.student.firstName} ${p.student.lastName}`,
-      score:         p.score !== null ? Number(p.score) : null,
-      submittedAt:   subMap.get(p.id) ?? null,
+      score:         null,
+      timeTaken:     null,
+      submittedAt:   null,
     }));
 
     return {
-      participants:    ranked,
+      participants:    [...rankedWithScore, ...rankedWithoutScore],
       totalSubmitted:  submissions.filter((s) => s.submittedAt).length,
       totalRegistered: participants.length,
     };
@@ -322,28 +346,51 @@ export class CompetitionService {
       throw new BadRequestException('Musobaqa aktiv emas');
     }
 
-    // Ishtirokchilarni natijalarga qarab saralash
     const participants = await this.participantRepo
       .createQueryBuilder('p')
       .leftJoinAndSelect('p.student', 's')
       .where('p.event_id = :eventId', { eventId })
       .andWhere('p.score IS NOT NULL')
       .andWhere('p.deleted_at IS NULL')
-      .orderBy('p.score', 'DESC')
       .getMany();
 
+    const submissions = await this.submissionRepo.find({
+      where: { eventId },
+      select: { participantId: true, timeTaken: true },
+    });
+    const timeById = new Map(submissions.map((s) => [s.participantId, s.timeTaken]));
+
+    // Reyting: ball bo'yicha kamayish, teng bo'lsa sarflangan vaqt bo'yicha
+    // o'sish (tezroq — yuqori o'rin). Teng ball VA teng vaqt — bir xil o'rin.
+    const placeById = this.computeRanking(
+      participants.map((p) => ({
+        id:        p.id,
+        score:     Number(p.score),
+        timeTaken: timeById.get(p.id) ?? null,
+      })),
+    );
+
+    const sortedParticipants = [...participants].sort(
+      (a, b) => (placeById.get(a.id) ?? 0) - (placeById.get(b.id) ?? 0),
+    );
+
     await this.dataSource.transaction(async (em) => {
-      // O'rinlarni belgilash
-      for (let i = 0; i < participants.length; i++) {
-        await em.update(EventParticipant, participants[i].id, { place: i + 1 });
+      for (const p of participants) {
+        await em.update(EventParticipant, p.id, { place: placeById.get(p.id) ?? null });
       }
 
-      // Natijalar xulosasi
-      const winners = participants.slice(0, 3).map((p, i) => ({
-        place:  i + 1,
-        name:   `${p.student.firstName} ${p.student.lastName}`,
-        score:  Number(p.score),
-      }));
+      // Natijalar xulosasi — 1-3 o'ringa TUSHGAN HAMMA ishtirokchi (teng
+      // ball+vaqt bo'lsa bir nechtasi bir xil o'rinni egallashi mumkin —
+      // eski kod .slice(0,3) bilan bunday holatda birini o'zboshimchalik
+      // bilan tashlab yuborardi)
+      const winners = sortedParticipants
+        .filter((p) => (placeById.get(p.id) ?? Infinity) <= 3)
+        .map((p) => ({
+          place:     placeById.get(p.id)!,
+          name:      `${p.student.firstName} ${p.student.lastName}`,
+          score:     Number(p.score),
+          timeTaken: timeById.get(p.id) ?? null,
+        }));
 
       await em.update(Event, eventId, {
         competitionStatus: CompetitionStatus.FINISHED,
@@ -366,6 +413,38 @@ export class CompetitionService {
 
     this.logger.log(`Musobaqa yakunlandi: ${event.title}, ${participants.length} ishtirokchi`);
     return this.requireEvent(eventId);
+  }
+
+  // ─── YORDAMCHI: musobaqa reytingi ─────────────────────────────────────────
+  // Standart musobaqa reytingi ("1,2,2,4"): ball bo'yicha kamayish, teng
+  // bo'lsa sarflangan vaqt bo'yicha o'sish (tezroq yaxshi); vaqt yozilmagan
+  // bo'lsa eng sekin deb hisoblanadi. Ball VA vaqt bo'yicha aynan teng
+  // bo'lganlar bir xil o'rinni egallaydi, keyingisi ular sonini hisobga olib
+  // sakraydi (masalan ikki kishi 2-o'rinda bo'lsa, keyingisi 4-o'rin bo'ladi).
+  private computeRanking(
+    entries: { id: string; score: number; timeTaken: number | null }[],
+  ): Map<string, number> {
+    const TIME_INF = Number.MAX_SAFE_INTEGER;
+    const sorted = [...entries].sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score;
+      return (a.timeTaken ?? TIME_INF) - (b.timeTaken ?? TIME_INF);
+    });
+
+    const placeById = new Map<string, number>();
+    let lastScore: number | null = null;
+    let lastTime: number | null = null;
+    let lastPlace = 0;
+
+    sorted.forEach((entry, i) => {
+      const tied = i > 0 && entry.score === lastScore && entry.timeTaken === lastTime;
+      const place = tied ? lastPlace : i + 1;
+      placeById.set(entry.id, place);
+      lastScore = entry.score;
+      lastTime = entry.timeTaken;
+      lastPlace = place;
+    });
+
+    return placeById;
   }
 
   // ─── SAVOLLAR RO'YXATI (admin uchun, to'liq) ──────────────────────────────
