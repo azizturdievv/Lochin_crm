@@ -38,7 +38,10 @@ async function bootstrap() {
     }),
   );
 
-  const port = process.env.APP_PORT ?? 3000;
+  // Railway/Render/Heroku kabi PaaS'lar konteynerga dinamik PORT beradi va
+  // ilova aynan shuni tinglashini talab qiladi — APP_PORT faqat lokal ishlash
+  // uchun zaxira sifatida qoladi
+  const port = process.env.PORT ?? process.env.APP_PORT ?? 3000;
   await app.listen(port);
 
   console.log(`✅ Lochin School CRM server ishga tushdi: http://localhost:${port}`);
