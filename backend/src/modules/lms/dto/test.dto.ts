@@ -134,6 +134,10 @@ export class TimeExtensionRequestDto {
   @IsString()
   testId: string;
 
+  // Aynan qaysi urinishga tegishli — shu urinish yakunlanmaguncha amal qiladi
+  @IsString()
+  testResultId: string;
+
   @IsInt()
   @Min(5)
   @Max(30)

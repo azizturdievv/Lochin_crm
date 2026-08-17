@@ -1,5 +1,6 @@
 import type { LucideIcon } from 'lucide-react';
 import { TrendingUp, TrendingDown } from 'lucide-react';
+import Link from 'next/link';
 
 // PreSkool uslubidagi KPI karta: oq fon, rangli icon plitkasi, ixtiyoriy Faol/Nofaol footer
 interface KpiCardProps {
@@ -12,6 +13,8 @@ interface KpiCardProps {
   split?:    { active: string | number; inactive: string | number };
   splitLabels?: { active: string; inactive: string };
   loading?:  boolean;
+  href?:     string;
+  onClick?:  () => void;
 }
 
 const COLOR_MAP = {
@@ -23,12 +26,16 @@ const COLOR_MAP = {
   primary: { icon: 'bg-primary-100 text-primary-600' },
 };
 
-export default function KpiCard({ title, value, sub, icon: Icon, color, trend, split, splitLabels, loading }: KpiCardProps) {
+export default function KpiCard({ title, value, sub, icon: Icon, color, trend, split, splitLabels, loading, href, onClick }: KpiCardProps) {
   const labels = splitLabels ?? { active: 'Faol', inactive: 'Nofaol' };
   const c = COLOR_MAP[color];
 
-  return (
-    <div className="bg-white border border-gray-100 shadow-sm rounded-2xl p-5 flex flex-col gap-3">
+  const className = `bg-white border border-gray-100 shadow-sm rounded-2xl p-5 flex flex-col gap-3 text-left w-full${
+    href || onClick ? ' hover:shadow-md hover:border-gray-200 transition-shadow cursor-pointer' : ''
+  }`;
+
+  const content = (
+    <>
       <div className="flex items-start justify-between">
         <div className={`${c.icon} w-11 h-11 rounded-xl flex items-center justify-center`}>
           <Icon size={22} strokeWidth={2} />
@@ -71,6 +78,11 @@ export default function KpiCard({ title, value, sub, icon: Icon, color, trend, s
           </span>
         </div>
       )}
-    </div>
+    </>
   );
+
+  if (loading) return <div className={className}>{content}</div>;
+  if (href) return <Link href={href} className={className}>{content}</Link>;
+  if (onClick) return <button type="button" onClick={onClick} className={className}>{content}</button>;
+  return <div className={className}>{content}</div>;
 }

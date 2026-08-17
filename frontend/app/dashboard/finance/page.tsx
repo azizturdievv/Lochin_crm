@@ -136,7 +136,11 @@ export default function FinancePage() {
       </div>
 
       {/* ── KPI KARTALAR ─────────────────────────────────────────────── */}
-      <KpiGrid data={kpi} loading={kpiLoad} prevData={prevKpi} />
+      <KpiGrid
+        data={kpi} loading={kpiLoad} prevData={prevKpi}
+        onPnlClick={() => setTab('pnl')}
+        onExpensesClick={() => setTab('expenses')}
+      />
 
       {/* ── TABLAR ───────────────────────────────────────────────────── */}
       <div className="flex border-b border-gray-200 overflow-x-auto">

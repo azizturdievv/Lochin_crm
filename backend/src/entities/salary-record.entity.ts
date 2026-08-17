@@ -39,6 +39,14 @@ export class SalaryRecord extends BaseEntity {
   @Column({ name: 'deduction', type: 'bigint', default: 0 })
   deduction: bigint;
 
+  // O'zi qabul qilgan to'lovlardan bonus (admin/manager)
+  @Column({ name: 'payment_bonus', type: 'bigint', default: 0 })
+  paymentBonus: bigint;
+
+  // Biriktirilgan lidlardan shu oy o'quvchiga aylanganlar uchun bonus (manager)
+  @Column({ name: 'lead_bonus', type: 'bigint', default: 0 })
+  leadBonus: bigint;
+
   @Column({ name: 'total_amount', type: 'bigint' })
   totalAmount: bigint;
 

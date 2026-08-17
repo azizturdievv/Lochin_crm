@@ -294,6 +294,7 @@ export class LeadsService {
     await this.leadRepo.update(id, {
       stage: dto.stage,
       ...(dto.stage === LeadStage.LOST && { lostReason: dto.lostReason }),
+      ...(dto.stage === LeadStage.ENROLLED && { enrolledAt: new Date() }),
       ...(dto.trialDate && { trialDate: new Date(dto.trialDate) }),
     });
 

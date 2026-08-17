@@ -13,6 +13,18 @@ import { useAuthStore } from '@/store/auth.store';
 // 15 daqiqa qoidasi: faqat 'new' bosqich
 const ALERT_STAGES: LeadStage[] = ['new'];
 
+interface ManagerOption { id: string; firstName: string; lastName: string; }
+const fetchManagerOptions = () =>
+  api.get<{ data: ManagerOption[] }>('/users', { params: { role: 'manager', limit: 100 } }).then(r => r.data.data);
+
+interface ManagerConversion {
+  name: string; total: number; enrolled: number; lost: number;
+  conversionRate: number; avgHoursToEnroll: number | null;
+}
+interface ConversionAnalysis { byManager: ManagerConversion[] }
+const fetchConversion = () =>
+  api.get<ConversionAnalysis>('/leads/conversion').then(r => r.data);
+
 // Manba filtri variantlari
 const SOURCE_OPTIONS: Array<{ value: LeadSource | 'all'; label: string; icon: LucideIcon }> = [
   { value: 'all',      label: 'Barchasi', icon: Search },
@@ -35,6 +47,7 @@ export default function LeadsPage() {
 
   const [search,     setSearch]     = useState('');
   const [sourceFilter, setSource]   = useState<LeadSource | 'all'>('all');
+  const [assigneeFilter, setAssignee] = useState('');
   const [modalLead,  setModalLead]  = useState<Lead | null | undefined>(undefined);
   // undefined = yopiq, null = yangi, Lead = tahrirlash
 
@@ -46,6 +59,16 @@ export default function LeadsPage() {
       return (Array.isArray(d) ? d : (d?.data ?? d?.items ?? [])) as Lead[];
     }),
     refetchInterval: 30_000,
+  });
+
+  const { data: managers } = useQuery({
+    queryKey: ['leads-manager-options'],
+    queryFn:  fetchManagerOptions,
+  });
+
+  const { data: conversion } = useQuery({
+    queryKey: ['leads-conversion'],
+    queryFn:  fetchConversion,
   });
 
   // Bosqich o'zgartirish
@@ -63,9 +86,10 @@ export default function LeadsPage() {
       const matchSearch = !search ||
         `${l.fullName} ${l.phone}`.toLowerCase().includes(search.toLowerCase());
       const matchSource = sourceFilter === 'all' || l.source === sourceFilter;
-      return matchSearch && matchSource;
+      const matchAssignee = !assigneeFilter || l.assignedToId === assigneeFilter;
+      return matchSearch && matchSource && matchAssignee;
     });
-  }, [leads, search, sourceFilter]);
+  }, [leads, search, sourceFilter, assigneeFilter]);
 
   // Bosqich bo'yicha guruhlash
   const byStage = useMemo<Record<LeadStage, Lead[]>>(() => {
@@ -146,6 +170,20 @@ export default function LeadsPage() {
           />
         </div>
 
+        {/* Manager bo'yicha konversiya */}
+        {conversion && conversion.byManager.length > 0 && (
+          <div className="flex gap-2 overflow-x-auto pb-1">
+            {conversion.byManager.map(m => (
+              <div key={m.name} className="shrink-0 bg-white border border-gray-100 rounded-xl px-3.5 py-2 min-w-[150px]">
+                <p className="text-xs font-medium text-gray-700 truncate">{m.name}</p>
+                <p className="text-[11px] text-gray-400">
+                  {m.total} lid · <span className="text-emerald-600 font-medium">{m.enrolled} o'quvchi</span> · {m.conversionRate}%
+                </p>
+              </div>
+            ))}
+          </div>
+        )}
+
         {/* Qidiruv va filtr */}
         <div className="flex flex-wrap gap-2 items-center">
           <input
@@ -154,6 +192,16 @@ export default function LeadsPage() {
             placeholder="Ism yoki telefon bo'yicha qidirish..."
             className="flex-1 min-w-[200px] px-4 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500"
           />
+          <select
+            value={assigneeFilter}
+            onChange={e => setAssignee(e.target.value)}
+            className="px-3 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white min-w-36"
+          >
+            <option value="">Barcha manager</option>
+            {managers?.map(m => (
+              <option key={m.id} value={m.id}>{m.lastName} {m.firstName}</option>
+            ))}
+          </select>
           <div className="flex gap-1.5 flex-wrap">
             {SOURCE_OPTIONS.map(opt => (
               <button

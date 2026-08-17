@@ -15,6 +15,7 @@ import { Enrollment } from '../../entities/enrollment.entity';
 import { LessonSubstitution } from '../../entities/lesson-substitution.entity';
 import { Sale } from '../../entities/sale.entity';
 import { PointsLog } from '../../entities/points-log.entity';
+import { Lead } from '../../entities/lead.entity';
 import { AuditLogModule } from '../audit-log/audit-log.module';
 
 @Module({
@@ -31,6 +32,7 @@ import { AuditLogModule } from '../audit-log/audit-log.module';
       LessonSubstitution,
       Sale,
       PointsLog,
+      Lead,
     ]),
     AuditLogModule,
   ],

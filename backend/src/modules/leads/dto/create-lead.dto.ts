@@ -5,6 +5,7 @@ import {
   IsEnum,
   MaxLength,
 } from 'class-validator';
+import { Transform } from 'class-transformer';
 import { LeadSource } from '../../../entities/lead.entity';
 
 export class CreateLeadDto {
@@ -37,6 +38,7 @@ export class CreateLeadDto {
   // Kim tayinlansin (manager ID)
   @IsOptional()
   @IsString()
+  @Transform(({ value }) => (value === '' ? undefined : value))
   assignedToId?: string;
 
   // Instagram DM / Telegram username va h.k.

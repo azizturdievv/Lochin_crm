@@ -245,7 +245,9 @@ export default function LmsPage() {
               {activeTab === 'baseline' && (
                 <BaselineTab
                   subjectId={activeSubject.id}
+                  groupId={groupId}
                   studentId={studentId}
+                  canManage={canCreate}
                 />
               )}
             </div>

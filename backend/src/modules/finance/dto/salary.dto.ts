@@ -40,6 +40,19 @@ export class SetSalaryDto {
   @Max(100)
   salesBonusPercent?: number;
 
+  // O'zi qabul qilgan to'lovlar summasidan foiz (admin/manager KPI)
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(100)
+  paymentBonusPercent?: number;
+
+  // Unga biriktirilgan har bir o'quvchiga aylangan lid uchun so'mda bonus (manager KPI)
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  leadBonusAmount?: number;
+
   @IsDateString()
   startedAt: string;
 }

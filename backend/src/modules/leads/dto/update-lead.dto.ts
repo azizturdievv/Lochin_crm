@@ -6,6 +6,7 @@ import {
   IsDateString,
   MaxLength,
 } from 'class-validator';
+import { Transform } from 'class-transformer';
 import { LeadSource } from '../../../entities/lead.entity';
 
 export class UpdateLeadDto {
@@ -32,6 +33,7 @@ export class UpdateLeadDto {
 
   @IsOptional()
   @IsString()
+  @Transform(({ value }) => (value === '' ? undefined : value))
   assignedToId?: string;
 
   @IsOptional()

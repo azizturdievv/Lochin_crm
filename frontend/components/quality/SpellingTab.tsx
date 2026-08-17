@@ -4,6 +4,7 @@ import { ArrowRight, CheckCircle2 } from 'lucide-react';
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
+import { formatDateTime } from '@/lib/date';
 import { ERROR_TYPE_META } from '@/types/quality';
 import type { SpellingLog, QualityStats } from '@/types/quality';
 
@@ -114,9 +115,7 @@ export default function SpellingTab({ userId, showAll }: Props) {
                       {log.user.firstName} {log.user.lastName}
                     </span>
                     <span className="text-[10px] text-gray-400 ml-auto">
-                      {new Date(log.createdAt).toLocaleString('uz-UZ', {
-                        day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit',
-                      })}
+                      {formatDateTime(log.createdAt)}
                     </span>
                   </div>
                 )}
@@ -156,9 +155,7 @@ export default function SpellingTab({ userId, showAll }: Props) {
 
                 {!showAll && (
                   <p className="text-[10px] text-gray-400 mt-2">
-                    {new Date(log.createdAt).toLocaleString('uz-UZ', {
-                      day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit',
-                    })}
+                    {formatDateTime(log.createdAt)}
                   </p>
                 )}
               </div>

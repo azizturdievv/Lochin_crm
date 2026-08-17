@@ -8,7 +8,7 @@ import type { LucideIcon } from 'lucide-react';
 import {
   User, LayoutDashboard, Users, CreditCard, Calendar, ClipboardCheck,
   BookOpen, School, Target, TrendingUp, Briefcase, Trophy, RefreshCw,
-  MessageSquare, SearchCheck, FileBarChart, Settings, Video, X, Award,
+  MessageSquare, SearchCheck, FileBarChart, Settings, Video, X, Award, Archive,
 } from 'lucide-react';
 
 type NavGroup = 'ASOSIY' | "O'QUV" | 'MOLIYA' | 'BOSHQARUV' | 'ALOQA';
@@ -42,6 +42,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Xodimlar',        href: '/dashboard/staff',             icon: Briefcase,       roles: ['super_admin'], group: 'BOSHQARUV' },
   { label: 'Tadbirlar',       href: '/dashboard/events',            icon: Trophy,          roles: ['super_admin','manager'], group: 'BOSHQARUV' },
   { label: "O'rinbosarlik",   href: '/dashboard/substitutions',     icon: RefreshCw,       roles: ['super_admin','manager'], group: 'BOSHQARUV' },
+  { label: 'Arxiv',           href: '/dashboard/archive',           icon: Archive,         roles: ['super_admin'], group: 'BOSHQARUV' },
   // ALOQA
   { label: 'Chat',            href: '/dashboard/chat',              icon: MessageSquare,   roles: ['super_admin','manager','ustoz','student'], group: 'ALOQA' },
   { label: 'Jonli efir',      href: '/dashboard/live',              icon: Video,           roles: ['super_admin','manager','ustoz','student'], group: 'ALOQA' },

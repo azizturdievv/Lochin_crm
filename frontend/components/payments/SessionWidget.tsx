@@ -4,11 +4,14 @@ import { X } from 'lucide-react';
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
+import { formatDateTime } from '@/lib/date';
 import CashDenomination, { calcDenomTotal } from './CashDenomination';
 import type { CashSession } from '@/types/payments';
 
-const fetchActiveSession = () =>
-  api.get<CashSession>('/payments/sessions/active').then(r => r.data).catch(() => null);
+// page.tsx bilan bir xil query key ostida ham ishlatiladi — shu bilan
+// PaymentModal'ga cashSessionId uzatish uchun ikkinchi so'rov yubormaydi
+export const fetchActiveSession = () =>
+  api.get<CashSession>('/cash-sessions/active').then(r => r.data).catch(() => null);
 
 export default function SessionWidget() {
   const qc = useQueryClient();
@@ -27,7 +30,7 @@ export default function SessionWidget() {
 
   const openMut = useMutation({
     mutationFn: (data: { openingBalance: number; notes?: string }) =>
-      api.post('/payments/sessions/open', data).then(r => r.data),
+      api.post('/cash-sessions/open', data).then(r => r.data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['active-session'] });
       setShowOpen(false); setOpenBal(''); setNotes('');
@@ -36,9 +39,13 @@ export default function SessionWidget() {
 
   const closeMut = useMutation({
     mutationFn: (data: { closingBalance: number; cashBreakdown?: object; notes?: string }) =>
-      api.patch(`/payments/sessions/${session!.id}/close`, data).then(r => r.data),
+      api.patch(`/cash-sessions/${session!.id}/close`, data).then(r => r.data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['active-session', 'payments', 'dashboard-stats'] });
+      // Har biri alohida query key — bittasiga birlashtirilsa hech biriga mos
+      // kelmaydi va vidjet smena yopilgandan keyin ham "ochiq" bo'lib qolardi
+      qc.invalidateQueries({ queryKey: ['active-session'] });
+      qc.invalidateQueries({ queryKey: ['payments'] });
+      qc.invalidateQueries({ queryKey: ['dashboard-stats'] });
       setShowClose(false); setDenom({}); setNotes('');
     },
   });
@@ -146,7 +153,7 @@ export default function SessionWidget() {
               <div className="bg-gray-50 rounded-xl p-4 space-y-2">
                 <Row label="Boshlang'ich qoldiq" value={`${session.openingBalance.toLocaleString('uz-UZ')} so'm`} />
                 <Row label="Yig'ilgan"           value={`${session.totalCollected.toLocaleString('uz-UZ')} so'm`} />
-                <Row label="Sana"                value={new Date(session.openedAt).toLocaleString('uz-UZ', { dateStyle:'short', timeStyle:'short' })} />
+                <Row label="Sana"                value={formatDateTime(session.openedAt)} />
               </div>
 
               <CashDenomination

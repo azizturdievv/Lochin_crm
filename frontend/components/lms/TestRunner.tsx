@@ -2,10 +2,10 @@
 
 import { Heart, X } from 'lucide-react';
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
 import type {
-  Test, TestStartResponse, TestSubmitResponse, CheckAnswerResponse,
+  Test, TestStartResponse, TestSubmitResponse, CheckAnswerResponse, MyExtensionStatus,
 } from '@/types/lms';
 import TestResultModal from './TestResultModal';
 
@@ -27,6 +27,8 @@ export default function TestRunner({ test, onClose }: Props) {
   const [timeLeft,    setTimeLeft]    = useState(0);
   const [extReq,      setExtReq]      = useState(false);
   const [extSent,     setExtSent]     = useState(false);
+  const [extResolved, setExtResolved] = useState<'approved' | 'rejected' | null>(null);
+  const extraAppliedRef = useRef(false);
   const [submitError, setSubmitError] = useState('');
   const [result,      setResult]      = useState<TestSubmitResponse | null>(null);
 
@@ -132,9 +134,32 @@ export default function TestRunner({ test, onClose }: Props) {
   }
 
   const extMut = useMutation({
-    mutationFn: () => api.post('/tests/time-extension/request', { testId: test.id, extraMinutes: 10 }),
-    onSuccess:  () => setExtSent(true),
+    mutationFn: () => api.post('/tests/time-extension/request', {
+      testId: test.id,
+      testResultId: session!.testResultId,
+      extraMinutes: 10,
+    }),
+    onSuccess: () => setExtSent(true),
   });
+
+  // Tasdiqlanguncha/rad etilguncha holatni so'rab turish
+  const { data: extStatus } = useQuery({
+    queryKey: ['ext-status', session?.testResultId],
+    queryFn:  () => api.get<MyExtensionStatus>(`/tests/time-extension/my-status/${session!.testResultId}`).then(r => r.data),
+    enabled:  extSent && !extResolved && !!session,
+    refetchInterval: 8000,
+  });
+
+  useEffect(() => {
+    if (!extStatus || extraAppliedRef.current) return;
+    if (extStatus.status === 'approved') {
+      extraAppliedRef.current = true;
+      setTimeLeft(t => t + (extStatus.extraMinutes ?? 0) * 60);
+      setExtResolved('approved');
+    } else if (extStatus.status === 'rejected') {
+      setExtResolved('rejected');
+    }
+  }, [extStatus]);
 
   if (phase === 'finished' && result && session) {
     return (
@@ -210,8 +235,16 @@ export default function TestRunner({ test, onClose }: Props) {
               Vaqt so'rash
             </button>
           )}
-          {extSent && (
-            <span className="text-xs text-purple-600 bg-purple-50 px-3 py-1.5 rounded-xl">Ustoz ko'rmoqda</span>
+          {extSent && !extResolved && (
+            <span className="text-xs text-purple-600 bg-purple-50 px-3 py-1.5 rounded-xl">Ustoz ko'rmoqda...</span>
+          )}
+          {extResolved === 'approved' && (
+            <span className="text-xs text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-xl font-medium">
+              ✅ +{extStatus?.extraMinutes} daqiqa qo'shildi
+            </span>
+          )}
+          {extResolved === 'rejected' && (
+            <span className="text-xs text-red-600 bg-red-50 px-3 py-1.5 rounded-xl">Rad etildi</span>
           )}
         </div>
       </div>

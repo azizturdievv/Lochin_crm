@@ -10,6 +10,7 @@ interface Props {
   onEdit:   () => void;
   onDelete: () => void;
   onEnroll: () => void;
+  onCreds:  () => void;
 }
 
 const STATUS_CONFIG = {
@@ -21,7 +22,7 @@ function fmtShort(iso: string): string {
   return new Date(iso).toLocaleDateString('uz-UZ', { day: '2-digit', month: '2-digit' });
 }
 
-export default function StudentCard({ student, onEdit, onDelete, onEnroll }: Props) {
+export default function StudentCard({ student, onEdit, onDelete, onEnroll, onCreds }: Props) {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -55,6 +56,8 @@ export default function StudentCard({ student, onEdit, onDelete, onEnroll }: Pro
                   className="w-full text-left px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors">Tahrirlash</button>
                 <button onClick={() => { setMenuOpen(false); onEnroll(); }}
                   className="w-full text-left px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors">Guruhga yozish</button>
+                <button onClick={() => { setMenuOpen(false); onCreds(); }}
+                  className="w-full text-left px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors">Kirish ma&apos;lumotlari</button>
                 <button onClick={() => { setMenuOpen(false); onDelete(); }}
                   className="w-full text-left px-3 py-2 text-xs text-red-600 hover:bg-red-50 transition-colors">Arxivlash</button>
               </div>

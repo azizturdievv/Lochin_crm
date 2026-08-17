@@ -8,7 +8,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import api from '@/lib/api';
 import { useAuthStore } from '@/store/auth.store';
-import type { LoginResponse, TwoFAResponse, User } from '@/types';
+import type { LoginResponse, TwoFAResponse } from '@/types';
 
 // ─── VALIDATSIYA SXEMALARI ────────────────────────────────────────────────────
 const loginSchema = z.object({
@@ -62,7 +62,7 @@ export default function LoginPage() {
       if (body.accessToken && body.refreshToken && body.user) {
         setTokens(body.accessToken, body.refreshToken);
         setUser(body.user);
-        redirectAfterAuth(body.user);
+        redirectAfterAuth();
       }
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { message?: string } } })
@@ -82,20 +82,18 @@ export default function LoginPage() {
       const { accessToken, refreshToken, user } = res.data;
       setTokens(accessToken, refreshToken);
       setUser(user);
-      redirectAfterAuth(user);
+      redirectAfterAuth();
     } catch {
       setApiError('Noto\'g\'ri kod. Qayta urinib ko\'ring.');
       twoFAForm.setValue('code', '');
     }
   }
 
-  // SA/Manager uchun 2FA hali yoqilmagan bo'lsa — dashboard'ga emas, majburiy
-  // sozlash sahifasiga yuboriladi (backend TwoFaEnforcementGuard baribir
-  // dashboard'dagi barcha so'rovlarni bloklaydi, shuning uchun bu yerda oldindan
-  // to'g'ri yo'naltirish kerak)
-  function redirectAfterAuth(user: User) {
-    const needsSetup = (user.role === 'super_admin' || user.role === 'manager') && !user.twoFaEnabled;
-    router.replace(needsSetup ? '/login/2fa-required' : '/dashboard');
+  // 2FA majburiyligi hozircha o'chirilgan (backend TwoFaEnforcementGuard —
+  // app.module.ts) — shuning uchun bu yerda ham majburiy sozlashga yo'naltirish
+  // yo'q, to'g'ridan-to'g'ri dashboard'ga kiradi.
+  function redirectAfterAuth() {
+    router.replace('/dashboard');
   }
 
   // ─── RENDER ───────────────────────────────────────────────────────────────
@@ -153,7 +151,7 @@ export default function LoginPage() {
                   {...loginForm.register('identifier')}
                   type="text"
                   autoComplete="username"
-                  placeholder="admin@ilmacademy.uz yoki aziz_001"
+                  placeholder="Login yoki username"
                   className="w-full px-4 py-2.5 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm transition"
                 />
                 {loginForm.formState.errors.identifier && (

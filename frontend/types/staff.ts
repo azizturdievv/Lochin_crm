@@ -6,6 +6,7 @@ export interface StaffMember {
   lastName:     string;
   middleName:   string | null;
   email:        string;
+  username:     string | null;
   phone:        string | null;
   role:         StaffRole;
   isActive:     boolean;

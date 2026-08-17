@@ -7,7 +7,7 @@ import {
   Max,
   IsObject,
 } from 'class-validator';
-import { Type } from 'class-transformer';
+import { Type, Transform } from 'class-transformer';
 import { AssessmentType } from '../../../entities/baseline-assessment.entity';
 
 export class CreateBaselineDto {
@@ -39,8 +39,12 @@ export class CreateBaselineDto {
   @IsString()
   teacherNotes?: string;
 
-  // Sport ko'rsatkichlari
+  // Sport ko'rsatkichlari — multipart/form-data orqali JSON-string sifatida keladi
   @IsOptional()
+  @Transform(({ value }) => {
+    if (typeof value !== 'string' || value === '') return value;
+    try { return JSON.parse(value); } catch { return value; }
+  })
   @IsObject()
   sportData?: Record<string, number>;
 }

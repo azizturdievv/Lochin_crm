@@ -69,6 +69,29 @@ export interface AnalysisData {
   groupFill:      { name: string; subject: string; currentStudents: number; maxStudents: number; fillPercent: number }[];
 }
 
+// ─── OYLIK JADVAL GENERATSIYA ───────────────────────────────────────────────────
+export interface MonthGenerationStatus {
+  groupId:        string;
+  groupName:      string;
+  expectedCount:  number;
+  existingCount:  number;
+  missing:        number;
+}
+
+export interface GenerateMonthResult {
+  groupId:      string;
+  groupName:    string;
+  created:      number;
+  existed:      number;
+  skipped:      number;
+  skippedDates: string[];
+}
+
+export interface GenerateMonthResponse {
+  month:   string;
+  results: GenerateMonthResult[];
+}
+
 // ─── CONFLICT ─────────────────────────────────────────────────────────────────
 export interface ConflictResult {
   hasConflict:      boolean;

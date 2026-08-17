@@ -1,17 +1,19 @@
 'use client';
 
-import { Briefcase } from 'lucide-react';
+import { Briefcase, Settings } from 'lucide-react';
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { SALARY_STATUS, fmtM } from '@/types/finance';
 import type { SalaryRecord } from '@/types/finance';
+import SalaryConfigModal from './SalaryConfigModal';
 
 interface Props { month: string }
 
 export default function SalaryTab({ month }: Props) {
   const qc = useQueryClient();
   const [calculating, setCalculating] = useState(false);
+  const [configOpen, setConfigOpen] = useState(false);
 
   const { data: records, isLoading } = useQuery({
     queryKey: ['salary-records', month],
@@ -55,17 +57,27 @@ export default function SalaryTab({ month }: Props) {
             <span className="font-bold text-gray-900">{fmtM(totalPayable)} so'm</span>
           </span>
         </div>
-        <button
-          onClick={handleCalculate}
-          disabled={calculating}
-          className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:opacity-60 transition"
-        >
-          {calculating
-            ? <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-            : ''}
-          Hisoblash ({month})
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setConfigOpen(true)}
+            className="flex items-center gap-2 px-4 py-2 text-sm font-medium border border-gray-200 text-gray-700 rounded-xl hover:bg-gray-50 transition"
+          >
+            <Settings size={15} /> Ish haqi sozlash
+          </button>
+          <button
+            onClick={handleCalculate}
+            disabled={calculating}
+            className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:opacity-60 transition"
+          >
+            {calculating
+              ? <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              : ''}
+            Hisoblash ({month})
+          </button>
+        </div>
       </div>
+
+      {configOpen && <SalaryConfigModal onClose={() => setConfigOpen(false)} />}
 
       {/* Jadval */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
@@ -77,6 +89,8 @@ export default function SalaryTab({ month }: Props) {
                 <th className="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide">Asosiy</th>
                 <th className="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide">KPI bonus</th>
                 <th className="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide hidden sm:table-cell">O'rinbosar</th>
+                <th className="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide hidden lg:table-cell">To'lov bonus</th>
+                <th className="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide hidden lg:table-cell">Lid bonus</th>
                 <th className="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide hidden md:table-cell">Chegirma</th>
                 <th className="text-right px-4 py-3 text-xs font-semibold text-gray-700 uppercase tracking-wide">Jami</th>
                 <th className="text-center px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide">Holat</th>
@@ -87,7 +101,7 @@ export default function SalaryTab({ month }: Props) {
               {isLoading
                 ? Array.from({ length: 5 }).map((_, i) => (
                     <tr key={i}>
-                      {Array.from({ length: 8 }).map((__, j) => (
+                      {Array.from({ length: 10 }).map((__, j) => (
                         <td key={j} className="px-4 py-3">
                           <div className="h-4 bg-gray-100 rounded animate-pulse" />
                         </td>
@@ -97,7 +111,7 @@ export default function SalaryTab({ month }: Props) {
                 : !records?.length
                 ? (
                     <tr>
-                      <td colSpan={8} className="px-6 py-16 text-center text-gray-400">
+                      <td colSpan={10} className="px-6 py-16 text-center text-gray-400">
                         <div className="text-5xl mb-3"><Briefcase size={16} /></div>
                         <p className="font-medium">Ish haqi hisoblari yo'q</p>
                         <p className="text-sm mt-1">«Hisoblash» tugmasini bosing</p>
@@ -117,6 +131,8 @@ export default function SalaryTab({ month }: Props) {
                       <MoneyCell value={r.baseAmount} />
                       <MoneyCell value={r.kpiBonus} positive />
                       <MoneyCell value={r.subAmount} positive className="hidden sm:table-cell" />
+                      <MoneyCell value={r.paymentBonus} positive className="hidden lg:table-cell" />
+                      <MoneyCell value={r.leadBonus} positive className="hidden lg:table-cell" />
                       <MoneyCell value={r.deduction} negative className="hidden md:table-cell" />
                       <td className="px-4 py-3.5 text-right">
                         <span className="font-bold text-base text-gray-900">{fmtM(r.totalAmount)}</span>

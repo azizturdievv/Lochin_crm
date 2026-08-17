@@ -67,4 +67,8 @@ export class Lead extends BaseEntity {
   // Yo'qotilgan sabab
   @Column({ name: 'lost_reason', type: 'varchar', nullable: true })
   lostReason: string | null;
+
+  // ENROLLED bosqichiga o'tgan sana — manager lid-bonusini oylik hisoblash uchun
+  @Column({ name: 'enrolled_at', nullable: true, type: 'timestamptz' })
+  enrolledAt: Date | null;
 }

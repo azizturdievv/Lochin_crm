@@ -1,11 +1,13 @@
 'use client';
 
-import { AlertTriangle, Archive, Pencil, School, Search, X } from 'lucide-react';
+import { AlertTriangle, Archive, CalendarX2, Pencil, School, Search, X } from 'lucide-react';
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'next/navigation';
+import Link from 'next/link';
 import api from '@/lib/api';
 import GroupDetailModal from '@/components/groups/GroupDetailModal';
+import type { MonthGenerationStatus } from '@/types/schedule';
 
 // ─── TURLARI ──────────────────────────────────────────────────────────────────
 interface Subject { id: string; name: string; }
@@ -98,6 +100,18 @@ export default function GroupsPage() {
     queryKey: ['subjects'],
     queryFn: () => api.get<Subject[]>('/subjects').then(r => r.data),
   });
+
+  // Joriy oy uchun qaysi guruhlarning jadvali to'liq emasligi (Jadval
+  // sahifasidagi banner bilan bir xil endpoint — "N kun yetishmayapti" belgisi)
+  const currentMonth = (() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  })();
+  const { data: monthStatus } = useQuery({
+    queryKey: ['month-status', currentMonth],
+    queryFn: () => api.get<MonthGenerationStatus[]>('/schedule/month-status', { params: { month: currentMonth } }).then(r => r.data),
+  });
+  const monthStatusMap = new Map((monthStatus ?? []).map(s => [s.groupId, s]));
 
   // Deaktivatsiya
   const deleteMut = useMutation({
@@ -210,12 +224,13 @@ export default function GroupsPage() {
                       </div>
                       <div>
                         <p className="font-medium text-gray-900">{g.name}</p>
-                        <div className="flex gap-0.5 mt-0.5">
+                        <div className="flex flex-wrap items-center gap-1 mt-0.5">
                           {g.lessonDays.map(d => (
                             <span key={d} className="text-xs text-emerald-600 bg-emerald-50 px-1 rounded">
                               {DAYS_SHORT[d] ?? d}
                             </span>
                           ))}
+                          {g.isActive && <ScheduleBadge group={g} status={monthStatusMap.get(g.id)} />}
                         </div>
                       </div>
                     </div>
@@ -339,6 +354,43 @@ export default function GroupsPage() {
       )}
     </div>
   );
+}
+
+// ─── JADVAL HOLATI BELGISI ────────────────────────────────────────────────────
+// Kun/vaqt/xona umuman sozlanmagan bo'lsa — neytral eslatma (shoshilinch emas,
+// "keyinroq belgilayman" holati). Sozlangan-u, joriy oy uchun konflikt yoki
+// hali generatsiya qilinmagani sababli kunlar yetishmasa — amber, harakat talab
+// qiladigan belgi. Ikkalasi ham Jadval sahifasidagi bannerga olib boradi.
+function ScheduleBadge({ group, status }: { group: Group; status?: MonthGenerationStatus }) {
+  const noPattern = !group.lessonDays.length || !group.lessonTime || !group.roomNumber;
+
+  if (noPattern) {
+    return (
+      <Link
+        href="/dashboard/schedule"
+        onClick={e => e.stopPropagation()}
+        title="Dars kunlari, vaqti yoki xonasi hali sozlanmagan"
+        className="inline-flex items-center gap-1 text-xs text-gray-500 bg-gray-100 hover:bg-gray-200 px-1.5 py-0.5 rounded transition-colors"
+      >
+        <CalendarX2 size={10} /> Jadval yo'q
+      </Link>
+    );
+  }
+
+  if (status && status.missing > 0) {
+    return (
+      <Link
+        href="/dashboard/schedule"
+        onClick={e => e.stopPropagation()}
+        title={`Bu oy uchun ${status.missing} kunlik dars hali yaratilmagan`}
+        className="inline-flex items-center gap-1 text-xs text-amber-700 bg-amber-100 hover:bg-amber-200 px-1.5 py-0.5 rounded transition-colors"
+      >
+        <AlertTriangle size={10} /> {status.missing} kun yo'q
+      </Link>
+    );
+  }
+
+  return null;
 }
 
 // ─── GURUH MODAL ──────────────────────────────────────────────────────────────

@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
+import { formatDateTime } from '@/lib/date';
 import { useAuthStore } from '@/store/auth.store';
 import { LIVE_SESSION_STATUS_META } from '@/types/live-sessions';
 import type { LiveSession } from '@/types/live-sessions';
@@ -130,7 +131,7 @@ function SessionCard({ session, isHost, canManage, onOpen }: {
         {session.group && <p className="truncate">{session.group.name}</p>}
         <p className="flex items-center gap-1.5">
           <Calendar size={12} className="shrink-0" />
-          {new Date(session.scheduledAt).toLocaleString('uz-UZ', { dateStyle: 'medium', timeStyle: 'short' })}
+          {formatDateTime(session.scheduledAt)}
         </p>
         {session.host && (
           <p className="flex items-center gap-1.5">

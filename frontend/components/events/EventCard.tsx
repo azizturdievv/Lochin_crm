@@ -1,6 +1,7 @@
 'use client';
 
 import { Calendar, MapPin } from 'lucide-react';
+import { formatLongDate, formatTime } from '@/lib/date';
 import { EVENT_TYPE_META, EVENT_STATUS_META, daysUntil } from '@/types/events';
 import type { CrmEvent } from '@/types/events';
 
@@ -53,10 +54,7 @@ export default function EventCard({ event, onView, onRegister, onManage, canMana
           <div className="flex items-center gap-1.5 text-xs text-gray-500">
             <span><Calendar size={16} /></span>
             <span>
-              {new Date(event.eventDate).toLocaleDateString('uz-UZ', {
-                day: '2-digit', month: 'long', year: 'numeric',
-                hour: '2-digit', minute: '2-digit',
-              })}
+              {formatLongDate(event.eventDate)} {formatTime(event.eventDate)}
             </span>
             {event.status === 'upcoming' && days > 0 && (
               <span className={`ml-1 font-medium ${days <= 3 ? 'text-red-600' : 'text-emerald-600'}`}>

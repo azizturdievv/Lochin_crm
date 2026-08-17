@@ -3,14 +3,16 @@
 import { Banknote, BarChart3, Calendar, ChevronDown, ChevronUp, CreditCard, FileText, PlusCircle, Receipt, Search } from 'lucide-react';
 import { useState, useCallback } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { useDebounce } from '@/hooks/useDebounce';
+import { formatDateTime } from '@/lib/date';
 import KpiCard from '@/components/ui/KpiCard';
 import PaymentModal from '@/components/payments/PaymentModal';
 import ReceiptModal from '@/components/payments/ReceiptModal';
 import InstallmentModal, { InstallmentCard } from '@/components/payments/InstallmentModal';
-import SessionWidget from '@/components/payments/SessionWidget';
+import SessionWidget, { fetchActiveSession } from '@/components/payments/SessionWidget';
 import DebtorsTab from '@/components/payments/DebtorsTab';
 import type { Payment, PaymentsResponse, InstallmentPlan } from '@/types/payments';
 import { METHOD_META, METHOD_CHIP_CLS, STATUS_META } from '@/types/payments';
@@ -31,6 +33,10 @@ const fetchReport = (month: string) =>
 interface StudentOption { id: string; firstName: string; lastName: string; }
 const fetchStudentOptions = (q: string) =>
   api.get<{ data: StudentOption[] }>('/students', { params: { search: q, limit: 8, isActive: true } }).then(r => r.data.data);
+
+interface StaffOption { id: string; firstName: string; lastName: string; }
+const fetchStaffOptions = () =>
+  api.get<{ data: StaffOption[] }>('/users', { params: { limit: 100 } }).then(r => r.data.data);
 
 const ROWS_PER_PAGE_OPTIONS = [10, 20, 50, 100];
 type ActiveTab = 'list' | 'debtors' | 'installments';
@@ -57,7 +63,11 @@ async function downloadExport(type: 'excel' | 'pdf', month: string) {
 
 // ─── ASOSIY SAHIFA ────────────────────────────────────────────────────────────
 export default function PaymentsPage() {
-  const [activeTab,  setActiveTab]  = useState<ActiveTab>('list');
+  const searchParams = useSearchParams();
+  const initialTab = searchParams.get('tab');
+  const [activeTab,  setActiveTab]  = useState<ActiveTab>(
+    initialTab === 'debtors' || initialTab === 'installments' ? initialTab : 'list'
+  );
   const [payModal,   setPayModal]   = useState(false);
   const [instModal,  setInstModal]  = useState(false);
   const [receipt,    setReceipt]    = useState<Payment | null>(null);
@@ -69,6 +79,7 @@ export default function PaymentsPage() {
   const [studentName,      setStudentName]      = useState('');
   const [method,   setMethod]   = useState('');
   const [status,   setStatus]   = useState('');
+  const [receivedById, setReceivedById] = useState('');
   const [month,    setMonth]    = useState(new Date().toISOString().slice(0,7));
   const [page,     setPage]     = useState(1);
   const [limit,    setLimit]    = useState(20);
@@ -83,11 +94,17 @@ export default function PaymentsPage() {
     enabled:  dStudentQuery.length >= 2 && !studentId,
   });
 
+  const { data: staffOptions } = useQuery({
+    queryKey: ['payments-staff-options'],
+    queryFn:  fetchStaffOptions,
+  });
+
   const queryParams = {
     ...(studentId && { studentId }),
     ...(method  && { method }),
     ...(status  && { status }),
     ...(month   && { paymentMonth: month }),
+    ...(receivedById && { receivedById }),
     page, limit, sortBy, sortOrder: sortOrd,
   };
 
@@ -100,6 +117,14 @@ export default function PaymentsPage() {
   const { data: report } = useQuery({
     queryKey: ['payment-report', month],
     queryFn:  () => fetchReport(month),
+  });
+
+  // SessionWidget bilan bir xil query key — smena ochiq/yopiqligini ikkala
+  // joyda ham qayta so'ramasdan bir xil keshdan oladi
+  const { data: activeSession } = useQuery({
+    queryKey: ['active-session'],
+    queryFn:  fetchActiveSession,
+    refetchInterval: 60_000,
   });
 
   const paymentCount = report ? Object.values(report.byMethod).reduce((s, m) => s + m.count, 0) : 0;
@@ -139,8 +164,9 @@ export default function PaymentsPage() {
             className="flex items-center gap-1.5 px-3 py-2 text-sm border border-gray-200 rounded-xl text-gray-600 hover:bg-gray-50 disabled:opacity-50 transition">
             PDF
           </button>
-          <button onClick={() => setPayModal(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white text-sm font-medium rounded-xl hover:bg-primary-700 transition shadow-sm">
+          <button onClick={() => setPayModal(true)} disabled={!activeSession}
+            title={activeSession ? undefined : 'To\'lov qabul qilishdan oldin smenani oching'}
+            className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white text-sm font-medium rounded-xl hover:bg-primary-700 transition shadow-sm disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-primary-600">
             + To'lov qabul
           </button>
         </div>
@@ -148,10 +174,10 @@ export default function PaymentsPage() {
 
       {/* ── KPI + SMENA ──────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <KpiCard title="Oylik daromad"  value={`${((report?.grandTotal ?? 0)/1_000_000).toFixed(1)}M so'm`} icon={Banknote}  color="emerald" />
-        <KpiCard title="Qarzdorlar"     value={`${report?.debtorCount ?? 0} ta`}                            icon={Calendar}  color="red"     />
-        <KpiCard title="To'lovlar soni" value={`${paymentCount} ta`}                                        icon={FileText}  color="purple"  />
-        <KpiCard title="O'rtacha"       value={`${(avgAmount/1_000).toFixed(0)}K so'm`}                     icon={BarChart3} color="amber"   />
+        <KpiCard title="Oylik daromad"  value={`${((report?.grandTotal ?? 0)/1_000_000).toFixed(1)}M so'm`} icon={Banknote}  color="emerald" href="/dashboard/finance" />
+        <KpiCard title="Qarzdorlar"     value={`${report?.debtorCount ?? 0} ta`}                            icon={Calendar}  color="red"     onClick={() => setActiveTab('debtors')} />
+        <KpiCard title="To'lovlar soni" value={`${paymentCount} ta`}                                        icon={FileText}  color="purple"  onClick={() => setActiveTab('list')} />
+        <KpiCard title="O'rtacha"       value={`${(avgAmount/1_000).toFixed(0)}K so'm`}                     icon={BarChart3} color="amber"   onClick={() => setActiveTab('list')} />
       </div>
 
       {/* ── SMENA WIDGET ─────────────────────────────────────────────── */}
@@ -222,8 +248,16 @@ export default function PaymentsPage() {
                 ))}
               </select>
 
-              {(studentId || method || status) && (
-                <button onClick={() => { setStudentId(''); setStudentName(''); setStudentQuery(''); setMethod(''); setStatus(''); setPage(1); }}
+              <select value={receivedById} onChange={e => { setReceivedById(e.target.value); setPage(1); }}
+                className="px-3 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white min-w-36">
+                <option value="">Barcha kassir</option>
+                {staffOptions?.map(s => (
+                  <option key={s.id} value={s.id}>{s.lastName} {s.firstName}</option>
+                ))}
+              </select>
+
+              {(studentId || method || status || receivedById) && (
+                <button onClick={() => { setStudentId(''); setStudentName(''); setStudentQuery(''); setMethod(''); setStatus(''); setReceivedById(''); setPage(1); }}
                   className="px-3 py-2.5 text-sm text-gray-500 hover:text-gray-700 border border-gray-200 rounded-xl hover:bg-gray-50 transition">
                   Tozalash
                 </button>
@@ -254,6 +288,7 @@ export default function PaymentsPage() {
                     </th>
                     <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide">Usul</th>
                     <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide hidden md:table-cell">Oy</th>
+                    <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide hidden md:table-cell">Kassir</th>
                     <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide">Holat</th>
                     <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide cursor-pointer hover:text-gray-700 hidden lg:table-cell"
                       onClick={() => handleSort('createdAt')}>
@@ -266,7 +301,7 @@ export default function PaymentsPage() {
                   {isLoading
                     ? Array.from({length:8}).map((_,i) => (
                         <tr key={i}>
-                          {Array.from({length:7}).map((__,j) => (
+                          {Array.from({length:8}).map((__,j) => (
                             <td key={j} className="px-4 py-3.5">
                               <div className="h-4 bg-gray-100 rounded animate-pulse" />
                             </td>
@@ -276,7 +311,7 @@ export default function PaymentsPage() {
                     : payments.length === 0
                     ? (
                         <tr>
-                          <td colSpan={7} className="px-6 py-16 text-center text-gray-400">
+                          <td colSpan={8} className="px-6 py-16 text-center text-gray-400">
                             <div className="text-5xl mb-3"><CreditCard size={16} /></div>
                             <p className="font-medium text-gray-500">To'lovlar topilmadi</p>
                             <p className="text-sm mt-1">Filtrlarni o'zgartiring</p>
@@ -303,6 +338,7 @@ export default function PaymentsPage() {
       <PaymentModal
         open={payModal}
         onClose={() => setPayModal(false)}
+        cashSessionId={activeSession?.id}
         onSuccess={(id) => {
           // Keyinchalik receipt ko'rsatish mumkin
         }}
@@ -354,6 +390,12 @@ function PaymentRow({ payment, onReceipt }: { payment: Payment; onReceipt: () =>
         <span className="text-gray-500 text-sm">{payment.paymentMonth ?? '—'}</span>
       </td>
 
+      <td className="px-4 py-3.5 hidden md:table-cell">
+        <span className="text-gray-500 text-sm">
+          {payment.receivedBy ? `${payment.receivedBy.lastName} ${payment.receivedBy.firstName}` : '—'}
+        </span>
+      </td>
+
       <td className="px-4 py-3.5">
         <span className={`inline-block text-xs font-medium px-2.5 py-1 rounded-full ${status.cls}`}>
           {status.label}
@@ -361,7 +403,7 @@ function PaymentRow({ payment, onReceipt }: { payment: Payment; onReceipt: () =>
       </td>
 
       <td className="px-4 py-3.5 hidden lg:table-cell text-xs text-gray-400">
-        {new Date(payment.createdAt).toLocaleString('uz-UZ', { dateStyle:'short', timeStyle:'short' })}
+        {formatDateTime(payment.createdAt)}
       </td>
 
       <td className="px-4 py-3.5 text-right">

@@ -1,6 +1,6 @@
 'use client';
 
-import { AlertTriangle, Archive, ChevronDown, ChevronUp, ChevronsUpDown, ClipboardList, Eye, LayoutGrid, List, Pencil, Plus, School, Search, Star, Users } from 'lucide-react';
+import { AlertTriangle, Archive, ChevronDown, ChevronUp, ChevronsUpDown, ClipboardList, Eye, KeyRound, LayoutGrid, List, Pencil, Plus, School, Search, Star, Users } from 'lucide-react';
 import PageHeader from '@/components/ui/PageHeader';
 import { useState, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -11,6 +11,7 @@ import { useDebounce } from '@/hooks/useDebounce';
 import StudentModal from '@/components/students/StudentModal';
 import EnrollModal from '@/components/students/EnrollModal';
 import StudentCard from '@/components/students/StudentCard';
+import ResetPasswordModal from '@/components/staff/ResetPasswordModal';
 import type { StudentsResponse, Student } from '@/types/students';
 
 interface Subject { id: string; name: string; }
@@ -48,6 +49,7 @@ export default function StudentsPage() {
   const [modal,    setModal]    = useState<{ open: boolean; student: Student | null }>({ open: false, student: null });
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [enrollId, setEnrollId] = useState<{ id: string; name: string } | null>(null);
+  const [credsStudent, setCredsStudent] = useState<Student | null>(null);
   const [sortBy,   setSortBy]   = useState('createdAt');
   const [sortOrder,setSortOrder]= useState<'ASC'|'DESC'>('DESC');
   const [groupId,  setGroupId]  = useState('');
@@ -243,6 +245,7 @@ export default function StudentsPage() {
                   onEdit={() => setModal({ open: true, student: s })}
                   onDelete={() => setDeleteId(s.id)}
                   onEnroll={() => setEnrollId({ id: s.id, name: `${s.lastName} ${s.firstName}` })}
+                  onCreds={() => setCredsStudent(s)}
                 />
               ))}
             </div>
@@ -301,6 +304,7 @@ export default function StudentsPage() {
                     onEdit={() => setModal({ open: true, student: s })}
                     onDelete={() => setDeleteId(s.id)}
                     onEnroll={() => setEnrollId({ id: s.id, name: `${s.lastName} ${s.firstName}` })}
+                    onCreds={() => setCredsStudent(s)}
                   />
                 ))
               )}
@@ -332,6 +336,10 @@ export default function StudentsPage() {
         onClose={() => setModal({ open: false, student: null })}
       />
 
+      {credsStudent && (
+        <ResetPasswordModal user={credsStudent} onClose={() => setCredsStudent(null)} />
+      )}
+
       {/* O'chirish tasdiqlash */}
       {deleteId && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
@@ -361,8 +369,8 @@ export default function StudentsPage() {
 }
 
 // ─── SATR KOMPONENTI ──────────────────────────────────────────────────────────
-function StudentRow({ student, onEdit, onDelete, onEnroll }: {
-  student: Student; onEdit: () => void; onDelete: () => void; onEnroll: () => void;
+function StudentRow({ student, onEdit, onDelete, onEnroll, onCreds }: {
+  student: Student; onEdit: () => void; onDelete: () => void; onEnroll: () => void; onCreds: () => void;
 }) {
   const initials = `${student.firstName.charAt(0)}${student.lastName.charAt(0)}`.toUpperCase();
   const statusKey = student.isActive ? 'active' : 'inactive';
@@ -425,6 +433,8 @@ function StudentRow({ student, onEdit, onDelete, onEnroll }: {
             className="p-1.5 rounded-lg hover:bg-emerald-50 text-emerald-500 transition-colors text-sm" title="Guruhga yozish"><ClipboardList size={16} /></button>
           <button onClick={onEdit}
             className="p-1.5 rounded-lg hover:bg-amber-50 text-amber-500 transition-colors text-sm" title="Tahrirlash"><Pencil size={16} /></button>
+          <button onClick={onCreds}
+            className="p-1.5 rounded-lg hover:bg-violet-50 text-violet-500 transition-colors text-sm" title="Kirish ma'lumotlari"><KeyRound size={16} /></button>
           <button onClick={onDelete}
             className="p-1.5 rounded-lg hover:bg-red-50 text-red-400 transition-colors text-sm" title="Arxivlash"><Archive size={16} /></button>
         </div>

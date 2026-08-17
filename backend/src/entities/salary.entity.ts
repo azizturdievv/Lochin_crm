@@ -28,6 +28,14 @@ export class Salary extends BaseEntity {
   @Column({ name: 'sales_bonus_percent', type: 'decimal', precision: 5, scale: 2, default: 0 })
   salesBonusPercent: number;
 
+  // O'zi qabul qilgan to'lovlar summasidan foiz (admin/manager) — 0 = o'chirilgan
+  @Column({ name: 'payment_bonus_percent', type: 'decimal', precision: 5, scale: 2, default: 0 })
+  paymentBonusPercent: number;
+
+  // Unga biriktirilgan har bir o'quvchiga aylangan lid uchun so'mda bonus (manager) — 0 = o'chirilgan
+  @Column({ name: 'lead_bonus_amount', type: 'bigint', default: 0 })
+  leadBonusAmount: bigint;
+
   @Column({ name: 'is_active', default: true })
   isActive: boolean;
 

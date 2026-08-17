@@ -40,6 +40,11 @@ export class QueryPaymentDto {
   @IsString()
   cashSessionId?: string;
 
+  // Qaysi xodim qabul qilgani bo'yicha filtr (admin/manager KPI uchun)
+  @IsOptional()
+  @IsString()
+  receivedById?: string;
+
   @IsOptional()
   @Type(() => Number)
   @IsInt()

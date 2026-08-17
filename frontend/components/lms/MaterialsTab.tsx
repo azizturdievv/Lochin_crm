@@ -4,6 +4,7 @@ import { Download, FolderOpen, Trash2, Upload } from 'lucide-react';
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
+import { formatShortDate } from '@/lib/date';
 import { MATERIAL_META } from '@/types/lms';
 import type { Material, MaterialType } from '@/types/lms';
 import UploadMaterialModal from './UploadMaterialModal';
@@ -117,7 +118,7 @@ export default function MaterialsTab({ groupId, canUpload }: Props) {
                       <span className="text-[10px] text-gray-400">{formatSize(m.fileSize)}</span>
                     )}
                     <span className="text-[10px] text-gray-400">
-                      {new Date(m.createdAt).toLocaleDateString('uz-UZ', { day:'2-digit', month:'short' })}
+                      {formatShortDate(m.createdAt)}
                     </span>
                     {m.uploadedBy && (
                       <span className="text-[10px] text-gray-400">

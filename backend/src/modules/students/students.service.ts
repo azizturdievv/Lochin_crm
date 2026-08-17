@@ -66,7 +66,8 @@ export class StudentsService {
       ? await this.validateAndReserveUsername(dto.username)
       : await this.generateUsername(dto.firstName);
 
-    const passwordHash = await bcrypt.hash(dto.password, 12);
+    const generatedPassword = dto.password ? undefined : this.generateRandomPassword();
+    const passwordHash = await bcrypt.hash(dto.password ?? generatedPassword!, 12);
 
     // Ko'p guruh: groupIds ustuvor, groupId fallback
     const allGroupIds = dto.groupIds?.length
@@ -154,7 +155,8 @@ export class StudentsService {
         newValues: { username, email: student.email, firstName: student.firstName, lastName: student.lastName },
       });
 
-      return this.findOne(student.id, actorId, actorRole);
+      const result = await this.findOne(student.id, actorId, actorRole);
+      return generatedPassword ? { ...result, generatedPassword } : result;
     } catch (err: unknown) {
       await queryRunner.rollbackTransaction();
       const pgErr = err as { code?: string; detail?: string };
@@ -183,6 +185,11 @@ export class StudentsService {
       throw new ConflictException(`"${username}" username allaqachon band`);
     }
     return username;
+  }
+
+  // Parol berilmaganda: 8 xonali tasodifiy raqamli parol
+  private generateRandomPassword(): string {
+    return Math.floor(10000000 + Math.random() * 90000000).toString();
   }
 
   // Username avtomatik generatsiya: jasur_001
@@ -366,6 +373,10 @@ export class StudentsService {
       ...(dto.telegramChatId !== undefined && { telegramChatId: dto.telegramChatId }),
       ...(dto.avatarUrl !== undefined && { avatarUrl: dto.avatarUrl }),
       ...(dto.isActive !== undefined && { isActive: dto.isActive }),
+      ...(dto.address !== undefined && { address: dto.address }),
+      ...(dto.schoolName !== undefined && { schoolName: dto.schoolName }),
+      ...(dto.schoolGrade !== undefined && { schoolGrade: dto.schoolGrade }),
+      ...(dto.notes !== undefined && { notes: dto.notes }),
     });
 
     await this.auditLogService.log({

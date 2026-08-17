@@ -6,6 +6,7 @@ import dynamic from 'next/dynamic';
 import { useParams, useRouter } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
+import { formatDateTime } from '@/lib/date';
 import { useAuthStore } from '@/store/auth.store';
 import { LIVE_SESSION_STATUS_META } from '@/types/live-sessions';
 import type { LiveSession, JoinLiveSessionResponse } from '@/types/live-sessions';
@@ -77,7 +78,7 @@ export default function LiveSessionDetailPage() {
             <div className="flex items-center gap-3 mt-1 text-xs text-gray-400 flex-wrap">
               {session.group && <span className="truncate">{session.group.name}</span>}
               <span className="flex items-center gap-1"><Calendar size={12} />
-                {new Date(session.scheduledAt).toLocaleString('uz-UZ', { dateStyle: 'medium', timeStyle: 'short' })}
+                {formatDateTime(session.scheduledAt)}
               </span>
               {session.host && (
                 <span className="flex items-center gap-1"><User size={12} />{session.host.firstName} {session.host.lastName}</span>

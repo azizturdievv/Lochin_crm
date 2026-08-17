@@ -117,19 +117,30 @@ export class PaymentsService {
       if (plan.isCompleted) throw new BadRequestException('Muddatli to\'lov allaqachon yakunlangan');
     }
 
-    // Smena ID berilgan bo'lsa — mavjudligi, ochiqligi va shu kassirga tegishliligi
-    // tekshiriladi. Avval hech qanday tekshiruv yo'q edi — istalgan (hatto yopiq
-    // yoki boshqa kassirning) smenaga to'lov "yopishtirib" qo'yish mumkin edi,
-    // bu smena yopilishida hisoblangan kassa balansini buzardi.
+    // Smena (kassa sessiyasi) ochiq bo'lmasa to'lov qabul qilib bo'lmaydi —
+    // aks holda smena yopilganda hisoblangan kutilgan kassa balansi haqiqiy
+    // tushumni aks ettirmaydi. Avval bu tekshiruv faqat cashSessionId berilgan
+    // bo'lsagina ishlar edi — frontend uni hech qachon yubormagani uchun
+    // amalda hech qachon ishlamas edi (sof UI eslatma, backend majburlamas edi).
+    let session: CashSession;
     if (dto.cashSessionId) {
-      const session = await this.cashSessionRepo.findOne({ where: { id: dto.cashSessionId } });
-      if (!session) throw new NotFoundException('Smena topilmadi');
-      if (session.status !== CashSessionStatus.OPEN) {
-        throw new BadRequestException('Bu smena yopiq — unga to\'lov qo\'shib bo\'lmaydi');
-      }
-      if (session.cashierId !== actorId) {
+      const found = await this.cashSessionRepo.findOne({ where: { id: dto.cashSessionId } });
+      if (!found) throw new NotFoundException('Smena topilmadi');
+      if (found.cashierId !== actorId) {
         throw new ForbiddenException('Bu smena boshqa kassirga tegishli');
       }
+      if (found.status !== CashSessionStatus.OPEN) {
+        throw new BadRequestException('Bu smena yopiq — unga to\'lov qo\'shib bo\'lmaydi');
+      }
+      session = found;
+    } else {
+      const open = await this.cashSessionRepo.findOne({
+        where: { cashierId: actorId, status: CashSessionStatus.OPEN },
+      });
+      if (!open) {
+        throw new BadRequestException('To\'lov qabul qilishdan oldin smenani oching');
+      }
+      session = open;
     }
 
     const now = new Date();
@@ -166,7 +177,7 @@ export class PaymentsService {
           cashBreakdown: (dto.cashBreakdown as Record<string, number>) ?? null,
           cashAmount: BigInt(Math.round(dto.cashAmount ?? (dto.method === PaymentMethod.CASH ? dto.amount : 0))),
           cardAmount: BigInt(Math.round(dto.cardAmount ?? (dto.method === PaymentMethod.CARD ? dto.amount : 0))),
-          cashSessionId: dto.cashSessionId ?? null,
+          cashSessionId: session.id,
           installmentPlanId: dto.installmentPlanId ?? null,
           installmentPart: dto.installmentPart ?? null,
           receiptPrinted: false,
@@ -260,6 +271,7 @@ export class PaymentsService {
     if (query.status) qb.andWhere('p.status = :status', { status: query.status });
     if (query.paymentMonth) qb.andWhere('p.payment_month = :pm', { pm: query.paymentMonth });
     if (query.cashSessionId) qb.andWhere('p.cash_session_id = :cs', { cs: query.cashSessionId });
+    if (query.receivedById) qb.andWhere('p.received_by = :rbid', { rbid: query.receivedById });
     if (query.dateFrom) qb.andWhere('p.created_at >= :from', { from: new Date(query.dateFrom) });
     if (query.dateTo) qb.andWhere('p.created_at <= :to', { to: new Date(query.dateTo) });
 
@@ -711,9 +723,31 @@ export class PaymentsService {
   }
 
   async getOpenSession(actorId: string) {
-    return this.cashSessionRepo.findOne({
+    // cashier relatsiyasi ataylab yuklanmaydi — User'ning to'liq qatorini
+    // (parolHash bilan) qaytarib yuborardi; bu javobni faqat o'z smenasini
+    // ko'rayotgan kassirning o'zi chaqiradi, shuning uchun kassir kimligi
+    // allaqachon ma'lum (cashierId yetarli)
+    const session = await this.cashSessionRepo.findOne({
       where: { cashierId: actorId, status: CashSessionStatus.OPEN },
     });
+    if (!session) return null;
+
+    // Smena davomida jami qabul qilingan to'lovlar (barcha usullar) — vidjetda
+    // "Yig'ilgan" sifatida ko'rsatiladi. Faqat naqd (expectedBalance) smena
+    // yopilganda alohida hisoblanadi.
+    const totalRow = await this.cashSessionRepo.query(
+      `SELECT COALESCE(SUM(amount), 0) AS total FROM payments WHERE cash_session_id = $1 AND status = 'completed' AND deleted_at IS NULL`,
+      [session.id],
+    );
+
+    return {
+      ...session,
+      // bigint ustunlar pg orqali string sifatida qaytadi — raqamga aylantirmasa
+      // frontendda "500000" + 30000 kabi satr birlashtirish bo'lib qolardi
+      openingBalance: Number(session.openingBalance),
+      closingBalance: session.closingBalance !== null ? Number(session.closingBalance) : null,
+      totalCollected: Number(totalRow[0]?.total ?? 0),
+    };
   }
 
   // ─── HISOBOT ─────────────────────────────────────────────────────────────
@@ -741,6 +775,34 @@ export class PaymentsService {
       grandTotal += Number(row.total);
     }
 
+    // Qaysi xodim qancha qabul qilgani (admin/manager KPI uchun)
+    const staffRaw = await this.paymentRepo
+      .createQueryBuilder('p')
+      .innerJoin('p.receivedBy', 'rb')
+      .where('p.payment_month = :month', { month })
+      .andWhere('p.status = :s', { s: PaymentStatus.COMPLETED })
+      .andWhere('p.deleted_at IS NULL')
+      .select([
+        'rb.id AS "staffId"',
+        'rb.firstName AS "firstName"',
+        'rb.lastName AS "lastName"',
+        'SUM(p.amount) AS total',
+        'COUNT(*) AS count',
+      ])
+      .groupBy('rb.id')
+      .addGroupBy('rb.firstName')
+      .addGroupBy('rb.lastName')
+      .orderBy('total', 'DESC')
+      .getRawMany<{ staffId: string; firstName: string; lastName: string; total: string; count: string }>();
+
+    const byStaff = staffRaw.map((row) => ({
+      staffId: row.staffId,
+      firstName: row.firstName,
+      lastName: row.lastName,
+      total: Number(row.total),
+      count: Number(row.count),
+    }));
+
     // Oylik debtorlar soni
     const debtorCount = await this.userRepo
       .createQueryBuilder('u')
@@ -753,7 +815,7 @@ export class PaymentsService {
       )
       .getCount();
 
-    return { month, grandTotal, byMethod, debtorCount };
+    return { month, grandTotal, byMethod, byStaff, debtorCount };
   }
 
   // ─── KVITANSIYA (TERMAL PRINTER) ─────────────────────────────────────────

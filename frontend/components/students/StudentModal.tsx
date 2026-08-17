@@ -1,10 +1,10 @@
 'use client';
 
-import { ChevronLeft, ChevronRight, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, X, Copy, Check } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
-import type { Student, CreateStudentForm, UpdateStudentForm } from '@/types/students';
+import type { Student, CreateStudentForm, CreateStudentResponse, UpdateStudentForm } from '@/types/students';
 
 // ─── TURLARI ──────────────────────────────────────────────────────────────────
 interface GroupOption {
@@ -61,6 +61,7 @@ export default function StudentModal({ open, onClose, student }: Props) {
   const [tab, setTab]   = useState<Tab>('main');
   const [form, setForm] = useState<CreateStudentForm>({ ...EMPTY_CREATE });
   const [editForm, setEditForm] = useState<UpdateStudentForm>({});
+  const [revealCreds, setRevealCreds] = useState<{ username: string; password: string } | null>(null);
 
   // Guruhlar ro'yxati (yaratishda)
   const { data: groups } = useQuery({
@@ -74,11 +75,15 @@ export default function StudentModal({ open, onClose, student }: Props) {
   // ─── MUTATSIYALAR ───────────────────────────────────────────────────────────
   const createMut = useMutation({
     mutationFn: (data: CreateStudentForm) =>
-      api.post('/students', data).then(r => r.data),
-    onSuccess: () => {
+      api.post<CreateStudentResponse>('/students', data).then(r => r.data),
+    onSuccess: (created) => {
       qc.invalidateQueries({ queryKey: ['students'] });
       qc.invalidateQueries({ queryKey: ['groups'] });
-      onClose();
+      if (created.generatedPassword && created.username) {
+        setRevealCreds({ username: created.username, password: created.generatedPassword });
+      } else {
+        onClose();
+      }
     },
   });
 
@@ -112,10 +117,16 @@ export default function StudentModal({ open, onClose, student }: Props) {
         setForm({ ...EMPTY_CREATE, parents: [], groupIds: [] });
       }
       setTab('main');
+      setRevealCreds(null);
     }
   }, [open, student]);
 
   if (!open) return null;
+
+  function handleDone() {
+    setRevealCreds(null);
+    onClose();
+  }
 
   const TABS: { key: Tab; label: string }[] = isEdit
     ? [
@@ -138,47 +149,96 @@ export default function StudentModal({ open, onClose, student }: Props) {
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 shrink-0">
           <h2 className="text-lg font-semibold text-gray-900">
-            {isEdit ? "O'quvchi tahrirlash" : "Yangi o'quvchi"}
+            {revealCreds ? "O'quvchi qo'shildi" : isEdit ? "O'quvchi tahrirlash" : "Yangi o'quvchi"}
           </h2>
-          <button onClick={onClose}
+          <button onClick={handleDone}
             className="w-8 h-8 rounded-xl flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition"><X size={16} /></button>
         </div>
 
-        {/* Tablar */}
-        <div className="flex border-b border-gray-100 px-6 shrink-0 overflow-x-auto">
-          {TABS.map(t => (
-            <button key={t.key} onClick={() => setTab(t.key)}
-              className={`py-3 px-1 mr-5 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${
-                tab === t.key
-                  ? 'border-emerald-600 text-emerald-700'
-                  : 'border-transparent text-gray-400 hover:text-gray-700'
-              }`}>
-              {t.label}
-            </button>
-          ))}
-        </div>
+        {revealCreds ? (
+          <div className="px-6 py-5">
+            <CredentialsReveal creds={revealCreds} onDone={handleDone} />
+          </div>
+        ) : (
+          <>
+            {/* Tablar */}
+            <div className="flex border-b border-gray-100 px-6 shrink-0 overflow-x-auto">
+              {TABS.map(t => (
+                <button key={t.key} onClick={() => setTab(t.key)}
+                  className={`py-3 px-1 mr-5 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${
+                    tab === t.key
+                      ? 'border-emerald-600 text-emerald-700'
+                      : 'border-transparent text-gray-400 hover:text-gray-700'
+                  }`}>
+                  {t.label}
+                </button>
+              ))}
+            </div>
 
-        {/* Kontent */}
-        <div className="flex-1 overflow-y-auto px-6 py-5">
-          {isEdit
-            ? <EditContent
-                form={editForm}
-                setForm={setEditForm}
-                tab={tab}
-                mut={editMut}
-                onClose={onClose}
-              />
-            : <CreateContent
-                form={form}
-                setForm={setForm}
-                tab={tab}
-                setTab={setTab}
-                groups={groups}
-                mut={createMut}
-                onClose={onClose}
-              />
-          }
+            {/* Kontent */}
+            <div className="flex-1 overflow-y-auto px-6 py-5">
+              {isEdit
+                ? <EditContent
+                    form={editForm}
+                    setForm={setEditForm}
+                    tab={tab}
+                    mut={editMut}
+                    onClose={onClose}
+                  />
+                : <CreateContent
+                    form={form}
+                    setForm={setForm}
+                    tab={tab}
+                    setTab={setTab}
+                    groups={groups}
+                    mut={createMut}
+                    onClose={onClose}
+                  />
+              }
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── PAROL/LOGIN KO'RSATISH (bir martalik) ───────────────────────────────────
+function CredentialsReveal({ creds, onDone }: { creds: { username: string; password: string }; onDone: () => void }) {
+  const [copied, setCopied] = useState(false);
+
+  function copy() {
+    navigator.clipboard.writeText(`Login: ${creds.username}\nParol: ${creds.password}`).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }
+
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-gray-500">
+        Parol avtomatik yaratildi — buni faqat shu yerda ko&apos;rasiz. O&apos;quvchi yoki ota-onasiga yozib bering.
+      </p>
+      <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 space-y-3">
+        <div>
+          <p className={LABEL}>Login</p>
+          <p className="text-base font-mono font-semibold text-gray-900">{creds.username}</p>
         </div>
+        <div>
+          <p className={LABEL}>Parol</p>
+          <p className="text-base font-mono font-semibold text-gray-900">{creds.password}</p>
+        </div>
+      </div>
+      <div className="flex gap-3">
+        <button type="button" onClick={copy}
+          className="flex-1 py-2.5 border border-gray-300 text-gray-700 rounded-xl text-sm font-medium hover:bg-gray-50 transition flex items-center justify-center gap-2">
+          {copied ? <Check size={15} className="text-emerald-600" /> : <Copy size={15} />}
+          {copied ? 'Nusxalandi' : 'Nusxalash'}
+        </button>
+        <button type="button" onClick={onDone}
+          className="flex-1 py-2.5 bg-primary-600 text-white rounded-xl text-sm font-medium hover:bg-primary-700 transition">
+          Yakunlash
+        </button>
       </div>
     </div>
   );
@@ -233,11 +293,15 @@ function CreateContent({ form, setForm, tab, setTab, groups, mut, onClose }: {
   }
 
   function handleSubmit() {
-    if (!form.firstName.trim()) { setTab('main'); return; }
-    if (!form.lastName.trim())  { setTab('main'); return; }
-    if (!form.password)         { setTab('main'); return; }
-    // Bo'sh guruh IDlarini tozalash
-    const cleaned = { ...form, groupIds: (form.groupIds ?? []).filter(Boolean) };
+    if (!form.firstName.trim())                              { setTab('main'); return; }
+    if (!form.lastName.trim())                                { setTab('main'); return; }
+    if (form.password && form.password.length < 8)            { setTab('main'); return; }
+    // Bo'sh guruh IDlarini tozalash, parol bo'sh bo'lsa yubormaymiz (backend avtomatik yaratadi)
+    const cleaned = {
+      ...form,
+      password: form.password || undefined,
+      groupIds: (form.groupIds ?? []).filter(Boolean),
+    };
     mut.mutate(cleaned);
   }
 
@@ -299,9 +363,12 @@ function CreateContent({ form, setForm, tab, setTab, groups, mut, onClose }: {
               type="email" className={INPUT} placeholder="jasur@example.com" />
           </div>
           <div>
-            <label className={LABEL}>Parol *</label>
-            <input value={form.password} onChange={e => set('password', e.target.value)}
-              type="password" className={INPUT} placeholder="Kamida 8 belgi" />
+            <label className={LABEL}>
+              Parol
+              <span className="ml-1 text-gray-400 font-normal">(bo'sh qoldiring — avtomatik yaratiladi)</span>
+            </label>
+            <input value={form.password ?? ''} onChange={e => set('password', e.target.value)}
+              type="text" className={INPUT} placeholder="Yoki qo'lda kiriting — kamida 8 belgi" />
           </div>
           <div className="flex gap-3 pt-1">
             <button type="button" onClick={onClose}

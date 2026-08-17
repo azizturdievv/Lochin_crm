@@ -79,9 +79,11 @@ export class CreateStudentDto {
   @Transform(({ value }) => (value === '' ? undefined : value))
   phone?: string;
 
+  // Ixtiyoriy — berilmasa, 8 xonali tasodifiy raqamli parol avtomatik yaratiladi
+  @IsOptional()
   @IsString()
   @MinLength(8, { message: "Parol kamida 8 belgi bo'lishi kerak" })
-  password: string;
+  password?: string;
 
   // ── Shaxsiy ──────────────────────────────────────────────────────────────────
   @IsOptional()
@@ -126,6 +128,7 @@ export class CreateStudentDto {
   // ── Qayerdan keldi ────────────────────────────────────────────────────────────
   @IsOptional()
   @IsIn(['Instagram', 'Telegram', "Do'st", 'Walk-in', "Qo'ng'iroq", 'Boshqa'])
+  @Transform(({ value }) => (value === '' ? undefined : value))
   referralSource?: string;
 
   @IsOptional()

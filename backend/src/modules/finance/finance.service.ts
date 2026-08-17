@@ -63,10 +63,17 @@ export class FinanceService {
     const marginPercent =
       totalIncome > 0 ? Math.round((netProfit / totalIncome) * 1000) / 10 : 0;
 
-    // Faol o'quvchilar
-    const activeStudents = await this.enrollmentRepo.count({
-      where: { status: EnrollmentStatus.ACTIVE },
-    });
+    // Faol o'quvchilar — bitta o'quvchi bir nechta guruhda bo'lsa ham bir marta
+    // sanaladi, va arxivlangan (o'chirilgan) o'quvchining eski yozilishi hisobga
+    // kirmaydi (avval oddiy .count() edi — ikkalasini ham tekshirmasdi)
+    const activeStudentsRow = await this.enrollmentRepo
+      .createQueryBuilder('e')
+      .innerJoin('users', 'u', 'u.id = e.student_id AND u.deleted_at IS NULL AND u.is_active = true')
+      .where('e.status = :status', { status: EnrollmentStatus.ACTIVE })
+      .andWhere('e.deleted_at IS NULL')
+      .select('COUNT(DISTINCT e.student_id) AS cnt')
+      .getRawOne<{ cnt: string }>();
+    const activeStudents = Number(activeStudentsRow?.cnt ?? 0);
 
     // Qarzdorlar soni
     const debtorCount = await this.userRepo

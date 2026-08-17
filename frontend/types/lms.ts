@@ -129,6 +129,24 @@ export interface CheckAnswerResponse {
   correctAnswer: string;
 }
 
+export type ExtensionStatus = 'pending' | 'approved' | 'rejected';
+
+export interface MyExtensionStatus {
+  status:       ExtensionStatus | null;
+  extraMinutes: number | null;
+}
+
+export interface PendingExtension {
+  id:           string;
+  testId:       string;
+  testTitle:    string;
+  studentId:    string;
+  studentName:  string;
+  extraMinutes: number;
+  reason:       string | null;
+  createdAt:    string;
+}
+
 export interface TestSubmitResponse {
   resultId:         string;
   score:            number;
@@ -204,6 +222,12 @@ export interface HomeworkSubmission {
 
 // ─── ILK QABUL (BASELINE) ────────────────────────────────────────────────────
 export type BaselineType = 'test' | 'oral' | 'creative' | 'sport' | 'custom';
+
+export interface BaselineStudentOption {
+  id:        string;
+  firstName: string;
+  lastName:  string;
+}
 
 export interface BaselineAssessment {
   id:           string;

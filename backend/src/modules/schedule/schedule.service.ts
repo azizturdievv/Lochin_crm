@@ -6,7 +6,7 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource, Between } from 'typeorm';
+import { Repository, DataSource, Between, Not } from 'typeorm';
 import { Lesson, LessonStatus } from '../../entities/lesson.entity';
 import { Group } from '../../entities/group.entity';
 import { User } from '../../entities/user.entity';
@@ -18,6 +18,7 @@ import { QrService } from '../attendance/qr.service';
 import { ScheduleSettingsService } from '../schedule-settings/schedule-settings.service';
 import { CreateLessonDto } from './dto/create-lesson.dto';
 import { UpdateLessonDto } from './dto/update-lesson.dto';
+import { GenerateMonthScheduleDto } from './dto/generate-month.dto';
 import {
   WeekQueryDto,
   FreeSlotsQueryDto,
@@ -74,6 +75,11 @@ function durationHours(start: string, end: string): number {
   const [eh, em] = end.split(':').map(Number);
   return (eh * 60 + em - sh * 60 - sm) / 60;
 }
+
+// Group.lessonDays qatoridagi kun nomini JS Date.getDay() raqamiga o'girish
+const WEEKDAY_MAP: Record<string, number> = {
+  sunday: 0, monday: 1, tuesday: 2, wednesday: 3, thursday: 4, friday: 5, saturday: 6,
+};
 
 @Injectable()
 export class ScheduleService {
@@ -224,6 +230,174 @@ export class ScheduleService {
     }
 
     return this.saveSingleLesson(dto, actorId, actorRole, duration);
+  }
+
+  // ─── OYLIK JADVAL AVTOMATIK GENERATSIYA ───────────────────────────────────
+  // Guruhning o'z pattern'i (lessonDays/lessonTime/roomNumber) asosida bitta
+  // oy uchun barcha dars kunlarini yaratadi. Mavjud (qo'lda yaratilgan yoki
+  // ilgari generatsiya qilingan) darslar hech qachon qayta yaratilmaydi yoki
+  // ustidan yozilmaydi — shu bilan oy ichida qo'lda o'zgartirilgan darslar
+  // xavfsiz qoladi va tugma bir necha marta bosilsa ham xato bermaydi.
+  async generateMonthSchedule(dto: GenerateMonthScheduleDto, actorId: string, actorRole: string) {
+    const [yearStr, monthStr] = dto.month.split('-');
+    const year = Number(yearStr);
+    const monthNum = Number(monthStr);
+    const monthStart = new Date(year, monthNum - 1, 1);
+    const monthEnd = new Date(year, monthNum, 0);
+
+    let groups: Group[];
+    if (dto.groupId) {
+      const group = await this.groupRepo.findOne({ where: { id: dto.groupId, isActive: true } });
+      if (!group) throw new NotFoundException('Guruh topilmadi');
+      if (!group.lessonDays?.length || !group.lessonTime?.start || !group.lessonTime?.end || !group.roomNumber) {
+        throw new BadRequestException('Guruhda dars kunlari, vaqti yoki xonasi to\'liq sozlanmagan');
+      }
+      if (!group.teacherId) {
+        throw new BadRequestException('Guruhga o\'qituvchi biriktirilmagan');
+      }
+      groups = [group];
+    } else {
+      groups = await this.groupRepo
+        .createQueryBuilder('g')
+        .where('g.deleted_at IS NULL')
+        .andWhere('g.is_active = true')
+        .andWhere('jsonb_array_length(g.lesson_days) > 0')
+        .andWhere('g.lesson_time IS NOT NULL')
+        .andWhere('g.room_number IS NOT NULL')
+        .andWhere('g.teacher_id IS NOT NULL')
+        .getMany();
+    }
+
+    const results: {
+      groupId: string; groupName: string;
+      created: number; existed: number; skipped: number; skippedDates: string[];
+    }[] = [];
+
+    for (const group of groups) {
+      const wantedDates = this.datesInMonthForWeekdays(year, monthNum, group.lessonDays);
+
+      // Bekor qilingan (cancelled) darslar "mavjud" hisoblanmaydi — aks holda
+      // bekor qilingan kun umuman qayta generatsiya qilinmay, doim "yetishmayapti"
+      // bo'lib qolaverardi (getMonthGenerationStatus'dagi hisoblash bilan bir xil)
+      const existingLessons = await this.lessonRepo.find({
+        where: {
+          groupId: group.id,
+          lessonDate: Between(monthStart, monthEnd),
+          status: Not(LessonStatus.CANCELLED),
+        },
+        select: { lessonDate: true },
+      });
+      const existingDates = new Set(existingLessons.map((l) => toLocalDateStr(new Date(l.lessonDate))));
+
+      const duration = durationHours(group.lessonTime!.start, group.lessonTime!.end);
+      let created = 0;
+      let existed = 0;
+      const skippedDates: string[] = [];
+
+      for (const dateStr of wantedDates) {
+        if (existingDates.has(dateStr)) { existed++; continue; }
+
+        const { roomConflict, teacherConflict, capacityConflict } = await this.findConflicts({
+          lessonDate: dateStr,
+          startTime: group.lessonTime!.start,
+          endTime: group.lessonTime!.end,
+          roomNumber: group.roomNumber!,
+          teacherId: group.teacherId!,
+          groupId: group.id,
+        });
+
+        if (roomConflict || teacherConflict || capacityConflict) {
+          skippedDates.push(dateStr);
+          continue;
+        }
+
+        const lesson = this.lessonRepo.create({
+          groupId: group.id,
+          teacherId: group.teacherId!,
+          lessonDate: new Date(dateStr),
+          startTime: group.lessonTime!.start,
+          endTime: group.lessonTime!.end,
+          roomNumber: group.roomNumber!,
+          status: LessonStatus.SCHEDULED,
+          durationHours: duration,
+        });
+        await this.lessonRepo.save(lesson);
+        await this.qrService.generateForLesson(lesson);
+        created++;
+      }
+
+      results.push({
+        groupId: group.id,
+        groupName: group.name,
+        created,
+        existed,
+        skipped: skippedDates.length,
+        skippedDates,
+      });
+    }
+
+    await this.auditLog.log({
+      userId: actorId,
+      userRole: actorRole,
+      action: 'MONTH_SCHEDULE_GENERATED',
+      entityName: 'lessons',
+      newValues: { month: dto.month, groupId: dto.groupId ?? null, results },
+    });
+
+    return { month: dto.month, results };
+  }
+
+  // Ko'rilayotgan oy uchun qaysi guruhlarda jadval hali to'liq
+  // generatsiya qilinmaganini hisoblaydi (banner ko'rsatish uchun)
+  async getMonthGenerationStatus(month: string) {
+    if (!/^\d{4}-\d{2}$/.test(month)) {
+      throw new BadRequestException('Oy YYYY-MM formatida bo\'lishi kerak');
+    }
+    const [yearStr, monthStr] = month.split('-');
+    const year = Number(yearStr);
+    const monthNum = Number(monthStr);
+    const monthStart = new Date(year, monthNum - 1, 1);
+    const monthEnd = new Date(year, monthNum, 0);
+
+    const groups = await this.groupRepo
+      .createQueryBuilder('g')
+      .where('g.deleted_at IS NULL')
+      .andWhere('g.is_active = true')
+      .andWhere('jsonb_array_length(g.lesson_days) > 0')
+      .andWhere('g.lesson_time IS NOT NULL')
+      .andWhere('g.room_number IS NOT NULL')
+      .andWhere('g.teacher_id IS NOT NULL')
+      .getMany();
+
+    const statuses: {
+      groupId: string; groupName: string;
+      expectedCount: number; existingCount: number; missing: number;
+    }[] = [];
+
+    for (const group of groups) {
+      const wantedDates = this.datesInMonthForWeekdays(year, monthNum, group.lessonDays);
+      if (!wantedDates.length) continue;
+
+      const existingCount = await this.lessonRepo.count({
+        where: {
+          groupId: group.id,
+          lessonDate: Between(monthStart, monthEnd),
+          status: Not(LessonStatus.CANCELLED),
+        },
+      });
+
+      if (existingCount < wantedDates.length) {
+        statuses.push({
+          groupId: group.id,
+          groupName: group.name,
+          expectedCount: wantedDates.length,
+          existingCount,
+          missing: wantedDates.length - existingCount,
+        });
+      }
+    }
+
+    return statuses;
   }
 
   // ─── DARS YANGILASH (DRAG & DROP) ─────────────────────────────────────────
@@ -409,6 +583,35 @@ export class ScheduleService {
     };
   }
 
+  // ─── YAQIN KUNLAR DARSLARI (o'rinbosar tanlash uchun tekis ro'yxat) ───────
+  // /schedule/week xona-grid shaklida qaytaradi (kunlar × xonalar ichma-ich
+  // joylashgan) — o'rinbosar tayinlash formasidagi oddiy dropdown uchun bunday
+  // shakl kerak emas, shuning uchun bugundan boshlab N kun ichidagi darslarni
+  // tekis massiv qilib qaytaruvchi alohida endpoint
+  async getUpcomingLessons(days = 30) {
+    const today = toLocalDateStr(new Date());
+    const endDate = new Date();
+    endDate.setDate(endDate.getDate() + days);
+    const end = toLocalDateStr(endDate);
+
+    return this.lessonRepo
+      .createQueryBuilder('l')
+      .innerJoin('l.group', 'g')
+      .innerJoin('g.subject', 's')
+      .innerJoin('l.teacher', 't')
+      .where('l.lesson_date BETWEEN :today AND :end', { today, end })
+      .andWhere('l.status = :status', { status: LessonStatus.SCHEDULED })
+      .select([
+        'l.id', 'l.lessonDate', 'l.startTime', 'l.endTime', 'l.roomNumber',
+        'g.id', 'g.name',
+        's.id', 's.name',
+        't.id', 't.firstName', 't.lastName',
+      ])
+      .orderBy('l.lesson_date', 'ASC')
+      .addOrderBy('l.start_time', 'ASC')
+      .getMany();
+  }
+
   // ─── TO'QNASHUV TEKSHIRISH ────────────────────────────────────────────────
   async checkConflict(dto: ConflictCheckDto) {
     const conflicts = await this.findConflicts(dto);
@@ -550,6 +753,24 @@ export class ScheduleService {
   // Xonalar/paralar ro'yxati endi ScheduleSettingsService orqali (DB-backed)
 
   // ─── ICHKI YORDAMCHILAR ───────────────────────────────────────────────────
+
+  // Berilgan oy ichida, ko'rsatilgan hafta kunlariga to'g'ri keladigan,
+  // BUGUNGI kundan boshlab (o'tgan kunlar hisobga olinmaydi — allaqachon
+  // bo'lib o'tgan sanaga "yetishmayapti" deb yangi dars "orqaga qaytib"
+  // yaratib bo'lmaydi, bu admin/o'qituvchi qo'lda bekor qilgan o'tmishdagi
+  // darsni "tiklab" qo'yishi mumkin edi) barcha sanalar ro'yxati (YYYY-MM-DD)
+  private datesInMonthForWeekdays(year: number, monthNum: number, weekdays: string[]): string[] {
+    const dayNums = new Set(weekdays.map((w) => WEEKDAY_MAP[w]).filter((n) => n !== undefined));
+    const lastDay = new Date(year, monthNum, 0).getDate();
+    const todayStr = toLocalDateStr(new Date());
+    const dates: string[] = [];
+    for (let day = 1; day <= lastDay; day++) {
+      const d = new Date(year, monthNum - 1, day);
+      const dateStr = toLocalDateStr(d);
+      if (dayNums.has(d.getDay()) && dateStr >= todayStr) dates.push(dateStr);
+    }
+    return dates;
+  }
 
   private async checkConflicts(dto: Omit<ConflictCheckDto, never>) {
     const conflicts = await this.findConflicts(dto);

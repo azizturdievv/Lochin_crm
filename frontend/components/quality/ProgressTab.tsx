@@ -7,6 +7,7 @@ import {
   ResponsiveContainer, ReferenceLine, Legend,
 } from 'recharts';
 import api from '@/lib/api';
+import { formatShortDate as shortDate } from '@/lib/date';
 import type { ProgressSnapshot } from '@/types/quality';
 
 interface Props {
@@ -18,11 +19,6 @@ interface ProgressData {
   baseline:  number | null;
   snapshots: ProgressSnapshot[];
   subjects:  string[];
-}
-
-// O'zbekcha sana formati
-function shortDate(iso: string): string {
-  return new Date(iso).toLocaleDateString('uz-UZ', { day: '2-digit', month: 'short' });
 }
 
 const SUBJECT_COLORS = [
@@ -190,7 +186,7 @@ export default function ProgressTab({ userId, userName }: Props) {
                 <div className="flex items-center justify-between mt-1">
                   <span className="text-[10px] text-gray-400">Davomat: {snap.attendanceRate.toFixed(0)}%</span>
                   <span className="text-[10px] text-gray-400">
-                    {new Date(snap.date).toLocaleDateString('uz-UZ', { day:'2-digit', month:'short' })}
+                    {shortDate(snap.date)}
                   </span>
                 </div>
               </div>

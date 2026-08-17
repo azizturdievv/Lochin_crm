@@ -92,6 +92,7 @@ export default function PaymentModal({ open, onClose, onSuccess, cashSessionId }
     onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: ['payments'] });
       qc.invalidateQueries({ queryKey: ['dashboard-stats'] });
+      qc.invalidateQueries({ queryKey: ['active-session'] });
       onSuccess?.(data.id);
       onClose();
     },

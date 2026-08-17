@@ -9,9 +9,11 @@ import { Repository } from 'typeorm';
 import { BaselineAssessment } from '../../entities/baseline-assessment.entity';
 import { User } from '../../entities/user.entity';
 import { Subject } from '../../entities/subject.entity';
+import { Enrollment, EnrollmentStatus } from '../../entities/enrollment.entity';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { MinioService } from './minio.service';
 import { CreateBaselineDto } from './dto/baseline.dto';
+import { Role } from '../../common/enums/role.enum';
 
 // MUHIM: Ilk qabul muhrlanadi — hech kim o'zgartira olmaydi (SA ham)
 @Injectable()
@@ -23,6 +25,8 @@ export class BaselineService {
     private userRepo: Repository<User>,
     @InjectRepository(Subject)
     private subjectRepo: Repository<Subject>,
+    @InjectRepository(Enrollment)
+    private enrollmentRepo: Repository<Enrollment>,
     private minioService: MinioService,
     private auditLog: AuditLogService,
   ) {}
@@ -41,9 +45,10 @@ export class BaselineService {
     const subject = await this.subjectRepo.findOne({ where: { id: dto.subjectId } });
     if (!subject) throw new NotFoundException('Fan topilmadi');
 
-    // Bir o'quvchi, bir fan bo'yicha faqat 1 ta baseline
+    // Bir o'quvchi, bir fan, bir baholash turi bo'yicha faqat 1 ta baseline
+    // (turlar — test/og'zaki/ijodiy/sport — bir-biridan mustaqil yozuvlar)
     const existing = await this.baselineRepo.findOne({
-      where: { studentId: dto.studentId, subjectId: dto.subjectId },
+      where: { studentId: dto.studentId, subjectId: dto.subjectId, type: dto.type },
     });
 
     if (existing?.sealedAt) {
@@ -67,14 +72,14 @@ export class BaselineService {
     });
 
     if (existing) {
-      // Yangilash
+      // Yangilash — yuborilmagan maydonlar eskisicha qoladi (null bilan ustidan yozilmaydi)
       await this.baselineRepo.update(existing.id, {
-        score: baseline.score,
+        score: baseline.score ?? existing.score,
         audioUrl: baseline.audioUrl ?? existing.audioUrl,
         fileUrl: baseline.fileUrl ?? existing.fileUrl,
-        sportData: baseline.sportData,
-        teacherScore: baseline.teacherScore,
-        teacherNotes: baseline.teacherNotes,
+        sportData: baseline.sportData ?? existing.sportData,
+        teacherScore: baseline.teacherScore ?? existing.teacherScore,
+        teacherNotes: baseline.teacherNotes ?? existing.teacherNotes,
       });
       return this.findOne(existing.id);
     }
@@ -112,6 +117,27 @@ export class BaselineService {
     return { message: '✅ Ilk qabul muhrlanди. Endi o\'zgartirib bo\'lmaydi.' };
   }
 
+  // ─── GURUH O'QUVCHILARI (baholash uchun tanlash) ──────────────────────────
+  // Faqat haqiqiy faol o'quvchilar — arxivlangan/o'chirilganlar chiqarilmaydi
+  async getGroupStudents(groupId: string) {
+    const enrollments = await this.enrollmentRepo
+      .createQueryBuilder('e')
+      .innerJoin('e.student', 'student')
+      .addSelect(['student.id', 'student.firstName', 'student.lastName'])
+      .where('e.group_id = :groupId', { groupId })
+      .andWhere('e.status = :status', { status: EnrollmentStatus.ACTIVE })
+      .andWhere('student.deleted_at IS NULL')
+      .andWhere('student.is_active = true')
+      .orderBy('student.firstName', 'ASC')
+      .getMany();
+
+    return enrollments.map((e) => ({
+      id: e.student.id,
+      firstName: e.student.firstName,
+      lastName: e.student.lastName,
+    }));
+  }
+
   // ─── KO'RISH ─────────────────────────────────────────────────────────────
   async findOne(id: string) {
     const baseline = await this.baselineRepo.findOne({
@@ -122,7 +148,11 @@ export class BaselineService {
     return { ...baseline, isSealed: !!baseline.sealedAt };
   }
 
-  async findByStudent(studentId: string) {
+  async findByStudent(studentId: string, requesterId: string, requesterRole: string) {
+    if (requesterRole === Role.STUDENT && studentId !== requesterId) {
+      throw new ForbiddenException('Faqat o\'zingizning ilk qabul natijalaringizni ko\'ra olasiz');
+    }
+
     const baselines = await this.baselineRepo.find({
       where: { studentId },
       relations: { subject: true },

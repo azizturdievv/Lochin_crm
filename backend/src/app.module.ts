@@ -27,9 +27,9 @@ import { ReportsModule } from './modules/reports/reports.module';
 import { ScheduleSettingsModule } from './modules/schedule-settings/schedule-settings.module';
 import { PermissionsModule } from './modules/permissions/permissions.module';
 import { LiveSessionsModule } from './modules/live-sessions/live-sessions.module';
+import { ArchiveModule } from './modules/archive/archive.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
-import { TwoFaEnforcementGuard } from './common/guards/two-fa-enforcement.guard';
 import { PermissionsGuard } from './modules/permissions/permissions.guard';
 import { PaymentLockGuard } from './modules/payments/payment-lock.guard';
 
@@ -112,6 +112,9 @@ import { PaymentLockGuard } from './modules/payments/payment-lock.guard';
 
     // Jonli efir va onlayn dars (Livekit)
     LiveSessionsModule,
+
+    // Arxiv — o'chirilgan/nofaol yozuvlarni ko'rish va tiklash (faqat SA)
+    ArchiveModule,
   ],
   controllers: [AppController],
   providers: [
@@ -129,12 +132,13 @@ import { PaymentLockGuard } from './modules/payments/payment-lock.guard';
       useClass: RolesGuard,
     },
 
-    // Global 2FA majburiylik guard (SA/Manager uchun) — RolesGuard'dan keyin,
-    // request.user.role va .twoFaEnabled tayyor bo'lishi kerak
-    {
-      provide: APP_GUARD,
-      useClass: TwoFaEnforcementGuard,
-    },
+    // Global 2FA majburiylik guard (SA/Manager uchun) — foydalanuvchi so'roviga
+    // ko'ra hozircha o'chirilgan (2026-08-13). Qayta yoqish uchun quyidagi
+    // provider blokini qaytaring — guard fayli va /2fa/setup oqimi ishlab turibdi.
+    // {
+    //   provide: APP_GUARD,
+    //   useClass: TwoFaEnforcementGuard,
+    // },
 
     // Global granular ruxsatlar guard (RolesGuard'dan keyin — request.user tayyor bo'lishi kerak)
     {

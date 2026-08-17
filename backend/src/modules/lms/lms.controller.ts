@@ -244,6 +244,23 @@ export class TestsController {
     return this.testsService.requestTimeExtension(dto, user.id);
   }
 
+  // Kutilayotgan so'rovlar ro'yxati (bildirishnoma panelida "1 bosish" uchun)
+  @Get('time-extension/pending')
+  @Roles(Role.SUPER_ADMIN, Role.MANAGER, Role.USTOZ)
+  getPendingExtensions() {
+    return this.testsService.getPendingExtensions();
+  }
+
+  // O'quvchi — o'z so'rovi holatini tekshirish (TestRunner polling)
+  @Get('time-extension/my-status/:testResultId')
+  @Roles(Role.STUDENT)
+  getMyExtensionStatus(
+    @Param('testResultId', ParseUUIDPipe) testResultId: string,
+    @CurrentUser() user: User,
+  ) {
+    return this.testsService.getMyExtensionStatus(testResultId, user.id);
+  }
+
   // Vaqt uzaytirish tasdiqlash/rad etish (ustoz — 1 bosish)
   @Patch('time-extension/:id/review')
   @Roles(Role.SUPER_ADMIN, Role.MANAGER, Role.USTOZ)
@@ -354,8 +371,18 @@ export class BaselineController {
 
   @Get('student/:studentId')
   @Roles(Role.SUPER_ADMIN, Role.MANAGER, Role.USTOZ, Role.STUDENT)
-  findByStudent(@Param('studentId', ParseUUIDPipe) id: string) {
-    return this.baselineService.findByStudent(id);
+  findByStudent(
+    @Param('studentId', ParseUUIDPipe) id: string,
+    @CurrentUser() user: User,
+  ) {
+    return this.baselineService.findByStudent(id, user.id, user.role);
+  }
+
+  // Baholash uchun guruh o'quvchilarini tanlash (faqat xodimlar)
+  @Get('group/:groupId/students')
+  @Roles(Role.SUPER_ADMIN, Role.MANAGER, Role.USTOZ)
+  getGroupStudents(@Param('groupId', ParseUUIDPipe) groupId: string) {
+    return this.baselineService.getGroupStudents(groupId);
   }
 
   @Get(':id')

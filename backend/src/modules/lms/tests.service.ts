@@ -336,8 +336,13 @@ export class TestsService {
     const now = new Date();
     const timeSpentSeconds = Math.round((now.getTime() - result.startedAt.getTime()) / 1000);
 
-    // Vaqt limitini tekshirish (5 daqiqa qo'shimcha tolerans)
-    const maxAllowedSeconds = (test.timeLimitMinutes + 5) * 60;
+    // Shu urinishga tasdiqlangan vaqt uzaytirish bormi
+    const extension = await this.extensionRepo.findOne({
+      where: { testResultId: result.id, status: ExtensionStatus.APPROVED },
+    });
+
+    // Vaqt limitini tekshirish (5 daqiqa qo'shimcha tolerans + tasdiqlangan uzaytirish)
+    const maxAllowedSeconds = (test.timeLimitMinutes + 5 + (extension?.extraMinutes ?? 0)) * 60;
     if (timeSpentSeconds > maxAllowedSeconds) {
       throw new BadRequestException('Test vaqti tugagan');
     }
@@ -419,16 +424,28 @@ export class TestsService {
     const test = await this.testRepo.findOne({ where: { id: dto.testId } });
     if (!test) throw new NotFoundException('Test topilmadi');
 
+    // So'rov aynan shu (ishlab turgan) urinishga tegishli bo'lishi shart
+    const result = await this.resultRepo.findOne({
+      where: { id: dto.testResultId, studentId, testId: dto.testId },
+    });
+    if (!result) throw new NotFoundException('Test urinishi topilmadi');
+    if (result.finishedAt) throw new BadRequestException('Bu urinish allaqachon yakunlangan');
+
+    // Shu urinish uchun ko'rib chiqilmagan so'rov bormi — faqat shu urinish doirasida
     const existing = await this.extensionRepo.findOne({
-      where: { testId: dto.testId, studentId },
+      where: {
+        testResultId: dto.testResultId,
+        status: In([ExtensionStatus.PENDING, ExtensionStatus.APPROVED]),
+      },
     });
 
     if (existing) {
-      throw new ConflictException('Allaqachon so\'rov yuborilgan');
+      throw new ConflictException('Bu urinish uchun allaqachon so\'rov yuborilgan');
     }
 
     const extension = this.extensionRepo.create({
       testId: dto.testId,
+      testResultId: dto.testResultId,
       studentId,
       extraMinutes: dto.extraMinutes,
       reason: dto.reason ?? null,
@@ -493,6 +510,37 @@ export class TestsService {
     });
 
     return { message: approved ? '✅ Vaqt uzaytirish tasdiqlandi' : 'Rad etildi' };
+  }
+
+  // ─── KUTILAYOTGAN SO'ROVLAR RO'YXATI (ustoz/manager/SA) ──────────────────
+  async getPendingExtensions() {
+    const extensions = await this.extensionRepo.find({
+      where: { status: ExtensionStatus.PENDING },
+      relations: { test: true, student: true },
+      order: { createdAt: 'ASC' },
+    });
+
+    return extensions.map((e) => ({
+      id: e.id,
+      testId: e.testId,
+      testTitle: e.test.title,
+      studentId: e.studentId,
+      studentName: `${e.student.firstName} ${e.student.lastName}`,
+      extraMinutes: e.extraMinutes,
+      reason: e.reason,
+      createdAt: e.createdAt,
+    }));
+  }
+
+  // ─── O'QUVCHI — O'Z SO'ROVI HOLATI (TestRunner polling uchun) ────────────
+  async getMyExtensionStatus(testResultId: string, studentId: string) {
+    const extension = await this.extensionRepo.findOne({
+      where: { testResultId, studentId },
+      order: { createdAt: 'DESC' },
+    });
+
+    if (!extension) return { status: null, extraMinutes: null };
+    return { status: extension.status, extraMinutes: extension.extraMinutes };
   }
 
   // ─── TEST NATIJALARI ──────────────────────────────────────────────────────

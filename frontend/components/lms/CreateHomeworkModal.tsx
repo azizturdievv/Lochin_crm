@@ -4,6 +4,7 @@ import { X } from 'lucide-react';
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
+import { formatShortDate } from '@/lib/date';
 import type { LessonOption } from '@/types/lms';
 
 interface Props {
@@ -95,7 +96,7 @@ export default function CreateHomeworkModal({ groupId, onClose }: Props) {
               >
                 {lessons.map(l => (
                   <option key={l.id} value={l.id}>
-                    {new Date(l.lessonDate).toLocaleDateString('uz-UZ', { day: '2-digit', month: 'short' })} · {l.startTime.slice(0, 5)}–{l.endTime.slice(0, 5)}
+                    {formatShortDate(l.lessonDate)} · {l.startTime.slice(0, 5)}–{l.endTime.slice(0, 5)}
                     {l.topic ? ` — ${l.topic}` : ''}
                   </option>
                 ))}

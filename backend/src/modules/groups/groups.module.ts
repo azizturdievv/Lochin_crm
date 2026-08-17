@@ -7,11 +7,12 @@ import { Subject } from '../../entities/subject.entity';
 import { User } from '../../entities/user.entity';
 import { ChatRoom } from '../../entities/chat-room.entity';
 import { Enrollment } from '../../entities/enrollment.entity';
+import { Lesson } from '../../entities/lesson.entity';
 import { AuditLogModule } from '../audit-log/audit-log.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Group, Subject, User, ChatRoom, Enrollment]),
+    TypeOrmModule.forFeature([Group, Subject, User, ChatRoom, Enrollment, Lesson]),
     AuditLogModule,
   ],
   controllers: [GroupsController],

@@ -15,6 +15,7 @@ import {
 import { ScheduleService } from './schedule.service';
 import { CreateLessonDto } from './dto/create-lesson.dto';
 import { UpdateLessonDto } from './dto/update-lesson.dto';
+import { GenerateMonthScheduleDto } from './dto/generate-month.dto';
 import {
   WeekQueryDto,
   FreeSlotsQueryDto,
@@ -66,6 +67,13 @@ export class ScheduleController {
     return this.scheduleService.getFreeSlots(query);
   }
 
+  // ─── YAQIN KUNLAR DARSLARI (o'rinbosar tanlash uchun) ─────────────────────
+  @Get('upcoming-lessons')
+  @Roles(Role.SUPER_ADMIN, Role.MANAGER)
+  getUpcomingLessons(@Query('days') days?: string) {
+    return this.scheduleService.getUpcomingLessons(days ? Number(days) : undefined);
+  }
+
   // ─── TO'QNASHUV TEKSHIRISH ────────────────────────────────────────────────
   @Post('check-conflict')
   @Roles(Role.SUPER_ADMIN, Role.MANAGER)
@@ -87,6 +95,20 @@ export class ScheduleController {
   @HttpCode(HttpStatus.CREATED)
   createLesson(@Body() dto: CreateLessonDto, @CurrentUser() user: User) {
     return this.scheduleService.createLesson(dto, user.id, user.role);
+  }
+
+  // ─── OYLIK JADVAL AVTOMATIK GENERATSIYA ───────────────────────────────────
+  @Post('generate-month')
+  @Roles(Role.SUPER_ADMIN, Role.MANAGER)
+  @HttpCode(HttpStatus.OK)
+  generateMonthSchedule(@Body() dto: GenerateMonthScheduleDto, @CurrentUser() user: User) {
+    return this.scheduleService.generateMonthSchedule(dto, user.id, user.role);
+  }
+
+  @Get('month-status')
+  @Roles(Role.SUPER_ADMIN, Role.MANAGER)
+  getMonthGenerationStatus(@Query('month') month: string) {
+    return this.scheduleService.getMonthGenerationStatus(month);
   }
 
   // ─── BITTA DARS ───────────────────────────────────────────────────────────

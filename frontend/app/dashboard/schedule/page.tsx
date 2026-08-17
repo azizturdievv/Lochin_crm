@@ -8,6 +8,7 @@ import { useAuthStore } from '@/store/auth.store';
 import LessonCard from '@/components/schedule/LessonCard';
 import CreateLessonModal from '@/components/schedule/CreateLessonModal';
 import SubstituteModal from '@/components/schedule/SubstituteModal';
+import GenerateMonthBanner from '@/components/schedule/GenerateMonthBanner';
 import AnalysisPanel from '@/components/schedule/AnalysisPanel';
 import MonthlyAnalysisPanel from '@/components/schedule/MonthlyAnalysisPanel';
 import { DAYS_UZ } from '@/types/schedule';
@@ -239,6 +240,13 @@ export default function SchedulePage() {
             )}
           </div>
         </div>
+
+        {/* Oylik jadval avtomatik generatsiya taklifi */}
+        {canEdit && (
+          <div className="shrink-0">
+            <GenerateMonthBanner month={weekStart.slice(0, 7)} />
+          </div>
+        )}
 
         {/* Grid (desktop — hafta × xona) */}
         <div className="hidden md:block flex-1 overflow-auto rounded-2xl border border-gray-100 shadow-sm bg-white">

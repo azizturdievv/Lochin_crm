@@ -92,7 +92,7 @@ export class UsersService {
       .take(limit)
       .select([
         'u.id', 'u.firstName', 'u.lastName', 'u.middleName',
-        'u.email', 'u.phone', 'u.role', 'u.isActive',
+        'u.email', 'u.username', 'u.phone', 'u.role', 'u.isActive',
         'u.avatarUrl', 'u.lastLoginAt', 'u.totalPoints',
         'u.twoFaEnabled', 'u.createdAt',
       ])
@@ -526,7 +526,7 @@ export class UsersService {
     return { message: 'Parol muvaffaqiyatli o\'zgartirildi' };
   }
 
-  // Parol tiklash (faqat SA)
+  // Parol va/yoki username o'zgartirish (faqat SA)
   async resetPassword(
     id: string,
     dto: ResetPasswordDto,
@@ -544,10 +544,20 @@ export class UsersService {
       throw new ForbiddenException('Parolni faqat Super Admin tiklashi mumkin');
     }
 
-    const passwordHash = await bcrypt.hash(dto.newPassword, 12);
+    if (!dto.newPassword && !dto.username) {
+      throw new BadRequestException("Parol yoki username kiritilishi shart");
+    }
+
+    if (dto.username && dto.username !== user.username) {
+      const usernameExists = await this.userRepository.findOne({ where: { username: dto.username } });
+      if (usernameExists) {
+        throw new ConflictException(`"${dto.username}" username allaqachon band`);
+      }
+    }
 
     await this.userRepository.update(id, {
-      passwordHash,
+      ...(dto.newPassword && { passwordHash: await bcrypt.hash(dto.newPassword, 12) }),
+      ...(dto.username && { username: dto.username }),
       failedLoginAttempts: 0,
       lockedUntil: null,
     });
@@ -555,12 +565,13 @@ export class UsersService {
     await this.auditLogService.log({
       userId:     actorId,
       userRole:   actorRole,
-      action:     'RESET_PASSWORD',
+      action:     dto.newPassword && dto.username ? 'RESET_PASSWORD_AND_USERNAME'
+                : dto.username ? 'UPDATE_USERNAME' : 'RESET_PASSWORD',
       entityName: 'users',
       entityId:   id,
     });
 
-    return { message: 'Parol muvaffaqiyatli tiklandi' };
+    return { message: 'Ma\'lumotlar muvaffaqiyatli yangilandi' };
   }
 
   // Foydalanuvchi qidirish (chat uchun: username yoki ism bo'yicha)

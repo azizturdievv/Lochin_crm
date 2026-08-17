@@ -14,6 +14,8 @@ import { Enrollment, EnrollmentStatus } from '../../entities/enrollment.entity';
 import { LessonSubstitution } from '../../entities/lesson-substitution.entity';
 import { Sale } from '../../entities/sale.entity';
 import { PointsLog } from '../../entities/points-log.entity';
+import { Payment, PaymentStatus } from '../../entities/payment.entity';
+import { Lead, LeadStage } from '../../entities/lead.entity';
 import { Role } from '../../common/enums/role.enum';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { SetSalaryDto, CalculateSalaryDto, QuarterlyBonusQueryDto } from './dto/salary.dto';
@@ -45,6 +47,10 @@ export class SalaryService {
     private saleRepo: Repository<Sale>,
     @InjectRepository(PointsLog)
     private pointsRepo: Repository<PointsLog>,
+    @InjectRepository(Payment)
+    private paymentRepo: Repository<Payment>,
+    @InjectRepository(Lead)
+    private leadRepo: Repository<Lead>,
     private auditLog: AuditLogService,
   ) {}
 
@@ -62,6 +68,8 @@ export class SalaryService {
       kpiBonusPercent: dto.kpiBonusPercent ?? 0,
       hourlyRate: dto.hourlyRate ? BigInt(dto.hourlyRate) : null,
       salesBonusPercent: dto.salesBonusPercent ?? 0,
+      paymentBonusPercent: dto.paymentBonusPercent ?? 0,
+      leadBonusAmount: dto.leadBonusAmount ? BigInt(dto.leadBonusAmount) : 0n,
       isActive: true,
       startedAt: new Date(dto.startedAt),
       endedAt: null,
@@ -114,6 +122,8 @@ export class SalaryService {
     let baseAmount = 0n;
     let lessonsCount = 0;
     let totalHours = 0;
+    let paymentBonus = 0n;
+    let leadBonus = 0n;
 
     if (teacher.role === Role.USTOZ) {
       // Ustoz: o'z guruhlari tushumi × stavka foizi
@@ -147,8 +157,9 @@ export class SalaryService {
       totalHours = monthLessons.reduce((s, l) => s + Number(l.durationHours), 0);
     } else {
       // Admin/Manager: soatlik stavka × standart soat
+      // TypeORM bigint ustunlarni JS string sifatida qaytaradi — BigInt() bilan aniq o'giramiz
       if (config.hourlyRate) {
-        baseAmount = config.hourlyRate * BigInt(STANDARD_MONTHLY_HOURS);
+        baseAmount = BigInt(config.hourlyRate) * BigInt(STANDARD_MONTHLY_HOURS);
       }
 
       // Savdo bonusi (mini-market)
@@ -165,6 +176,36 @@ export class SalaryService {
           const bonusBps = BigInt(Math.round(Number(config.salesBonusPercent) * 100));
           baseAmount += (BigInt(Math.round(Number(salesRow.total))) * bonusBps) / 10_000n;
         }
+      }
+
+      // To'lov bonusi: shu xodim o'zi qabul qilgan to'lovlar summasidan foiz
+      if (Number(config.paymentBonusPercent) > 0) {
+        const paidRow = await this.paymentRepo
+          .createQueryBuilder('p')
+          .where('p.received_by = :uid', { uid: teacherId })
+          .andWhere('p.payment_month = :month', { month: periodMonth })
+          .andWhere('p.status = :status', { status: PaymentStatus.COMPLETED })
+          .andWhere('p.deleted_at IS NULL')
+          .select('SUM(p.amount) AS total')
+          .getRawOne<{ total: string | null }>();
+
+        if (paidRow?.total) {
+          const bonusBps = BigInt(Math.round(Number(config.paymentBonusPercent) * 100));
+          paymentBonus = (BigInt(Math.round(Number(paidRow.total))) * bonusBps) / 10_000n;
+        }
+      }
+
+      // Lid bonusi: unga biriktirilgan lidlardan shu oy o'quvchiga aylanganlar soni × bonus
+      if (Number(config.leadBonusAmount) > 0) {
+        const enrolledCount = await this.leadRepo
+          .createQueryBuilder('l')
+          .where('l.assigned_to = :uid', { uid: teacherId })
+          .andWhere('l.stage = :stage', { stage: LeadStage.ENROLLED })
+          .andWhere("TO_CHAR(l.enrolled_at, 'YYYY-MM') = :month", { month: periodMonth })
+          .andWhere('l.deleted_at IS NULL')
+          .getCount();
+
+        leadBonus = BigInt(enrolledCount) * BigInt(config.leadBonusAmount);
       }
     }
 
@@ -202,7 +243,7 @@ export class SalaryService {
 
     const deduction: bigint = deductRows.reduce((s, r) => s + BigInt(r.original_deduction ?? 0), 0n);
 
-    const raw: bigint = baseAmount + kpiBonus + subAmount - deduction;
+    const raw: bigint = baseAmount + kpiBonus + subAmount + paymentBonus + leadBonus - deduction;
     const totalAmount: bigint = raw < 0n ? 0n : raw;
 
     // Mavjud hisoblangan yozuvni tekshirish
@@ -218,6 +259,8 @@ export class SalaryService {
       kpiBonus,
       subAmount,
       deduction,
+      paymentBonus,
+      leadBonus,
       totalAmount,
       lessonsCount,
       totalHours,

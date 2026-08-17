@@ -1,55 +1,108 @@
 'use client';
 
-import { BarChart3, Lock } from 'lucide-react';
+import { BarChart3, Lock, Plus } from 'lucide-react';
+import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
+import { formatLongDate } from '@/lib/date';
 import { BASELINE_TYPE_META, isBaselineSealed } from '@/types/lms';
-import type { BaselineAssessment } from '@/types/lms';
+import type { BaselineAssessment, BaselineStudentOption } from '@/types/lms';
+import CreateBaselineModal from './CreateBaselineModal';
 
 interface Props {
   subjectId: string;
-  studentId: string | null;
+  groupId:   string | null;
+  studentId: string | null; // student role: o'zining ID'si; xodim: null (pastdagi tanlagich ishlatiladi)
+  canManage: boolean;       // ustoz/manager/SA — baholash yarata oladi
 }
 
-export default function BaselineTab({ subjectId, studentId }: Props) {
+export default function BaselineTab({ subjectId, groupId, studentId, canManage }: Props) {
+  const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
+  const [showCreate, setShowCreate] = useState(false);
+
+  // Guruh almashganda tanlangan o'quvchini tozalash
+  useEffect(() => { setSelectedStudentId(null); }, [groupId]);
+
+  const effectiveStudentId = studentId ?? selectedStudentId;
+
+  const { data: groupStudents = [], isLoading: studentsLoading } = useQuery({
+    queryKey: ['baseline-group-students', groupId],
+    queryFn:  () => api.get<BaselineStudentOption[]>(`/baseline/group/${groupId}/students`).then(r => r.data),
+    enabled:  canManage && !!groupId,
+  });
+
   const { data: allBaselines = [], isLoading } = useQuery({
-    queryKey: ['baselines', studentId],
-    queryFn:  () => api.get<BaselineAssessment[]>(`/baseline/student/${studentId}`).then(r => r.data),
-    enabled:  !!studentId,
+    queryKey: ['baselines', effectiveStudentId],
+    queryFn:  () => api.get<BaselineAssessment[]>(`/baseline/student/${effectiveStudentId}`).then(r => r.data),
+    enabled:  !!effectiveStudentId,
   });
   const baselines = allBaselines.filter(b => b.subjectId === subjectId);
 
-  if (!studentId) {
-    return (
+  // Xodim uchun — o'quvchi tanlash + baholash tugmasi
+  const pickerBar = canManage && (
+    <div className="flex items-center gap-2 mb-4">
+      <select
+        value={selectedStudentId ?? ''}
+        onChange={e => setSelectedStudentId(e.target.value || null)}
+        className="flex-1 text-sm border border-gray-200 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-primary-500"
+      >
+        <option value="">O'quvchi tanlang...</option>
+        {groupStudents.map(s => (
+          <option key={s.id} value={s.id}>{s.firstName} {s.lastName}</option>
+        ))}
+      </select>
+      {effectiveStudentId && (
+        <button
+          onClick={() => setShowCreate(true)}
+          className="flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 rounded-xl transition-colors shrink-0"
+        >
+          <Plus size={14} /> Baholash
+        </button>
+      )}
+    </div>
+  );
+
+  let body: React.ReactNode;
+
+  if (canManage && !groupId) {
+    body = (
+      <div className="flex flex-col items-center justify-center h-48 text-gray-400 gap-2">
+        <div className="text-4xl"><BarChart3 size={36} /></div>
+        <p className="text-sm">Avval guruh tanlang</p>
+      </div>
+    );
+  } else if (canManage && !studentsLoading && groupStudents.length === 0) {
+    body = (
+      <div className="flex flex-col items-center justify-center h-32 text-gray-400 gap-2">
+        <p className="text-sm">Bu guruhda faol o'quvchi topilmadi</p>
+      </div>
+    );
+  } else if (!effectiveStudentId) {
+    body = !canManage ? (
       <div className="flex flex-col items-center justify-center h-48 text-gray-400 gap-2">
         <div className="text-4xl"><Lock size={36} /></div>
         <p className="text-sm">O'quvchi tanlanmagan</p>
       </div>
-    );
-  }
-
-  if (isLoading) {
-    return (
+    ) : null;
+  } else if (isLoading) {
+    body = (
       <div className="space-y-3">
         {Array.from({ length: 2 }).map((_, i) => (
           <div key={i} className="h-32 bg-gray-100 rounded-2xl animate-pulse" />
         ))}
       </div>
     );
-  }
-
-  if (baselines.length === 0) {
-    return (
+  } else if (baselines.length === 0) {
+    body = (
       <div className="flex flex-col items-center justify-center h-48 text-gray-400 gap-2">
         <div className="text-4xl"><BarChart3 size={36} /></div>
         <p className="text-sm">Ilk qabul baholari topilmadi</p>
         <p className="text-xs text-gray-300">Ustoz tomonidan birinchi darsda to'ldiriladi</p>
       </div>
     );
-  }
-
-  return (
-    <div className="space-y-4">
+  } else {
+    body = (
+      <div className="space-y-4">
       {/* Muhrlangan eslatma */}
       {baselines.some(isBaselineSealed) && (
         <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3">
@@ -75,9 +128,7 @@ export default function BaselineTab({ subjectId, studentId }: Props) {
                 <div>
                   <h3 className="font-semibold text-gray-900 text-sm">{meta.label}</h3>
                   <p className="text-[10px] text-gray-400">
-                    {new Date(b.createdAt).toLocaleDateString('uz-UZ', {
-                      day: '2-digit', month: 'long', year: 'numeric',
-                    })}
+                    {formatLongDate(b.createdAt)}
                     {b.assessedBy && ` · ${b.assessedBy.firstName} ${b.assessedBy.lastName}`}
                   </p>
                 </div>
@@ -172,6 +223,22 @@ export default function BaselineTab({ subjectId, studentId }: Props) {
           </div>
         );
       })}
-    </div>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      {pickerBar}
+      {body}
+      {showCreate && effectiveStudentId && (
+        <CreateBaselineModal
+          studentId={effectiveStudentId}
+          subjectId={subjectId}
+          existing={allBaselines}
+          onClose={() => setShowCreate(false)}
+        />
+      )}
+    </>
   );
 }

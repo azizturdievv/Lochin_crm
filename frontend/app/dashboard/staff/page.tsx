@@ -10,6 +10,7 @@ import type { StaffMember, StaffRole, StaffResponse } from '@/types/staff';
 import StaffModal        from '@/components/staff/StaffModal';
 import ResetPasswordModal from '@/components/staff/ResetPasswordModal';
 import { useDebounce }   from '@/hooks/useDebounce';
+import { formatShortDate } from '@/lib/date';
 
 type RoleFilter = StaffRole | 'all';
 
@@ -28,7 +29,7 @@ function relTime(iso: string | null): string {
   if (h < 24)  return `${h} soat oldin`;
   const d = Math.floor(h / 24);
   if (d < 30)  return `${d} kun oldin`;
-  return new Date(iso).toLocaleDateString('uz-UZ', { day:'2-digit', month:'short' });
+  return formatShortDate(iso);
 }
 
 export default function StaffPage() {
@@ -271,11 +272,11 @@ export default function StaffPage() {
                                 title="Tahrirlash"
                               ><Pencil size={16} /></button>
 
-                              {/* Parol tiklash */}
+                              {/* Kirish ma'lumotlari (username/parol) */}
                               <button
                                 onClick={() => setResetStaff(s)}
                                 className="text-xs text-gray-500 hover:text-amber-600 w-7 h-7 rounded-lg hover:bg-amber-50 flex items-center justify-center transition-colors"
-                                title="Parol tiklash"
+                                title="Kirish ma'lumotlari"
                               ><KeyRound size={16} /></button>
 
                               {/* Faollashtirish / o'chirish toggle */}
@@ -360,7 +361,7 @@ export default function StaffPage() {
         <StaffModal staff={editStaff} onClose={() => setEditStaff(undefined)} />
       )}
       {resetStaff && (
-        <ResetPasswordModal staff={resetStaff} onClose={() => setResetStaff(null)} />
+        <ResetPasswordModal user={resetStaff} onClose={() => setResetStaff(null)} />
       )}
     </div>
   );

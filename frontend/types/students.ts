@@ -20,6 +20,11 @@ export interface Student {
   notes:           string | null;
 }
 
+// Yaratish javobi — parol avtomatik yaratilgan bo'lsa, bir martalik ko'rsatish uchun
+export interface CreateStudentResponse extends Student {
+  generatedPassword?: string;
+}
+
 export interface StudentDetail extends Student {
   parents:     ParentRecord[];
   enrollments: EnrollmentRecord[];
@@ -59,7 +64,7 @@ export interface CreateStudentForm {
   username?:       string;
   email?:          string;
   phone?:          string;
-  password:        string;
+  password?:       string;
   birthDate?:      string;
   address?:        string;
   schoolName?:     string;

@@ -4,6 +4,7 @@ import { AlertTriangle, Check, Circle, X } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
+import { formatDate } from '@/lib/date';
 import type { InstallmentPlan } from '@/types/payments';
 
 interface Props {
@@ -144,7 +145,7 @@ export default function InstallmentModal({ open, onClose }: Props) {
                   <div key={item.part} className="flex items-center justify-between px-4 py-2.5">
                     <div className="flex items-center gap-3">
                       <span className="w-6 h-6 rounded-full bg-emerald-100 text-emerald-700 text-xs font-bold flex items-center justify-center">{item.part}</span>
-                      <span className="text-xs text-gray-500">{new Date(item.dueDate).toLocaleDateString('uz-UZ', { month:'short', day:'numeric', year:'numeric' })}</span>
+                      <span className="text-xs text-gray-500">{formatDate(item.dueDate)}</span>
                     </div>
                     <span className="text-sm font-semibold text-gray-900">{item.amount.toLocaleString('uz-UZ')} so'm</span>
                   </div>

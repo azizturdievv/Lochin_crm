@@ -3,6 +3,7 @@
 import { Lock, Star } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
+import { formatShortDate } from '@/lib/date';
 import { POINT_REASON_META } from '@/types/gamification';
 import type { PointLog, Badge } from '@/types/gamification';
 import { useAuthStore } from '@/store/auth.store';
@@ -90,7 +91,7 @@ export default function PointsTab({ userId }: Props) {
                       <span className="text-[10px] font-medium text-amber-700 leading-tight">{b.name}</span>
                       {b.earnedAt && (
                         <span className="text-[9px] text-gray-400">
-                          {new Date(b.earnedAt).toLocaleDateString('uz-UZ', { day:'2-digit', month:'short' })}
+                          {formatShortDate(b.earnedAt)}
                         </span>
                       )}
                     </div>

@@ -101,9 +101,16 @@ export class QueryUserDto {
 }
 
 export class ResetPasswordDto {
+  @IsOptional()
   @IsString()
   @MinLength(8, { message: 'Parol kamida 8 ta belgi bo\'lishi kerak' })
-  newPassword: string;
+  newPassword?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  @Matches(/^[a-z0-9_]+$/, { message: "Username faqat kichik harf, raqam va _ bo'lishi mumkin" })
+  username?: string;
 }
 
 // Foydalanuvchi o'z profilini yangilashi uchun

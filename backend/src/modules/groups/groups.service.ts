@@ -11,6 +11,7 @@ import { Subject } from '../../entities/subject.entity';
 import { User } from '../../entities/user.entity';
 import { ChatRoom, ChatRoomType } from '../../entities/chat-room.entity';
 import { Enrollment, EnrollmentStatus } from '../../entities/enrollment.entity';
+import { Lesson, LessonStatus } from '../../entities/lesson.entity';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { CreateGroupDto, UpdateGroupDto, QueryGroupDto } from './dto/group.dto';
 import { Role } from '../../common/enums/role.enum';
@@ -28,6 +29,8 @@ export class GroupsService {
     private chatRoomRepo: Repository<ChatRoom>,
     @InjectRepository(Enrollment)
     private enrollmentRepo: Repository<Enrollment>,
+    @InjectRepository(Lesson)
+    private lessonRepo: Repository<Lesson>,
     private auditLog: AuditLogService,
   ) {}
 
@@ -219,6 +222,13 @@ export class GroupsService {
 
     await this.groupRepo.update(id, updateData);
 
+    // Guruh shu chaqiruvda arxivlansa (isActive true → false) — hali bo'lib
+    // o'tmagan rejalashtirilgan darslari ham bekor qilinadi
+    let cancelledLessons = 0;
+    if (dto.isActive === false && group.isActive) {
+      cancelledLessons = await this.cancelFutureLessons(id);
+    }
+
     // Ustoz o'zgarganda chat xonasi a'zolarini sinxronizatsiya
     if (dto.teacherId !== undefined && dto.teacherId !== group.teacherId) {
       await this.syncGroupChatRoomTeacher(id, group.teacherId, dto.teacherId ?? null);
@@ -238,7 +248,7 @@ export class GroupsService {
       action: 'GROUP_UPDATED',
       entityName: 'groups',
       entityId: id,
-      newValues: dto as Record<string, unknown>,
+      newValues: { ...dto, ...(cancelledLessons > 0 && { cancelledLessons }) } as Record<string, unknown>,
     });
 
     return this.findOne(id);
@@ -250,6 +260,7 @@ export class GroupsService {
     if (!group) throw new NotFoundException('Guruh topilmadi');
 
     await this.groupRepo.update(id, { isActive: false });
+    const cancelledLessons = group.isActive ? await this.cancelFutureLessons(id) : 0;
 
     await this.auditLog.log({
       userId: actorId,
@@ -257,9 +268,30 @@ export class GroupsService {
       action: 'GROUP_DEACTIVATED',
       entityName: 'groups',
       entityId: id,
+      newValues: { cancelledLessons },
     });
 
-    return { message: `"${group.name}" guruhi deaktivatsiya qilindi` };
+    return {
+      message: `"${group.name}" guruhi deaktivatsiya qilindi${
+        cancelledLessons > 0 ? `, ${cancelledLessons} ta rejalashtirilgan dars bekor qilindi` : ''
+      }`,
+    };
+  }
+
+  // Guruh arxivlanganda hali bo'lib o'tmagan rejalashtirilgan darslarini bekor
+  // qiladi — aks holda ular xona/o'qituvchini "band" ko'rsatishda davom etib,
+  // boshqa faol guruhlarning avtomatik jadval generatsiyasiga to'sqinlik
+  // qiladi. O'tgan darslarga tegilmaydi — tarixiy davomat/hisobot ma'lumoti
+  private async cancelFutureLessons(groupId: string): Promise<number> {
+    const result = await this.lessonRepo
+      .createQueryBuilder()
+      .update(Lesson)
+      .set({ status: LessonStatus.CANCELLED })
+      .where('group_id = :groupId', { groupId })
+      .andWhere('status = :status', { status: LessonStatus.SCHEDULED })
+      .andWhere('lesson_date >= CURRENT_DATE')
+      .execute();
+    return result.affected ?? 0;
   }
 
   // O'qituvchi uchun ustoz ro'yxati

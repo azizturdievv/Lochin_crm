@@ -11,6 +11,7 @@ import {
   ResponsiveContainer, Tooltip,
 } from 'recharts';
 import api from '@/lib/api';
+import { formatLongDate } from '@/lib/date';
 import StudentModal from '@/components/students/StudentModal';
 import ExtendPaymentModal from '@/components/payments/ExtendPaymentModal';
 import type { StudentDetail, EnrollmentRecord } from '@/types/students';
@@ -134,7 +135,7 @@ export default function StudentDetailPage({ params }: { params: Promise<{ id: st
                   </button>
                 )}
                 <span className="text-gray-400 text-xs">
-                  {new Date(student.createdAt).toLocaleDateString('uz-UZ', { year:'numeric', month:'long', day:'numeric' })} dan
+                  {formatLongDate(student.createdAt)} dan
                 </span>
               </div>
             </div>

@@ -6,6 +6,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { useAuthStore } from '@/store/auth.store';
+import { formatDate } from '@/lib/date';
 
 // ─── Tiplar ──────────────────────────────────────────────────────────────────
 type AbsenceReason = 'sick' | 'personal' | 'family' | 'training' | 'other';
@@ -16,6 +17,15 @@ interface SubLesson {
   startTime:   string;
   endTime:     string;
   group?:      { name: string; subject?: { name: string } };
+}
+
+interface UpcomingLesson {
+  id:         string;
+  lessonDate: string;
+  startTime:  string;
+  endTime:    string;
+  group:      { id: string; name: string; subject: { id: string; name: string } };
+  teacher:    { id: string; firstName: string; lastName: string };
 }
 
 interface SubUser {
@@ -58,9 +68,7 @@ const REASON_META: Record<AbsenceReason, { label: string; icon: LucideIcon; colo
   other:    { label: 'Boshqa',       icon: ClipboardList, color: 'text-gray-600'   },
 };
 
-function fmtDate(iso: string) {
-  return new Date(iso).toLocaleDateString('uz-UZ', { day:'2-digit', month:'short', year:'numeric' });
-}
+const fmtDate = formatDate;
 
 function fmtMoney(val: string | bigint) {
   return Number(val).toLocaleString('uz-UZ');
@@ -201,7 +209,7 @@ export default function SubstitutionsPage() {
                           <span className="text-xs text-gray-500">{sub.lesson.group?.name}</span>
                           <span className="text-gray-300">·</span>
                           <span className="text-xs text-gray-500">
-                            {fmtDate(sub.lesson.lessonDate)} {sub.lesson.startTime}–{sub.lesson.endTime}
+                            {fmtDate(sub.lesson.lessonDate)} {sub.lesson.startTime.slice(0, 5)}–{sub.lesson.endTime.slice(0, 5)}
                           </span>
                         </div>
                       )}
@@ -289,21 +297,23 @@ function CreateSubModal({ onClose }: { onClose: () => void }) {
       }),
   });
 
-  // Darslar ro'yxati (bugun va kelajak)
+  // Darslar ro'yxati (bugundan 30 kun ichida, faqat rejalashtirilgan holatdagilar)
   const { data: lessons = [] } = useQuery({
     queryKey: ['upcoming-lessons'],
-    queryFn:  () => api.get('/schedule/week').then(r => {
-      const d = r.data;
-      return (Array.isArray(d) ? d : (d?.data ?? d?.lessons ?? [])) as {
-        id: string; lessonDate: string; startTime: string;
-        group?: { name: string; subject?: { name: string } };
-        teacher?: { firstName: string; lastName: string };
-      }[];
-    }),
+    queryFn:  () => api.get<UpcomingLesson[]>('/schedule/upcoming-lessons').then(r => r.data),
   });
 
+  const selectedLesson = lessons.find(l => l.id === form.lessonId);
+
   const mut = useMutation({
-    mutationFn: () => api.post('/substitutions', form),
+    // Backend originalTeacherId'ni o'zi darsdan aniqlaydi — DTO bu maydonni
+    // umuman qabul qilmaydi (forbidNonWhitelisted), yuborilsa 400 xato beradi
+    mutationFn: () => api.post('/substitutions', {
+      lessonId:            form.lessonId,
+      substituteTeacherId: form.substituteTeacherId,
+      reason:              form.reason,
+      ...(form.notes && { notes: form.notes }),
+    }),
     onSuccess:  () => {
       qc.invalidateQueries({ queryKey: ['substitutions'] });
       onClose();
@@ -315,7 +325,7 @@ function CreateSubModal({ onClose }: { onClose: () => void }) {
   function handleSubmit() {
     setError('');
     if (!form.lessonId)             { setError('Dars tanlang'); return; }
-    if (!form.originalTeacherId)    { setError('Asl o\'qituvchi tanlang'); return; }
+    if (!form.originalTeacherId)    { setError('Tanlangan darsning ustozi aniqlanmadi'); return; }
     if (!form.substituteTeacherId)  { setError('O\'rinbosar tanlang'); return; }
     if (form.originalTeacherId === form.substituteTeacherId) {
       setError('Asl va o\'rinbosar bir xil bo\'lmasligi kerak'); return;
@@ -345,12 +355,7 @@ function CreateSubModal({ onClose }: { onClose: () => void }) {
                 setForm(f => ({
                   ...f,
                   lessonId: e.target.value,
-                  originalTeacherId: lesson?.teacher
-                    ? teachers.find(t =>
-                        t.firstName === lesson.teacher?.firstName &&
-                        t.lastName  === lesson.teacher?.lastName
-                      )?.id
-                    : f.originalTeacherId,
+                  originalTeacherId: lesson?.teacher.id,
                 }));
               }}
               className={INPUT}
@@ -358,25 +363,23 @@ function CreateSubModal({ onClose }: { onClose: () => void }) {
               <option value="">Dars tanlang...</option>
               {lessons.map(l => (
                 <option key={l.id} value={l.id}>
-                  {l.lessonDate} {l.startTime} — {l.group?.subject?.name ?? ''} ({l.group?.name ?? ''})
+                  {fmtDate(l.lessonDate)} {l.startTime.slice(0, 5)} — {l.group.subject.name} ({l.group.name})
                 </option>
               ))}
             </select>
+            {lessons.length === 0 && (
+              <p className="text-xs text-gray-400 mt-1">Keyingi 30 kunda rejalashtirilgan dars topilmadi</p>
+            )}
           </div>
 
-          {/* Asl o'qituvchi */}
+          {/* Asl o'qituvchi — darsning haqiqiy ustozidan avtomatik olinadi,
+             qo'lda o'zgartirib bo'lmaydi (backend ham shu darsning o'z
+             ustozini ishlatadi) */}
           <div>
-            <label className={LABEL}>Asl o'qituvchi *</label>
-            <select
-              value={form.originalTeacherId ?? ''}
-              onChange={e => setForm(f => ({ ...f, originalTeacherId: e.target.value }))}
-              className={INPUT}
-            >
-              <option value="">Tanlang...</option>
-              {teachers.map(t => (
-                <option key={t.id} value={t.id}>{t.firstName} {t.lastName}</option>
-              ))}
-            </select>
+            <label className={LABEL}>Asl o'qituvchi</label>
+            <div className={`${INPUT} ${selectedLesson ? 'text-gray-900' : 'text-gray-400'}`}>
+              {selectedLesson ? `${selectedLesson.teacher.firstName} ${selectedLesson.teacher.lastName}` : 'Avval dars tanlang'}
+            </div>
           </div>
 
           {/* O'rinbosar */}

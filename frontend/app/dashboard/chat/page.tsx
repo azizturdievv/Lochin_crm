@@ -4,6 +4,7 @@ import { MessageSquare, ChevronLeft } from 'lucide-react';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
+import { formatLongDate } from '@/lib/date';
 import { useAuthStore } from '@/store/auth.store';
 import { useChatSocket } from '@/hooks/useChatSocket';
 import RoomList from '@/components/chat/RoomList';
@@ -179,7 +180,7 @@ export default function ChatPage() {
     yesterday.setDate(now.getDate() - 1);
     if (isSameLocalDay(d, now)) return 'Bugun';
     if (isSameLocalDay(d, yesterday)) return 'Kecha';
-    return d.toLocaleDateString('uz-UZ', { day: 'numeric', month: 'long', year: 'numeric' });
+    return formatLongDate(d);
   }
 
   return (

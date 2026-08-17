@@ -12,6 +12,7 @@ import KpiCard from '@/components/ui/KpiCard';
 import PageHeader from '@/components/ui/PageHeader';
 import Link from 'next/link';
 import { useAuthStore } from '@/store/auth.store';
+import { formatShortDate, formatWeekdayDate } from '@/lib/date';
 import type { AdminDashboard, TeacherDashboard, StudentDashboard, DashboardData } from '@/types';
 
 // ─── YORDAMCHI FUNKSIYALAR ────────────────────────────────────────────────────
@@ -20,9 +21,7 @@ function fmt(n: number): string {
   if (n >= 1_000)     return `${(n / 1_000).toFixed(0)}K`;
   return String(n);
 }
-function fmtDate(d: string): string {
-  return new Date(d).toLocaleDateString('uz-UZ', { day: 'numeric', month: 'short' });
-}
+const fmtDate = formatShortDate;
 function fmtTime(t: string): string {
   return t?.slice(0, 5) ?? '—';
 }
@@ -63,6 +62,7 @@ function AdminDashboardView({ data, loading }: { data?: AdminDashboard; loading:
           sub={`Bugun: ${fmt(data?.revenue.today ?? 0)} so'm`}
           icon={Banknote} color="emerald" loading={loading}
           trend={data ? { value: 12, label: "O'tgan oyga nisbatan" } : undefined}
+          href="/dashboard/finance"
         />
         <KpiCard
           title="Faol o'quvchilar"
@@ -70,12 +70,14 @@ function AdminDashboardView({ data, loading }: { data?: AdminDashboard; loading:
           sub={`Yangi (shu oy): ${data?.students.newThisMonth ?? 0}`}
           icon={Users} color="blue" loading={loading}
           split={data ? { active: data.students.active, inactive: data.students.total - data.students.active } : undefined}
+          href="/dashboard/students"
         />
         <KpiCard
           title="Qarzdorlar"
           value={loading ? '...' : (data?.debt.count ?? 0)}
           sub={loading ? '' : `${fmt(data?.debt.total ?? 0)} so'm qarzdorlik`}
           icon={AlertTriangle} color="red" loading={loading}
+          href="/dashboard/payments?tab=debtors"
         />
         <KpiCard
           title="Bugungi davomat"
@@ -86,6 +88,7 @@ function AdminDashboardView({ data, loading }: { data?: AdminDashboard; loading:
             inactive: Math.max(0, data.attendance.totalToday - data.attendance.presentToday),
           } : undefined}
           splitLabels={{ active: 'Keldi', inactive: 'Kelmadi' }}
+          href="/dashboard/attendance"
         />
       </div>
 
@@ -512,9 +515,7 @@ export default function DashboardPage() {
     staleTime: 60_000,
   });
 
-  const today = new Date().toLocaleDateString('uz-UZ', {
-    weekday: 'long', day: 'numeric', month: 'long',
-  });
+  const today = formatWeekdayDate(new Date());
 
   const roleLabel: Record<string, string> = {
     super_admin: 'Super Admin',

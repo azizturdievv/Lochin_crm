@@ -48,12 +48,16 @@ export class ReportsService {
       WHERE role = 'student' AND deleted_at IS NULL
     `, [monthStart]);
 
-    // Qarzdorlar: joriy oy uchun to'lov qilmagan faol o'quvchilar
+    // Qarzdorlar: joriy oy uchun to'lov qilmagan faol o'quvchilar + ularning kutilayotgan
+    // oylik to'lovlari jami (guruh narxi × (1 - chegirma%), har bir faol yozilishi bo'yicha)
     const [debt] = await this.ds.query(`
-      SELECT COUNT(DISTINCT u.id)::int AS count
+      SELECT
+        COUNT(DISTINCT u.id)::int AS count,
+        COALESCE(SUM(g.monthly_price * (1 - e.discount_percent / 100.0)), 0)::bigint AS total
       FROM users u
       JOIN enrollments e ON e.student_id = u.id
         AND e.status = 'active' AND e.deleted_at IS NULL
+      JOIN groups g ON g.id = e.group_id
       LEFT JOIN payments p ON p.student_id = u.id
         AND p.payment_month = TO_CHAR(CURRENT_DATE, 'YYYY-MM')
         AND p.status = 'completed'
@@ -90,6 +94,7 @@ export class ReportsService {
     `, [sevenDaysAgo]);
 
     // Oxirgi 5 to'lov — "firstName" quoted, last_name snake_case
+    // O'quvchi arxivlangan (soft-delete) bo'lsa ham chiqib qolmasin — u.deleted_at tekshiruvi shart
     const recentPayments = await this.ds.query(`
       SELECT
         p.id,
@@ -99,7 +104,7 @@ export class ReportsService {
         p.created_at
       FROM payments p
       JOIN users u ON u.id = p.student_id
-      WHERE p.status = 'completed' AND p.deleted_at IS NULL
+      WHERE p.status = 'completed' AND p.deleted_at IS NULL AND u.deleted_at IS NULL
       ORDER BY p.created_at DESC
       LIMIT 5
     `);
@@ -136,7 +141,7 @@ export class ReportsService {
       },
       debt: {
         count: debt.count,
-        total: 0,
+        total: Number(debt.total),
       },
       attendance: {
         rateToday:    att.rate_today,

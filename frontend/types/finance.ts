@@ -50,11 +50,26 @@ export interface SalaryRecord {
   kpiBonus:     number;
   subAmount:    number;
   deduction:    number;
+  paymentBonus: number;
+  leadBonus:    number;
   totalAmount:  number;
   lessonsCount: number;
   totalHours:   number;
   status:       SalaryStatus;
   approvedBy?:  { firstName: string; lastName: string } | null;
+}
+
+// ─── ISH HAQI KONFIGURATSIYASI ────────────────────────────────────────────────
+export interface SalaryConfig {
+  id:                  string;
+  teacherId:           string;
+  ratePercent:         number;
+  kpiBonusPercent:     number;
+  hourlyRate:          number | null;
+  salesBonusPercent:   number;
+  paymentBonusPercent: number;
+  leadBonusAmount:     number;
+  startedAt:           string;
 }
 
 // ─── XARAJAT ──────────────────────────────────────────────────────────────────

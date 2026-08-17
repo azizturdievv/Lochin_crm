@@ -7,14 +7,20 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
+import { formatDateTime } from '@/lib/date';
 import { STAGE_META, SOURCE_META } from '@/types/leads';
 import type { Lead, LeadStage, LeadSource } from '@/types/leads';
+
+interface ManagerOption { id: string; firstName: string; lastName: string; }
+const fetchManagers = () =>
+  api.get<{ data: ManagerOption[] }>('/users', { params: { role: 'manager', limit: 100 } }).then(r => r.data.data);
 
 const schema = z.object({
   fullName:          z.string().min(2, "Ism-familiya kiritilishi shart"),
   phone:             z.string().min(9, "Telefon raqam noto'g'ri"),
   source:            z.enum(['instagram','telegram','phone','website','whatsapp','walkin','referral']),
   interestedSubject: z.string().optional(),
+  assignedToId:      z.string().optional(),
 });
 
 type FormData = z.infer<typeof schema>;
@@ -39,6 +45,11 @@ export default function LeadModal({ lead, onClose }: Props) {
 
   const notes = detail?.notes ?? lead?.notes ?? [];
 
+  const { data: managers } = useQuery({
+    queryKey: ['leads-manager-options'],
+    queryFn:  fetchManagers,
+  });
+
   const { register, handleSubmit, reset, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
     defaultValues: lead ? {
@@ -46,8 +57,10 @@ export default function LeadModal({ lead, onClose }: Props) {
       phone:             lead.phone,
       source:            lead.source ?? 'phone',
       interestedSubject: lead.interestedSubject ?? '',
+      assignedToId:      lead.assignedToId ?? '',
     } : {
       source: 'phone',
+      assignedToId: '',
     },
   });
 
@@ -58,6 +71,7 @@ export default function LeadModal({ lead, onClose }: Props) {
         phone:             lead.phone,
         source:            lead.source ?? 'phone',
         interestedSubject: lead.interestedSubject ?? '',
+        assignedToId:      lead.assignedToId ?? '',
       });
     }
   }, [lead]);
@@ -164,6 +178,17 @@ export default function LeadModal({ lead, onClose }: Props) {
                   <input {...register('interestedSubject')} className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500" placeholder="Ingliz tili" />
                 </div>
               </div>
+
+              {/* Mas'ul manager */}
+              <div>
+                <label className="text-xs font-medium text-gray-600 mb-1 block">Mas'ul manager</label>
+                <select {...register('assignedToId')} className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white">
+                  <option value="">Tayinlanmagan</option>
+                  {managers?.map(m => (
+                    <option key={m.id} value={m.id}>{m.lastName} {m.firstName}</option>
+                  ))}
+                </select>
+              </div>
             </form>
           ) : (
             /* Izohlar tab */
@@ -178,7 +203,7 @@ export default function LeadModal({ lead, onClose }: Props) {
                         {n.createdBy ? `${n.createdBy.firstName} ${n.createdBy.lastName}` : 'Xodim'}
                       </span>
                       <span className="text-[10px] text-gray-400">
-                        {new Date(n.createdAt).toLocaleDateString('uz-UZ', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' })}
+                        {formatDateTime(n.createdAt)}
                       </span>
                     </div>
                     <p className="text-sm text-gray-700 whitespace-pre-wrap">{n.content}</p>

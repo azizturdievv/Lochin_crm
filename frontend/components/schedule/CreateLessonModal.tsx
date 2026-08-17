@@ -42,7 +42,7 @@ export default function CreateLessonModal({ open, onClose, preDay, preRoom, preS
   const [error,      setError]      = useState('');
 
   // Data
-  const { data: groups }   = useQuery({ queryKey: ['groups-all'],   queryFn: () => api.get('/groups').then(r => r.data.data ?? r.data), enabled: open });
+  const { data: groups }   = useQuery({ queryKey: ['groups-all'],   queryFn: () => api.get('/groups', { params: { isActive: 'true', limit: 200 } }).then(r => r.data.data ?? r.data), enabled: open });
   const { data: teachers } = useQuery({ queryKey: ['teachers-all'], queryFn: () => api.get('/users?role=ustoz').then(r => r.data.data ?? r.data), enabled: open });
   const { data: rooms }     = useQuery({ queryKey: ['rooms'],      queryFn: () => api.get<ApiRoom[]>('/schedule/rooms?active=true').then(r => r.data), enabled: open, staleTime: 5 * 60_000 });
   const { data: timeSlots } = useQuery({ queryKey: ['time-slots'], queryFn: () => api.get<ApiTimeSlot[]>('/schedule/time-slots?active=true').then(r => r.data), enabled: open, staleTime: 5 * 60_000 });
@@ -54,8 +54,10 @@ export default function CreateLessonModal({ open, onClose, preDay, preRoom, preS
       setTeacherId(lesson.teacher.id);
       setDate(lesson.lessonDate);
       setRoom(lesson.roomNumber);
-      setStartTime(lesson.startTime);
-      setEndTime(lesson.endTime);
+      // Backend "HH:MM:SS" qaytaradi (Postgres time turi) — inputlar va DTO
+      // validatsiyasi "HH:MM" kutadi
+      setStartTime(lesson.startTime.slice(0, 5));
+      setEndTime(lesson.endTime.slice(0, 5));
       setTopic(lesson.topic ?? '');
     } else {
       setGroupId(''); setTeacherId('');
@@ -106,8 +108,11 @@ export default function CreateLessonModal({ open, onClose, preDay, preRoom, preS
     if (!groupId || !teacherId || !date || !room || !startTime || !endTime) {
       return setError('Barcha majburiy maydonlarni to\'ldiring');
     }
-    const payload = { groupId, teacherId, lessonDate: date, roomNumber: room, startTime, endTime, topic: topic || undefined, recurring, recurringWeeks: recurWks };
-    mode === 'edit' ? editMut.mutate(payload) : createMut.mutate(payload);
+    if (mode === 'edit') {
+      editMut.mutate({ teacherId, lessonDate: date, roomNumber: room, startTime, endTime, topic: topic || undefined });
+    } else {
+      createMut.mutate({ groupId, teacherId, lessonDate: date, roomNumber: room, startTime, endTime, topic: topic || undefined, recurring, recurringWeeks: recurWks });
+    }
   }
 
   if (!open) return null;

@@ -56,6 +56,7 @@ export class AuditLogService {
     userId?: string;
     action?: string;
     entityName?: string;
+    entityId?: string;
     from?: Date;
     to?: Date;
     page?: number;
@@ -73,6 +74,10 @@ export class AuditLogService {
 
     if (filters.entityName) {
       query.andWhere('al.entity_name = :entityName', { entityName: filters.entityName });
+    }
+
+    if (filters.entityId) {
+      query.andWhere('al.entity_id = :entityId', { entityId: filters.entityId });
     }
 
     if (filters.from) {

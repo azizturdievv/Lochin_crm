@@ -4,6 +4,7 @@ import { Download, X } from 'lucide-react';
 import { useRef } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import api from '@/lib/api';
+import { formatDateTime } from '@/lib/date';
 import type { Payment } from '@/types/payments';
 import { METHOD_META } from '@/types/payments';
 
@@ -52,7 +53,7 @@ export default function ReceiptModal({ payment, onClose }: Props) {
         </div>
         <div class="divider"></div>
         <div class="row"><span>Raqam:</span><span class="bold">#${payment.id.slice(0,8).toUpperCase()}</span></div>
-        <div class="row"><span>Sana:</span><span>${new Date(payment.createdAt).toLocaleString('uz-UZ')}</span></div>
+        <div class="row"><span>Sana:</span><span>${formatDateTime(payment.createdAt)}</span></div>
         <div class="divider"></div>
         <div class="row"><span>O'quvchi:</span><span class="bold">${payment.student.lastName} ${payment.student.firstName}</span></div>
         ${payment.student.phone ? `<div class="row"><span>Telefon:</span><span>${payment.student.phone}</span></div>` : ''}
@@ -126,7 +127,7 @@ export default function ReceiptModal({ payment, onClose }: Props) {
           <div className="space-y-2">
             <Row label="O'quvchi" value={`${payment.student.lastName} ${payment.student.firstName}`} bold />
             {payment.student.phone && <Row label="Telefon" value={payment.student.phone} />}
-            <Row label="Sana"  value={new Date(payment.createdAt).toLocaleString('uz-UZ', { dateStyle: 'medium', timeStyle: 'short' })} />
+            <Row label="Sana"  value={formatDateTime(payment.createdAt)} />
           </div>
 
           <div className="border-t border-dashed border-gray-300 pt-3 space-y-2">
@@ -149,7 +150,7 @@ export default function ReceiptModal({ payment, onClose }: Props) {
 
           <div className="border-t border-dashed border-gray-300 pt-3">
             <Row label="Kassir" value={`${payment.receivedBy.lastName} ${payment.receivedBy.firstName}`} />
-            {payment.printedAt && <p className="text-xs text-gray-400 mt-1">Chop: {new Date(payment.printedAt).toLocaleString('uz-UZ')}</p>}
+            {payment.printedAt && <p className="text-xs text-gray-400 mt-1">Chop: {formatDateTime(payment.printedAt)}</p>}
           </div>
         </div>
 
