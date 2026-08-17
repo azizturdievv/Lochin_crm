@@ -1,12 +1,13 @@
 'use client';
 
-import { BookOpen, CheckCircle2, ClipboardList, Clock, PenLine, Pencil, Plus, Star } from 'lucide-react';
+import { BookOpen, CheckCircle2, ClipboardList, Clock, PenLine, Pencil, Plus, Star, ClipboardCheck } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useState, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
-import type { Homework, HomeworkSubmission } from '@/types/lms';
+import type { Homework } from '@/types/lms';
 import CreateHomeworkModal from './CreateHomeworkModal';
+import GradeHomeworkModal from './GradeHomeworkModal';
 
 interface Props {
   groupId:     string | null;
@@ -24,8 +25,15 @@ const FILTERS: Array<{ v: HwFilter; label: string; icon: LucideIcon }> = [
   { v: 'late',      label: 'Kechikdi',  icon: Clock },
 ];
 
+// Kalendar-kun farqi — soat qismi hisobga olinmaydi, shu bilan backenddagi
+// "muddat kunining oxirigacha vaqtida" qoidasi bilan mos keladi (0 — bugun
+// muddat, hali kech emas; -1 va undan kichik — muddat o'tgan).
 function daysLeft(iso: string): number {
-  return Math.ceil((new Date(iso).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+  const due = new Date(iso);
+  due.setHours(0, 0, 0, 0);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return Math.round((due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
 }
 
 export default function HomeworkTab({ groupId, canCreate, studentId }: Props) {
@@ -37,6 +45,7 @@ export default function HomeworkTab({ groupId, canCreate, studentId }: Props) {
   const [uploading,    setUploading]      = useState(false);
   const [submitError,  setSubmitError]    = useState('');
   const [createOpen,   setCreateOpen]     = useState(false);
+  const [gradingId,    setGradingId]      = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const { data: homeworks = [], isLoading } = useQuery({
@@ -66,12 +75,6 @@ export default function HomeworkTab({ groupId, canCreate, studentId }: Props) {
     },
     onError: (e: { response?: { data?: { message?: string } } }) =>
       setSubmitError(e.response?.data?.message ?? 'Yuborishda xatolik yuz berdi'),
-  });
-
-  const gradeMut = useMutation({
-    mutationFn: ({ submissionId, score, teacherComment }: { submissionId: string; score: number; teacherComment: string }) =>
-      api.post('/homework/grade', { submissionId, score, teacherComment }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['homeworks', groupId] }),
   });
 
   function hwStatus(hw: Homework): HwFilter {
@@ -199,6 +202,14 @@ export default function HomeworkTab({ groupId, canCreate, studentId }: Props) {
 
                   {/* Tugmalar */}
                   <div className="shrink-0 flex flex-col gap-2">
+                    {canCreate && (
+                      <button
+                        onClick={() => setGradingId(hw.id)}
+                        className="text-xs flex items-center gap-1.5 bg-purple-50 text-purple-700 hover:bg-purple-100 px-3 py-1.5 rounded-xl transition-colors font-medium"
+                      >
+                        <ClipboardCheck size={14} /> Baholash
+                      </button>
+                    )}
                     {hw.attachmentUrls.map((url, i) => (
                       <a
                         key={url}
@@ -265,6 +276,10 @@ export default function HomeworkTab({ groupId, canCreate, studentId }: Props) {
 
       {createOpen && groupId && (
         <CreateHomeworkModal groupId={groupId} onClose={() => setCreateOpen(false)} />
+      )}
+
+      {gradingId && (
+        <GradeHomeworkModal homeworkId={gradingId} onClose={() => setGradingId(null)} />
       )}
     </div>
   );

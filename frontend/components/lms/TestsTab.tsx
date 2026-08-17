@@ -1,6 +1,6 @@
 'use client';
 
-import { FileText, Pencil } from 'lucide-react';
+import { FileText, Pencil, BarChart3 } from 'lucide-react';
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
@@ -8,12 +8,15 @@ import { TEST_STATUS_META, scoreToLevel } from '@/types/lms';
 import type { Test, TestStatus } from '@/types/lms';
 import TestRunner from './TestRunner';
 import CreateTestModal from './CreateTestModal';
+import TestResultsModal from './TestResultsModal';
 
 interface Props {
   subjectId:   string;
   groupId:     string | null;
   canCreate:   boolean;
   canApprove:  boolean;
+  role:        string;
+  userId?:     string;
 }
 
 const STATUS_FILTERS: Array<{ value: TestStatus | 'all'; label: string }> = [
@@ -23,17 +26,23 @@ const STATUS_FILTERS: Array<{ value: TestStatus | 'all'; label: string }> = [
   { value: 'draft',     label: 'Qoralama'    },
 ];
 
-export default function TestsTab({ subjectId, groupId, canCreate, canApprove }: Props) {
+export default function TestsTab({ subjectId, groupId, canCreate, canApprove, role, userId }: Props) {
   const qc = useQueryClient();
   const [statusFilter, setStatusFilter] = useState<TestStatus | 'all'>('published');
   const [activeTest,   setActiveTest]   = useState<Test | null>(null);
   const [createOpen,   setCreateOpen]   = useState(false);
+  const [resultsTestId, setResultsTestId] = useState<string | null>(null);
 
   const { data: tests = [], isLoading } = useQuery({
     queryKey: ['tests', subjectId, groupId],
     queryFn:  () => api.get<Test[]>('/tests', {
       params: { subjectId },
     }).then(r => r.data),
+  });
+
+  const sendToReviewMut = useMutation({
+    mutationFn: (id: string) => api.patch(`/tests/${id}/status`, { status: 'review' }),
+    onSuccess:  () => qc.invalidateQueries({ queryKey: ['tests', subjectId, groupId] }),
   });
 
   const approveMut = useMutation({
@@ -109,7 +118,11 @@ export default function TestsTab({ subjectId, groupId, canCreate, canApprove }: 
             const sMeta      = TEST_STATUS_META[test.status];
             const result     = test.myResult;
             const attemptsLeft = test.myAttemptsLeft ?? test.maxAttempts;
-            const canTake    = test.status === 'published' && attemptsLeft > 0;
+            // Faqat talaba testni "boshlashi" mumkin — backend ham shuni talab
+            // qiladi (@Roles(STUDENT)); xodimlar buni bosishi 403ga olib kelardi
+            const canTake    = role === 'student' && test.status === 'published' && attemptsLeft > 0;
+            const canViewResults = (canApprove || (role === 'ustoz' && test.createdById === userId))
+              && (test.status === 'published' || test.status === 'archived');
 
             return (
               <div
@@ -151,6 +164,15 @@ export default function TestsTab({ subjectId, groupId, canCreate, canApprove }: 
                     ) : null}
 
                     <div className="flex gap-2">
+                      {test.status === 'draft' && (canApprove || test.createdById === userId) && (
+                        <button
+                          onClick={() => sendToReviewMut.mutate(test.id)}
+                          disabled={sendToReviewMut.isPending}
+                          className="text-xs bg-purple-50 text-purple-700 hover:bg-purple-100 px-3 py-1.5 rounded-xl transition-colors font-medium"
+                        >
+                          Tekshiruvga yuborish
+                        </button>
+                      )}
                       {canApprove && test.status === 'review' && (
                         <button
                           onClick={() => approveMut.mutate(test.id)}
@@ -169,6 +191,14 @@ export default function TestsTab({ subjectId, groupId, canCreate, canApprove }: 
                           Arxiv
                         </button>
                       )}
+                      {canViewResults && (
+                        <button
+                          onClick={() => setResultsTestId(test.id)}
+                          className="text-xs flex items-center gap-1.5 bg-blue-50 text-blue-700 hover:bg-blue-100 px-3 py-1.5 rounded-xl transition-colors font-medium"
+                        >
+                          <BarChart3 size={14} /> Natijalar
+                        </button>
+                      )}
                       {canTake && (
                         <button
                           onClick={() => setActiveTest(test)}
@@ -177,7 +207,7 @@ export default function TestsTab({ subjectId, groupId, canCreate, canApprove }: 
                           {result ? 'Qayta urinish' : '▶ Boshlash'}
                         </button>
                       )}
-                      {!canTake && test.status === 'published' && attemptsLeft === 0 && result && (
+                      {role === 'student' && !canTake && test.status === 'published' && attemptsLeft === 0 && result && (
                         <span className="text-xs text-gray-400 bg-gray-50 px-3 py-1.5 rounded-xl">
                           Urinish qolmadi
                         </span>
@@ -196,6 +226,13 @@ export default function TestsTab({ subjectId, groupId, canCreate, canApprove }: 
           subjectId={subjectId}
           groupId={groupId}
           onClose={() => setCreateOpen(false)}
+        />
+      )}
+
+      {resultsTestId && (
+        <TestResultsModal
+          testId={resultsTestId}
+          onClose={() => setResultsTestId(null)}
         />
       )}
     </div>

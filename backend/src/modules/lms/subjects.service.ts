@@ -88,12 +88,16 @@ export class SubjectsService {
        GROUP BY g.subject_id`,
     );
 
-    // O'rtacha test bali (yakunlangan urinishlar bo'yicha)
+    // O'rtacha test bali (yakunlangan urinishlar bo'yicha, faqat haqiqiy faol
+    // o'quvchilar — arxivlangan/nofaol o'quvchi natijalari o'rtachani
+    // buzmasligi kerak)
     const avgScoreStats = await this.subjectRepo.query(
       `SELECT t.subject_id, AVG(tr.score) AS avg
        FROM test_results tr
        INNER JOIN tests t ON t.id = tr.test_id
+       INNER JOIN users u ON u.id = tr.student_id
        WHERE tr.deleted_at IS NULL AND tr.finished_at IS NOT NULL
+         AND u.deleted_at IS NULL AND u.is_active = true
        GROUP BY t.subject_id`,
     );
 

@@ -1,9 +1,13 @@
-import { Entity, Column, ManyToOne, JoinColumn } from 'typeorm';
+import { Entity, Column, ManyToOne, JoinColumn, Unique } from 'typeorm';
 import { BaseEntity } from './base.entity';
 import { Test } from './test.entity';
 import { User } from './user.entity';
 
+// DB darajasida ikki tenglashuvchi so'rov bir xil urinish raqamini yarata
+// olmasligini kafolatlaydi (startTest'dagi "tekshir-keyin-yoz" poyga holatiga
+// qarshi so'nggi himoya chizig'i)
 @Entity('test_results')
+@Unique(['testId', 'studentId', 'attemptNumber'])
 export class TestResult extends BaseEntity {
   @ManyToOne(() => Test)
   @JoinColumn({ name: 'test_id' })
@@ -34,6 +38,11 @@ export class TestResult extends BaseEntity {
   // Javoblar tarixi (JSON)
   @Column({ name: 'answers', type: 'jsonb', default: {} })
   answers: Record<string, string>;
+
+  // Shu urinishda o'quvchiga ko'rsatilgan savollar (random tanlangan to'plam) —
+  // checkAnswer/submitTest shu ro'yxatdan tashqari savolni qabul qilmasligi kerak
+  @Column({ name: 'selected_question_ids', type: 'jsonb', default: [] })
+  selectedQuestionIds: string[];
 
   @Column({ name: 'started_at', type: 'timestamptz' })
   startedAt: Date;

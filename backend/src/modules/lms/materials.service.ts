@@ -7,6 +7,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Material, MaterialType } from '../../entities/material.entity';
+import { Group } from '../../entities/group.entity';
 import { Role } from '../../common/enums/role.enum';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { MinioService } from './minio.service';
@@ -17,6 +18,8 @@ export class MaterialsService {
   constructor(
     @InjectRepository(Material)
     private materialRepo: Repository<Material>,
+    @InjectRepository(Group)
+    private groupRepo: Repository<Group>,
     private minioService: MinioService,
     private auditLog: AuditLogService,
   ) {}
@@ -59,7 +62,21 @@ export class MaterialsService {
       throw new BadRequestException('Fayl yuklanishi kerak');
     }
 
-    const url = fileUrl ?? dto.fileUrl ?? '';
+    if (dto.groupId) {
+      const group = await this.groupRepo.findOne({ where: { id: dto.groupId } });
+      if (!group) throw new NotFoundException('Guruh topilmadi');
+      if (!group.isActive) {
+        throw new BadRequestException('Nofaol guruh uchun material yuklab bo\'lmaydi');
+      }
+    }
+
+    let url = fileUrl ?? dto.fileUrl ?? '';
+    // Qo'lda kiritilgan havola (type=link) sxemasiz bo'lsa (masalan
+    // "youtube.com/..."), brauzer uni CRM'ning o'z sahifasiga nisbatan
+    // NISBIY manzil deb hisoblab, yuklab olishda 404'ga olib boradi
+    if (dto.type === MaterialType.LINK && url && !/^https?:\/\//i.test(url)) {
+      url = `https://${url}`;
+    }
 
     const material = this.materialRepo.create({
       title: dto.title,

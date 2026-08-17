@@ -178,6 +178,20 @@ export interface TestResult {
   createdAt:        string;
 }
 
+// Xodim ko'rinishi — GET /tests/:id/results
+export interface TestResultsStats {
+  total:             number;
+  avgScore:          number;
+  cheatingFlags:     number;
+  levelDistribution: { easy: number; medium: number; hard: number };
+}
+
+export interface TestResultsResponse {
+  test:    { id: string; title: string; scoreMethod: ScoreMethod };
+  stats:   TestResultsStats;
+  results: TestResult[];
+}
+
 // ─── VAZIFA ───────────────────────────────────────────────────────────────────
 export type SubmissionStatus = 'submitted' | 'late' | 'graded' | 'resubmitted';
 
@@ -208,6 +222,7 @@ export interface HomeworkSubmission {
   id:             string;
   homeworkId:     string;
   studentId:      string;
+  student?:       { id: string; firstName: string; lastName: string };
   content:        string | null;
   fileUrls:       string[];
   status:         SubmissionStatus;
@@ -218,6 +233,19 @@ export interface HomeworkSubmission {
   gradedById:     string | null;
   onTime:         boolean;
   submittedAt:    string;
+}
+
+// GET /homework/:id/submissions javobi (xodim — baholash ko'rinishi)
+export interface HomeworkSubmissionsResponse {
+  homework:    Homework;
+  stats: {
+    total:    number;
+    onTime:   number;
+    late:     number;
+    graded:   number;
+    avgScore: number;
+  };
+  submissions: HomeworkSubmission[];
 }
 
 // ─── ILK QABUL (BASELINE) ────────────────────────────────────────────────────

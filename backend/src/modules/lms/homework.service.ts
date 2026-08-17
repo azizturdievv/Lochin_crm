@@ -10,6 +10,7 @@ import { Repository, In } from 'typeorm';
 import { Homework } from '../../entities/homework.entity';
 import { HomeworkSubmission, SubmissionStatus } from '../../entities/homework-submission.entity';
 import { Lesson } from '../../entities/lesson.entity';
+import { Group } from '../../entities/group.entity';
 import { Enrollment, EnrollmentStatus } from '../../entities/enrollment.entity';
 import { User } from '../../entities/user.entity';
 import { PointsLog, PointsAction } from '../../entities/points-log.entity';
@@ -43,6 +44,8 @@ export class HomeworkService {
     private notifRepo: Repository<Notification>,
     @InjectRepository(Lesson)
     private lessonRepo: Repository<Lesson>,
+    @InjectRepository(Group)
+    private groupRepo: Repository<Group>,
     private minioService: MinioService,
     private auditLog: AuditLogService,
   ) {}
@@ -59,6 +62,12 @@ export class HomeworkService {
 
   // ─── VAZIFA YARATISH (USTOZ) ──────────────────────────────────────────────
   async create(dto: CreateHomeworkDto, actorId: string, actorRole: string) {
+    const group = await this.groupRepo.findOne({ where: { id: dto.groupId } });
+    if (!group) throw new NotFoundException('Guruh topilmadi');
+    if (!group.isActive) {
+      throw new BadRequestException('Nofaol guruh uchun vazifa yaratib bo\'lmaydi');
+    }
+
     const homework = this.homeworkRepo.create({
       lessonId: dto.lessonId,
       groupId: dto.groupId,
@@ -126,7 +135,14 @@ export class HomeworkService {
     });
 
     const now = new Date();
-    const isLate = now > new Date(homework.dueDate);
+    // `due_date` — sana-only ustun, pg drayveri uni mahalliy vaqt yarim
+    // tuniga aylantiradi (server: Asia/Samarkand). To'g'ridan-to'g'ri shu
+    // instantga solishtirilsa, muddat kunining o'zi ham "kech" hisoblanib
+    // qolardi — kesim mahalliy kunning OXIRI (keyingi kun yarim tuni)
+    // bo'lishi kerak, boshi emas.
+    const dueDateEnd = new Date(homework.dueDate);
+    dueDateEnd.setDate(dueDateEnd.getDate() + 1);
+    const isLate = now > dueDateEnd;
     const onTime = !isLate;
 
     if (existing) {

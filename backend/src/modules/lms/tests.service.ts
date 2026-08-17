@@ -15,6 +15,7 @@ import { Enrollment, EnrollmentStatus } from '../../entities/enrollment.entity';
 import { Notification, NotificationType } from '../../entities/notification.entity';
 import { PointsLog, PointsAction } from '../../entities/points-log.entity';
 import { User } from '../../entities/user.entity';
+import { Subject } from '../../entities/subject.entity';
 import { Role } from '../../common/enums/role.enum';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import {
@@ -28,6 +29,22 @@ import {
 
 // 3:5:2 nisbat: oson:o'rta:qiyin
 const DIFFICULTY_RATIO = { easy: 3, medium: 5, hard: 2 };
+
+// Test zanjiri: bosqichlar ketma-ket o'tiladi, birortasi chetlab o'tilmaydi
+// (SA uchun ham) — aks holda review bosqichidagi savol-soni tekshiruvi chetlab o'tiladi
+const TEST_STATUS_TRANSITIONS: Record<TestStatus, TestStatus[]> = {
+  [TestStatus.DRAFT]:     [TestStatus.REVIEW],
+  [TestStatus.REVIEW]:    [TestStatus.PUBLISHED],
+  [TestStatus.PUBLISHED]: [TestStatus.ARCHIVED],
+  [TestStatus.ARCHIVED]:  [],
+};
+
+const TEST_STATUS_LABELS: Record<TestStatus, string> = {
+  [TestStatus.DRAFT]:     'qoralama',
+  [TestStatus.REVIEW]:    'tekshiruvda',
+  [TestStatus.PUBLISHED]: 'nashr',
+  [TestStatus.ARCHIVED]:  'arxiv',
+};
 
 // Anti-cheat: har savol uchun minimal vaqt (soniyada)
 const MIN_SECONDS_PER_QUESTION = 8;
@@ -102,11 +119,19 @@ export class TestsService {
     private pointsRepo: Repository<PointsLog>,
     @InjectRepository(User)
     private userRepo: Repository<User>,
+    @InjectRepository(Subject)
+    private subjectRepo: Repository<Subject>,
     private auditLog: AuditLogService,
   ) {}
 
   // ─── TEST YARATISH (DRAFT) ────────────────────────────────────────────────
   async createTest(dto: CreateTestDto, actorId: string, actorRole: string) {
+    const subject = await this.subjectRepo.findOne({ where: { id: dto.subjectId } });
+    if (!subject) throw new NotFoundException('Fan topilmadi');
+    if (!subject.isActive) {
+      throw new BadRequestException('Nofaol fan uchun test yaratib bo\'lmaydi');
+    }
+
     const test = this.testRepo.create({
       title: dto.title,
       subjectId: dto.subjectId,
@@ -182,7 +207,8 @@ export class TestsService {
 
     // RBAC: test zanjiri
     if (actorRole === Role.SUPER_ADMIN) {
-      // SA barcha o'zgarishlarni qila oladi
+      // SA istalgan maqsad-holatga ruxsatli — lekin quyidagi zanjir
+      // tekshiruvi bosqichlarni chetlab o'tishga baribir yo'l qo'ymaydi
     } else if (actorRole === Role.MANAGER) {
       // Manager: draft/review → published, yoki → review
       if (!['review', 'published', 'archived'].includes(dto.status)) {
@@ -191,10 +217,19 @@ export class TestsService {
     } else if (actorRole === Role.USTOZ) {
       // Ustoz faqat o'z testini draft → review yuboradi
       if (dto.status !== 'review') throw new ForbiddenException('Ustoz faqat ko\'rib chiqishga yubora oladi');
-      if (test.status !== TestStatus.DRAFT) throw new BadRequestException('Faqat draft testni ko\'rib chiqishga yuborish mumkin');
       if (test.createdById !== actorId) throw new ForbiddenException('Bu test sizniki emas');
     } else {
       throw new ForbiddenException('Bu amalni bajarish uchun ruxsat yo\'q');
+    }
+
+    // Zanjir: bosqichlar ketma-ket o'tiladi — SA ham chetlab o'ta olmaydi
+    // (aks holda quyidagi savol-soni tekshiruvi review bosqichini chetlab
+    // o'tib to'g'ridan-to'g'ri published qilinganda ishlamay qolardi)
+    const allowedNext = TEST_STATUS_TRANSITIONS[test.status] ?? [];
+    if (!allowedNext.includes(dto.status as TestStatus)) {
+      throw new BadRequestException(
+        `"${TEST_STATUS_LABELS[test.status]}" holatidan to'g'ridan-to'g'ri "${TEST_STATUS_LABELS[dto.status as TestStatus]}"ga o'tib bo'lmaydi`,
+      );
     }
 
     // Ko'rib chiqishga yuborishda savollar soni tekshirish
@@ -270,11 +305,21 @@ export class TestsService {
       totalPoints: selected.reduce((s, q) => s + q.points, 0),
       earnedPoints: 0,
       answers: {},
+      selectedQuestionIds: selected.map((q) => q.id),
       startedAt: new Date(),
       cheatingFlag: false,
     });
 
-    await this.resultRepo.save(result);
+    try {
+      await this.resultRepo.save(result);
+    } catch (err) {
+      // Ikki tenglashuvchi so'rov bir vaqtda shu urinish raqamini yaratmoqchi
+      // bo'lsa (check-then-act poyga holati) — DB unique cheklovi buni ushlaydi
+      if ((err as { code?: string }).code === '23505') {
+        throw new BadRequestException(`Maksimal urinishlar soni (${test.maxAttempts}) tugadi`);
+      }
+      throw err;
+    }
 
     // Faqat savol matni va opsiyalar (to'g'ri javob YO'Q)
     const questions = selected.map((q) => ({
@@ -306,6 +351,13 @@ export class TestsService {
     const existing = (result.answers ?? {}) as Record<string, string>;
     if (existing[dto.questionId] !== undefined) {
       throw new ConflictException('Bu savol allaqachon tekshirilgan');
+    }
+
+    // Savol aynan shu urinishda ko'rsatilgan to'plamga tegishli bo'lishi shart —
+    // aks holda API orqali testning butun savollar havzasidan (ko'rsatilmagan
+    // savollar ham) javob yuborib, ballni sun'iy oshirish mumkin bo'lar edi
+    if (!(result.selectedQuestionIds ?? []).includes(dto.questionId)) {
+      throw new NotFoundException('Savol topilmadi');
     }
 
     const question = await this.questionRepo.findOne({
@@ -351,12 +403,16 @@ export class TestsService {
     const questionIds = Object.keys(dto.answers);
     const questions = await this.questionRepo.findBy({ testId: result.testId });
     const questionMap = new Map(questions.map((q) => [q.id, q]));
+    const selectedIds = result.selectedQuestionIds ?? [];
 
-    // Ball hisoblash
+    // Ball hisoblash — faqat shu urinishda ko'rsatilgan savollar to'plami hisobga
+    // olinadi (API orqali to'g'ridan-to'g'ri, ko'rsatilmagan savolga javob yuborib
+    // ballni sun'iy oshirish oldini olish uchun)
     let earnedPoints = 0;
     const checkedAnswers: Record<string, boolean> = {};
 
     for (const [qId, answer] of Object.entries(dto.answers)) {
+      if (!selectedIds.includes(qId)) continue;
       const question = questionMap.get(qId);
       if (!question) continue;
       const correct = question.correctAnswer === answer;
@@ -364,7 +420,9 @@ export class TestsService {
       checkedAnswers[qId] = correct;
     }
 
-    const totalPoints = questions.slice(0, test.questionsToShow).reduce((s, q) => s + q.points, 0);
+    // Maxraj — aynan shu urinishda ko'rsatilgan savollar to'plamining ball
+    // yig'indisi (testning butun savollar havzasidan emas)
+    const totalPoints = selectedIds.reduce((s, qId) => s + (questionMap.get(qId)?.points ?? 0), 0);
     const score = totalPoints > 0 ? Math.round((earnedPoints / totalPoints) * 100 * 10) / 10 : 0;
 
     // Anti-cheat tekshirish
@@ -552,11 +610,15 @@ export class TestsService {
       throw new ForbiddenException('Bu test sizniki emas');
     }
 
-    const results = await this.resultRepo.find({
+    // `score` decimal ustun — pg drayveri string qaytaradi (raqamli
+    // solishtirish va frontendga qaytarish uchun bu yerdayoq Number()ga
+    // o'raladi, aks holda pastdagi "eng yaxshi" solishtiruv ham satr sifatida
+    // — masalan "9.5" > "10.0" — noto'g'ri natija berardi)
+    const results = (await this.resultRepo.find({
       where: { testId },
       relations: { student: true },
       order: { score: 'DESC' },
-    });
+    })).map((r) => ({ ...r, score: Number(r.score) }));
 
     // Score method bo'yicha har o'quvchi uchun hisobga olinadigan natijani aniqlash
     const studentBest = new Map<string, TestResult>();
@@ -569,7 +631,7 @@ export class TestsService {
         byStudent.get(r.studentId)!.push(r);
       }
       for (const [studentId, attempts] of byStudent) {
-        const avgScore = attempts.reduce((s, r) => s + Number(r.score), 0) / attempts.length;
+        const avgScore = attempts.reduce((s, r) => s + r.score, 0) / attempts.length;
         studentBest.set(studentId, { ...attempts[0], score: Math.round(avgScore * 10) / 10 } as TestResult);
       }
     } else {
@@ -586,16 +648,21 @@ export class TestsService {
       }
     }
 
+    // Barcha statistika BIR XIL to'plamdan (har o'quvchining shu test uchun
+    // hisobga olinadigan yagona natijasi) hisoblanadi — avval avgScore barcha
+    // urinishlar bo'yicha, total/levelDistribution esa faqat hisobga
+    // olinadigan urinish bo'yicha edi (bitta javobda ikki xil usul)
+    const counted = [...studentBest.values()];
     const stats = {
-      total: studentBest.size,
-      avgScore: results.length
-        ? Math.round(results.reduce((s, r) => s + Number(r.score), 0) / results.length * 10) / 10
+      total: counted.length,
+      avgScore: counted.length
+        ? Math.round(counted.reduce((s, r) => s + Number(r.score), 0) / counted.length * 10) / 10
         : 0,
       cheatingFlags: results.filter((r) => r.cheatingFlag).length,
       levelDistribution: {
-        easy: [...studentBest.values()].filter((r) => Number(r.score) < 60).length,
-        medium: [...studentBest.values()].filter((r) => Number(r.score) >= 60 && Number(r.score) < 80).length,
-        hard: [...studentBest.values()].filter((r) => Number(r.score) >= 80).length,
+        easy: counted.filter((r) => Number(r.score) < 60).length,
+        medium: counted.filter((r) => Number(r.score) >= 60 && Number(r.score) < 80).length,
+        hard: counted.filter((r) => Number(r.score) >= 80).length,
       },
     };
 
@@ -608,11 +675,13 @@ export class TestsService {
       throw new ForbiddenException('Faqat o\'z natijalaringizni ko\'ra olasiz');
     }
 
-    return this.resultRepo.find({
+    const results = await this.resultRepo.find({
       where: { studentId },
       relations: { test: { subject: true } },
       order: { createdAt: 'DESC' },
     });
+
+    return results.map((r) => ({ ...r, score: Number(r.score) }));
   }
 
   // ─── TEST RO'YXATI ────────────────────────────────────────────────────────

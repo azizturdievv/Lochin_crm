@@ -51,7 +51,10 @@ export default function MaterialsTab({ groupId, canUpload }: Props) {
     : materials.filter(m => m.type === typeFilter);
 
   function handleDownload(m: Material) {
-    window.open(m.fileUrl, '_blank');
+    // Sxemasiz URL (masalan eski "havola" turidagi yozuvlar) brauzer tomonidan
+    // CRM sahifasiga nisbatan NISBIY manzil deb o'qilib, 404'ga olib boradi
+    const url = /^https?:\/\//i.test(m.fileUrl) ? m.fileUrl : `https://${m.fileUrl}`;
+    window.open(url, '_blank');
   }
 
   return (

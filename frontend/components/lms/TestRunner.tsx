@@ -30,6 +30,7 @@ export default function TestRunner({ test, onClose }: Props) {
   const [extResolved, setExtResolved] = useState<'approved' | 'rejected' | null>(null);
   const extraAppliedRef = useRef(false);
   const [submitError, setSubmitError] = useState('');
+  const [checkError,  setCheckError]  = useState('');
   const [result,      setResult]      = useState<TestSubmitResponse | null>(null);
 
   const questionTimesRef = useRef<Record<string, number>>({});
@@ -111,6 +112,7 @@ export default function TestRunner({ test, onClose }: Props) {
     questionTimesRef.current = { ...questionTimesRef.current, [q.id]: elapsed };
     answersRef.current = { ...answersRef.current, [q.id]: optionId };
     setSelected(optionId);
+    setCheckError('');
 
     checkMut.mutate({ questionId: q.id, answer: optionId }, {
       onSuccess: (data) => {
@@ -129,6 +131,14 @@ export default function TestRunner({ test, onClose }: Props) {
             qStartRef.current = Date.now();
           }
         }, FEEDBACK_DELAY_MS);
+      },
+      onError: () => {
+        // Savol "muzlab qolmasligi" uchun tanlovni bekor qilamiz — talaba
+        // qayta bosishi mumkin (javob allaqachon answersRef'da saqlangan,
+        // submitTest baribir shu javobni hisobga oladi, faqat darhol
+        // to'g'ri/xato ko'rsatilmaydi)
+        setSelected(null);
+        setCheckError("Tarmoq xatosi — qayta urinib ko'ring");
       },
     });
   }
@@ -298,6 +308,12 @@ export default function TestRunner({ test, onClose }: Props) {
               feedback.correct ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'
             }`}>
               {feedback.correct ? "To'g'ri! 🎉" : "Xato — to'g'ri javob yuqorida ko'rsatildi"}
+            </div>
+          )}
+
+          {checkError && (
+            <div className="mt-6 text-center py-3 rounded-2xl text-sm font-semibold bg-amber-50 text-amber-700">
+              {checkError}
             </div>
           )}
         </div>

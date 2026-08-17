@@ -14,6 +14,7 @@ import { HomeworkService } from './homework.service';
 import { BaselineService } from './baseline.service';
 import { MinioService } from './minio.service';
 import { Subject } from '../../entities/subject.entity';
+import { Group } from '../../entities/group.entity';
 import { Material } from '../../entities/material.entity';
 import { Test } from '../../entities/test.entity';
 import { TestQuestion } from '../../entities/test-question.entity';
@@ -32,7 +33,7 @@ import { AuditLogModule } from '../audit-log/audit-log.module';
 @Module({
   imports: [
     TypeOrmModule.forFeature([
-      Subject, Material,
+      Subject, Group, Material,
       Test, TestQuestion, TestResult, TestTimeExtension,
       Homework, HomeworkSubmission,
       Lesson,

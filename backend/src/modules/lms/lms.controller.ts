@@ -3,6 +3,7 @@ import {
   Body, Param, Query, ParseUUIDPipe,
   UseGuards, HttpCode, HttpStatus,
   UseInterceptors, UploadedFile,
+  BadRequestException,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
@@ -109,8 +110,7 @@ export class MaterialsController {
     @CurrentUser() user: User,
   ) {
     if (!file && dto.type !== MaterialType.LINK) {
-      const err = { message: 'Fayl yuklanmadi', statusCode: 400 };
-      return err;
+      throw new BadRequestException('Fayl yuklanmadi');
     }
 
     let fileUrl: string | undefined;
@@ -119,7 +119,7 @@ export class MaterialsController {
     if (file) {
       const typeKey = dto.type as string;
       const valid = this.minioService.validateFile(file.mimetype, file.size, typeKey as 'pdf' | 'video' | 'audio' | 'image');
-      if (!valid.valid) return { message: valid.error, statusCode: 400 };
+      if (!valid.valid) throw new BadRequestException(valid.error);
 
       const uploaded = await this.materialsService.uploadFile(file, dto.type, user.id);
       fileUrl = uploaded.url;

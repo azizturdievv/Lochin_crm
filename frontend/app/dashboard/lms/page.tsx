@@ -60,7 +60,7 @@ export default function LmsPage() {
   const { data: subjectGroups = [] } = useQuery({
     queryKey: ['lms-groups', activeSubject?.id],
     queryFn:  () => api.get<{ data: GroupOption[] }>('/groups', {
-      params: { subjectId: activeSubject!.id, limit: 50 },
+      params: { subjectId: activeSubject!.id, isActive: 'true', limit: 50 },
     }).then(r => r.data.data),
     enabled: !!activeSubject,
   });
@@ -233,6 +233,8 @@ export default function LmsPage() {
                   groupId={groupId}
                   canCreate={canCreate}
                   canApprove={canApprove}
+                  role={role}
+                  userId={user?.id}
                 />
               )}
               {activeTab === 'homework' && (

@@ -62,6 +62,11 @@ export default function CreateTestModal({ subjectId, onClose }: Props) {
         ),
       );
 
+      // 3) Tekshiruvga yuborish — "Saqlangach manager tekshiruviga ketadi"
+      // va'dasini bajarish (savol soni yuqorida handleSubmit'da allaqachon
+      // tekshirilgan, shuning uchun bu chaqiruv doim muvaffaqiyatli bo'ladi)
+      await api.patch(`/tests/${test.id}/status`, { status: 'review' });
+
       return test;
     },
     onSuccess: () => {

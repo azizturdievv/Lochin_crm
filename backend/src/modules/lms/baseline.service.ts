@@ -44,6 +44,9 @@ export class BaselineService {
 
     const subject = await this.subjectRepo.findOne({ where: { id: dto.subjectId } });
     if (!subject) throw new NotFoundException('Fan topilmadi');
+    if (!subject.isActive) {
+      throw new BadRequestException('Nofaol fan uchun ilk qabul yaratib bo\'lmaydi');
+    }
 
     // Bir o'quvchi, bir fan, bir baholash turi bo'yicha faqat 1 ta baseline
     // (turlar — test/og'zaki/ijodiy/sport — bir-biridan mustaqil yozuvlar)
