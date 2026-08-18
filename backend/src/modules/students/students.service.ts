@@ -401,6 +401,16 @@ export class StudentsService {
       throw new NotFoundException('O\'quvchi topilmadi');
     }
 
+    // Arxivlashdan oldin barcha faol guruhlardan chiqarish — aks holda
+    // guruhning currentStudents soni "muzlab" qoladi va bo'sh joy
+    // yangi o'quvchiga ochilmaydi
+    const activeEnrollments = await this.enrollmentRepository.find({
+      where: { studentId: id, status: EnrollmentStatus.ACTIVE },
+    });
+    for (const enrollment of activeEnrollments) {
+      await this.unenroll(id, enrollment.id, actorId, actorRole);
+    }
+
     // Soft delete
     await this.userRepository.softDelete(id);
 
