@@ -25,7 +25,7 @@ const ds = new DataSource({
   synchronize: false,
 });
 
-const SUPER_ADMIN_EMAIL = 'admin@ilmacademy.uz';
+const SUPER_ADMIN_EMAIL = 'admin@lochin.uz';
 const SUPER_ADMIN_PASSWORD = 'Admin123!';
 
 const SUBJECTS = [

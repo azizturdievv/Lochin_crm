@@ -82,7 +82,7 @@ export class SmsService {
         body: JSON.stringify({
           mobile_phone: this.normalize(phone),
           message,
-          from: process.env.ESKIZ_SENDER ?? 'IlmAcademy',
+          from: process.env.ESKIZ_SENDER ?? 'LochinSchool',
         }),
       });
 
