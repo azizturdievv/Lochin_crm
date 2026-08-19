@@ -29,6 +29,7 @@ const STATUS_FILTERS: Array<{ value: TestStatus | 'all'; label: string }> = [
 export default function TestsTab({ subjectId, groupId, canCreate, canApprove, role, userId }: Props) {
   const qc = useQueryClient();
   const [statusFilter, setStatusFilter] = useState<TestStatus | 'all'>('published');
+  const [levelFilter,  setLevelFilter]  = useState<string | 'all'>('all');
   const [activeTest,   setActiveTest]   = useState<Test | null>(null);
   const [createOpen,   setCreateOpen]   = useState(false);
   const [resultsTestId, setResultsTestId] = useState<string | null>(null);
@@ -55,9 +56,11 @@ export default function TestsTab({ subjectId, groupId, canCreate, canApprove, ro
     onSuccess:  () => qc.invalidateQueries({ queryKey: ['tests', subjectId, groupId] }),
   });
 
-  const filtered = statusFilter === 'all'
-    ? tests
-    : tests.filter(t => t.status === statusFilter);
+  const levels = Array.from(new Set(tests.map(t => t.level).filter((l): l is string => !!l)));
+
+  const filtered = tests
+    .filter(t => statusFilter === 'all' || t.status === statusFilter)
+    .filter(t => levelFilter === 'all' || t.level === levelFilter);
 
   if (activeTest) {
     return (
@@ -90,6 +93,33 @@ export default function TestsTab({ subjectId, groupId, canCreate, canApprove, ro
             </button>
           ))}
         </div>
+        {levels.length > 0 && (
+          <div className="flex gap-1.5 flex-wrap">
+            <button
+              onClick={() => setLevelFilter('all')}
+              className={`text-xs px-3 py-1.5 rounded-xl font-medium transition-colors border ${
+                levelFilter === 'all'
+                  ? 'bg-gray-800 text-white border-gray-800'
+                  : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
+              }`}
+            >
+              Barcha daraja
+            </button>
+            {levels.map(l => (
+              <button
+                key={l}
+                onClick={() => setLevelFilter(l)}
+                className={`text-xs px-3 py-1.5 rounded-xl font-medium transition-colors border ${
+                  levelFilter === l
+                    ? 'bg-gray-800 text-white border-gray-800'
+                    : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
+                }`}
+              >
+                {l}
+              </button>
+            ))}
+          </div>
+        )}
         {canCreate && (
           <button
             onClick={() => setCreateOpen(true)}
@@ -136,6 +166,11 @@ export default function TestsTab({ subjectId, groupId, canCreate, canApprove, ro
                       <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${sMeta.bg} ${sMeta.color}`}>
                         {sMeta.label}
                       </span>
+                      {test.level && (
+                        <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700">
+                          {test.level}
+                        </span>
+                      )}
                     </div>
 
                     <div className="flex items-center gap-3 mt-1.5 flex-wrap">

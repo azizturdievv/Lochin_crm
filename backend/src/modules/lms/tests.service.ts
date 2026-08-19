@@ -16,6 +16,7 @@ import { Notification, NotificationType } from '../../entities/notification.enti
 import { PointsLog, PointsAction } from '../../entities/points-log.entity';
 import { User } from '../../entities/user.entity';
 import { Subject } from '../../entities/subject.entity';
+import { Group } from '../../entities/group.entity';
 import { Role } from '../../common/enums/role.enum';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import {
@@ -121,6 +122,8 @@ export class TestsService {
     private userRepo: Repository<User>,
     @InjectRepository(Subject)
     private subjectRepo: Repository<Subject>,
+    @InjectRepository(Group)
+    private groupRepo: Repository<Group>,
     private auditLog: AuditLogService,
   ) {}
 
@@ -130,6 +133,19 @@ export class TestsService {
     if (!subject) throw new NotFoundException('Fan topilmadi');
     if (!subject.isActive) {
       throw new BadRequestException('Nofaol fan uchun test yaratib bo\'lmaydi');
+    }
+
+    // Guruhlar shu fanga tegishli ekanligini tekshirish — boshqa fan
+    // guruhi tasodifan tayinlanib qolmasligi uchun
+    let targetGroupIds: string[] = [];
+    if (dto.groupIds?.length) {
+      const groups = await this.groupRepo.find({
+        where: { id: In(dto.groupIds), subjectId: dto.subjectId },
+      });
+      if (groups.length !== dto.groupIds.length) {
+        throw new BadRequestException('Ba\'zi guruhlar topilmadi yoki bu fanga tegishli emas');
+      }
+      targetGroupIds = groups.map((g) => g.id);
     }
 
     const test = this.testRepo.create({
@@ -142,11 +158,20 @@ export class TestsService {
       scoreMethod: dto.scoreMethod ?? 'best',
       maxAttempts: dto.maxAttempts ?? 3,
       isBaseline: dto.isBaseline ?? false,
+      level: dto.level ?? null,
       createdById: actorId,
       status: TestStatus.DRAFT,
     });
 
     await this.testRepo.save(test);
+
+    if (targetGroupIds.length) {
+      await this.testRepo
+        .createQueryBuilder()
+        .relation(Test, 'visibleGroups')
+        .of(test.id)
+        .add(targetGroupIds);
+    }
 
     await this.auditLog.log({
       userId: actorId,
@@ -154,7 +179,7 @@ export class TestsService {
       action: 'TEST_CREATED',
       entityName: 'tests',
       entityId: test.id,
-      newValues: { title: dto.title, subjectId: dto.subjectId },
+      newValues: { title: dto.title, subjectId: dto.subjectId, level: dto.level, groupIds: targetGroupIds },
     });
 
     return test;
@@ -690,14 +715,42 @@ export class TestsService {
       .innerJoin('t.subject', 's')
       .leftJoin('t.createdBy', 'creator')
       .addSelect(['t.id','t.title','t.status','t.timeLimitMinutes','t.maxAttempts',
-                  't.scoreMethod','t.questionsToShow','t.totalQuestions','t.isBaseline','t.createdAt',
+                  't.scoreMethod','t.questionsToShow','t.totalQuestions','t.isBaseline','t.level','t.createdAt',
                   's.id','s.name','creator.firstName','creator.lastName']);
 
     if (actorRole === Role.USTOZ) {
       qb.where('t.created_by = :uid', { uid: actorId });
     }
     if (query.subjectId) qb.andWhere('t.subject_id = :sid', { sid: query.subjectId });
-    if (query.status) qb.andWhere('t.status = :st', { st: query.status });
+
+    if (actorRole === Role.STUDENT) {
+      // O'quvchiga status query'dan qat'iy nazar FAQAT nashr qilingan
+      // testlar ko'rinadi — draft/review savollar sizib chiqmasligi uchun
+      qb.andWhere('t.status = :pubStatus', { pubStatus: TestStatus.PUBLISHED });
+
+      // Guruh bo'yicha ko'rinish: test hech qanday guruhga cheklanmagan
+      // bo'lsa (eski xatti-harakat) YOKI o'quvchi shu testga tayinlangan
+      // guruhlardan biriga faol yozilgan bo'lsa — ko'rinadi
+      const activeEnrollments = await this.enrollmentRepo.find({
+        where: { studentId: actorId, status: EnrollmentStatus.ACTIVE },
+        select: { groupId: true },
+      });
+      const myGroupIds = activeEnrollments.map((e) => e.groupId);
+
+      if (myGroupIds.length > 0) {
+        qb.andWhere(
+          `(NOT EXISTS (SELECT 1 FROM test_group_visibility tgv WHERE tgv.test_id = t.id)
+            OR EXISTS (SELECT 1 FROM test_group_visibility tgv2 WHERE tgv2.test_id = t.id AND tgv2.group_id IN (:...myGroupIds)))`,
+          { myGroupIds },
+        );
+      } else {
+        qb.andWhere(
+          `NOT EXISTS (SELECT 1 FROM test_group_visibility tgv WHERE tgv.test_id = t.id)`,
+        );
+      }
+    } else if (query.status) {
+      qb.andWhere('t.status = :st', { st: query.status });
+    }
 
     const tests = await qb.orderBy('t.created_at', 'DESC').getMany();
 
@@ -735,7 +788,7 @@ export class TestsService {
   async findOne(id: string) {
     const test = await this.testRepo.findOne({
       where: { id },
-      relations: { subject: true },
+      relations: { subject: true, visibleGroups: true },
     });
     if (!test) throw new NotFoundException('Test topilmadi');
 

@@ -1,7 +1,8 @@
-import { Entity, Column, ManyToOne, JoinColumn, OneToMany } from 'typeorm';
+import { Entity, Column, ManyToOne, ManyToMany, JoinColumn, JoinTable, OneToMany } from 'typeorm';
 import { BaseEntity } from './base.entity';
 import { Subject } from './subject.entity';
 import { User } from './user.entity';
+import { Group } from './group.entity';
 
 export enum TestStatus {
   DRAFT = 'draft',
@@ -64,4 +65,21 @@ export class Test extends BaseEntity {
   // Baseline (ilk qabul) testi — muhrlanadi
   @Column({ name: 'is_baseline', default: false })
   isBaseline: boolean;
+
+  // Daraja tegi — erkin matn (Beginner, A1, B1, B2, ...), test bazasini
+  // qo'lda saralash uchun. Cheklangan enum emas — markaz o'zi xohlagan
+  // daraja nomlarini ishlatishi mumkin
+  @Column({ type: 'varchar', nullable: true, length: 50 })
+  level: string | null;
+
+  // Bo'sh bo'lsa — fanning barcha guruhiga ko'rinadi (eski xatti-harakat).
+  // To'ldirilsa — FAQAT shu guruhlarga ko'rinadi (masalan daraja bo'yicha
+  // maqsadli test tayinlash uchun)
+  @ManyToMany(() => Group)
+  @JoinTable({
+    name: 'test_group_visibility',
+    joinColumn: { name: 'test_id', referencedColumnName: 'id' },
+    inverseJoinColumn: { name: 'group_id', referencedColumnName: 'id' },
+  })
+  visibleGroups: Group[];
 }

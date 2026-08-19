@@ -81,6 +81,8 @@ export interface Test {
   scoreMethod:      ScoreMethod;
   maxAttempts:      number;
   isBaseline:       boolean;
+  level?:           string | null;
+  visibleGroups?:   { id: string; name: string }[];
   createdById:      string;
   createdBy?:       { firstName: string; lastName: string };
   questionCount?:   number;    // faqat findOne() javobida

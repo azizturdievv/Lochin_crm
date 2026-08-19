@@ -2,7 +2,7 @@
 
 import { Trash2, X } from 'lucide-react';
 import { useState } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
 import type { TestDifficulty, Test } from '@/types/lms';
 import { DIFFICULTY_META } from '@/types/lms';
@@ -11,6 +11,11 @@ interface Props {
   subjectId: string;
   groupId:   string | null;
   onClose:   () => void;
+}
+
+interface GroupOption {
+  id:   string;
+  name: string;
 }
 
 interface QuestionDraft {
@@ -28,13 +33,27 @@ export default function CreateTestModal({ subjectId, onClose }: Props) {
   const qc = useQueryClient();
 
   const [title,          setTitle]          = useState('');
+  const [level,          setLevel]          = useState('');
   const [duration,       setDuration]       = useState(30);
   const [questionsToShow,setQuestionsToShow]= useState(10);
   const [maxAttempts,    setMaxAttempts]    = useState(3);
+  const [groupIds,       setGroupIds]       = useState<string[]>([]);
   const [questions,      setQuestions]      = useState<QuestionDraft[]>([emptyQuestion()]);
   const [error,          setError]          = useState('');
   const [activeQ,        setActiveQ]        = useState(0);
   const [saving,         setSaving]         = useState(false);
+
+  // Shu fanning guruhlari — "qaysi guruhlarga ko'rinsin" tanlovi uchun
+  const { data: groups = [] } = useQuery({
+    queryKey: ['lms-groups', subjectId],
+    queryFn:  () => api.get<{ data: GroupOption[] }>('/groups', {
+      params: { subjectId, isActive: 'true', limit: 50 },
+    }).then(r => r.data.data),
+  });
+
+  function toggleGroup(id: string) {
+    setGroupIds(gs => gs.includes(id) ? gs.filter(g => g !== id) : [...gs, id]);
+  }
 
   const createMut = useMutation({
     mutationFn: async () => {
@@ -47,6 +66,8 @@ export default function CreateTestModal({ subjectId, onClose }: Props) {
         totalQuestions: questions.length,
         maxAttempts,
         scoreMethod: 'best',
+        ...(level.trim() && { level: level.trim() }),
+        ...(groupIds.length > 0 && { groupIds }),
       });
 
       // 2) Har bir savolni alohida qo'shamiz — options {id,text}[], correctAnswer id sifatida
@@ -182,6 +203,36 @@ export default function CreateTestModal({ subjectId, onClose }: Props) {
                   className="w-full px-2.5 py-2 text-xs border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500"
                 />
               </div>
+              <div>
+                <label className="text-[10px] font-medium text-gray-500 mb-1 block">Daraja (ixtiyoriy)</label>
+                <input
+                  value={level}
+                  onChange={e => setLevel(e.target.value)}
+                  placeholder="Beginner, B1, B2..."
+                  className="w-full px-2.5 py-2 text-xs border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500"
+                />
+              </div>
+              {groups.length > 0 && (
+                <div>
+                  <label className="text-[10px] font-medium text-gray-500 mb-1 block">
+                    Qaysi guruhlarga ko&apos;rinsin
+                  </label>
+                  <p className="text-[10px] text-gray-400 mb-1.5">Hech biri tanlanmasa — barcha guruhga</p>
+                  <div className="max-h-28 overflow-y-auto space-y-1 border border-gray-200 rounded-xl p-1.5">
+                    {groups.map(g => (
+                      <label key={g.id} className="flex items-center gap-2 px-1.5 py-1 rounded-lg hover:bg-gray-50 cursor-pointer text-xs text-gray-700">
+                        <input
+                          type="checkbox"
+                          checked={groupIds.includes(g.id)}
+                          onChange={() => toggleGroup(g.id)}
+                          className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                        />
+                        {g.name}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Daraja statistika */}
               <div className="flex gap-1.5 flex-wrap">

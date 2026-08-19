@@ -6,6 +6,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Subject } from '../../entities/subject.entity';
+import { Role } from '../../common/enums/role.enum';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { CreateSubjectDto, UpdateSubjectDto } from './dto/subject.dto';
 
@@ -41,12 +42,28 @@ export class SubjectsService {
     return subject;
   }
 
-  async findAll(includeInactive = false) {
+  async findAll(includeInactive = false, actorId?: string, actorRole?: string) {
     const qb = this.subjectRepo.createQueryBuilder('s')
       .orderBy('s.sort_order', 'ASC')
       .addOrderBy('s.name', 'ASC');
 
     if (!includeInactive) qb.where('s.is_active = true');
+
+    // O'quvchi faqat o'zi faol yozilgan guruhlar orqali o'qiydigan
+    // fanlarni ko'radi — LMS'da barcha fanlar emas
+    if (actorRole === Role.STUDENT && actorId) {
+      qb.andWhere(
+        `EXISTS (
+          SELECT 1 FROM enrollments e
+          INNER JOIN groups g ON g.id = e.group_id
+          WHERE g.subject_id = s.id
+            AND e.student_id = :sid
+            AND e.status = 'active'
+            AND e.deleted_at IS NULL
+        )`,
+        { sid: actorId },
+      );
+    }
 
     const subjects = await qb.getMany();
 

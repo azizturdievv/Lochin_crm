@@ -60,6 +60,18 @@ export class CreateTestDto {
   @IsOptional()
   @IsBoolean()
   isBaseline?: boolean;
+
+  // Daraja tegi (Beginner, A1, B1, B2, ...) — erkin matn
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  level?: string;
+
+  // Faqat shu guruhlarga ko'rinsin (bo'sh/berilmagan = fanning barcha guruhiga)
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  groupIds?: string[];
 }
 
 // Savol opsiyasi

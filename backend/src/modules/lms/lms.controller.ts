@@ -41,8 +41,8 @@ export class SubjectsController {
 
   @Get()
   @Roles(Role.SUPER_ADMIN, Role.MANAGER, Role.USTOZ, Role.STUDENT)
-  findAll(@Query('includeInactive') inc?: string) {
-    return this.subjectsService.findAll(inc === 'true');
+  findAll(@Query('includeInactive') inc?: string, @CurrentUser() user?: User) {
+    return this.subjectsService.findAll(inc === 'true', user?.id, user?.role);
   }
 
   @Get(':id')
