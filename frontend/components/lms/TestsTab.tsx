@@ -1,6 +1,6 @@
 'use client';
 
-import { FileText, Pencil, BarChart3 } from 'lucide-react';
+import { FileText, Pencil, BarChart3, ListChecks } from 'lucide-react';
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
@@ -9,6 +9,7 @@ import type { Test, TestStatus } from '@/types/lms';
 import TestRunner from './TestRunner';
 import CreateTestModal from './CreateTestModal';
 import TestResultsModal from './TestResultsModal';
+import TestResultDetailModal from './TestResultDetailModal';
 
 interface Props {
   subjectId:   string;
@@ -33,6 +34,7 @@ export default function TestsTab({ subjectId, groupId, canCreate, canApprove, ro
   const [activeTest,   setActiveTest]   = useState<Test | null>(null);
   const [createOpen,   setCreateOpen]   = useState(false);
   const [resultsTestId, setResultsTestId] = useState<string | null>(null);
+  const [myDetailResultId, setMyDetailResultId] = useState<string | null>(null);
 
   const { data: tests = [], isLoading } = useQuery({
     queryKey: ['tests', subjectId, groupId],
@@ -195,6 +197,14 @@ export default function TestsTab({ subjectId, groupId, canCreate, canApprove, ro
                         <div className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${scoreToLevel(result.score).bg} ${scoreToLevel(result.score).color}`}>
                           {scoreToLevel(result.score).label}
                         </div>
+                        {role === 'student' && (
+                          <button
+                            onClick={() => setMyDetailResultId(result.id)}
+                            className="mt-1 flex items-center gap-1 text-[10px] font-medium text-primary-600 hover:text-primary-700"
+                          >
+                            <ListChecks size={11} /> Batafsil
+                          </button>
+                        )}
                       </div>
                     ) : null}
 
@@ -268,6 +278,13 @@ export default function TestsTab({ subjectId, groupId, canCreate, canApprove, ro
         <TestResultsModal
           testId={resultsTestId}
           onClose={() => setResultsTestId(null)}
+        />
+      )}
+
+      {myDetailResultId && (
+        <TestResultDetailModal
+          resultId={myDetailResultId}
+          onClose={() => setMyDetailResultId(null)}
         />
       )}
     </div>
