@@ -639,25 +639,49 @@ export class TestsService {
     // solishtirish va frontendga qaytarish uchun bu yerdayoq Number()ga
     // o'raladi, aks holda pastdagi "eng yaxshi" solishtiruv ham satr sifatida
     // — masalan "9.5" > "10.0" — noto'g'ri natija berardi)
-    const results = (await this.resultRepo.find({
+    //
+    // Talaba keyinchalik arxivlangan (o'qishni tashlab ketgan) bo'lsa ham,
+    // o'sha paytdagi natijasida ismi ko'rinishda qolishi kerak. TypeORM
+    // JOIN orqali yuklangan bog'liq entity uchun "deleted_at IS NULL"ni
+    // avtomatik qo'shib qo'yadi — bu hatto qo'lda join sharti berilganda
+    // ham, hatto .withDeleted() chaqirilganda ham chetlab o'tilmaydi
+    // (faqat ASOSIY entity uchun ishlaydi). Shuning uchun talabalarni
+    // alohida so'rov bilan (arxivlanganlarini ham qo'shib) olib, qo'lda
+    // biriktiramiz — bu yerda .withDeleted() ishonchli ishlaydi.
+    const rawResults = await this.resultRepo.find({
       where: { testId },
-      relations: { student: true },
       order: { score: 'DESC' },
-    })).map((r) => ({ ...r, score: Number(r.score) }));
+    });
+
+    const studentIds = [...new Set(rawResults.map((r) => r.studentId))];
+    const students = studentIds.length
+      ? await this.userRepo.createQueryBuilder('u').withDeleted().where('u.id IN (:...ids)', { ids: studentIds }).getMany()
+      : [];
+    const studentMap = new Map(students.map((s) => [s.id, s]));
+
+    const results = rawResults.map((r) => {
+      const student = studentMap.get(r.studentId) ?? null;
+      return {
+        ...r,
+        score: Number(r.score),
+        student: student ? { firstName: student.firstName, lastName: student.lastName } : null,
+        studentArchived: !!student?.deletedAt,
+      };
+    });
 
     // Score method bo'yicha har o'quvchi uchun hisobga olinadigan natijani aniqlash
-    const studentBest = new Map<string, TestResult>();
+    const studentBest = new Map<string, (typeof results)[number]>();
 
     if (test.scoreMethod === 'average') {
       // O'rtacha: barcha urinishlarni guruhlab, sun'iy "o'rtacha ball"li natija yasaymiz
-      const byStudent = new Map<string, TestResult[]>();
+      const byStudent = new Map<string, (typeof results)[number][]>();
       for (const r of results) {
         if (!byStudent.has(r.studentId)) byStudent.set(r.studentId, []);
         byStudent.get(r.studentId)!.push(r);
       }
       for (const [studentId, attempts] of byStudent) {
         const avgScore = attempts.reduce((s, r) => s + r.score, 0) / attempts.length;
-        studentBest.set(studentId, { ...attempts[0], score: Math.round(avgScore * 10) / 10 } as TestResult);
+        studentBest.set(studentId, { ...attempts[0], score: Math.round(avgScore * 10) / 10 } as (typeof results)[number]);
       }
     } else {
       for (const r of results) {
@@ -692,6 +716,82 @@ export class TestsService {
     };
 
     return { test: { id: test.id, title: test.title, scoreMethod: test.scoreMethod }, stats, results };
+  }
+
+  // ─── BITTA URINISH — SAVOL-SAVOL BATAFSIL ─────────────────────────────────
+  // Har savol bo'yicha: o'quvchi qaysi variantni tanladi, to'g'ri javob
+  // qaysi edi, to'g'ri/xato — natijalar oynasida "batafsil" ko'rish uchun
+  async getResultDetail(resultId: string, actorId: string, actorRole: string) {
+    // Student uchun izoh: getResults()dagi bilan bir xil sabab — arxivlangan
+    // talabaning ismi ham ko'rinishi kerak, shuning uchun alohida so'rov
+    // bilan (.withDeleted()) olinadi, join orqali emas
+    const result = await this.resultRepo
+      .createQueryBuilder('r')
+      .leftJoinAndSelect('r.test', 'test')
+      .where('r.id = :resultId', { resultId })
+      .getOne();
+
+    if (!result) throw new NotFoundException('Natija topilmadi');
+
+    if (actorRole === Role.STUDENT) {
+      if (result.studentId !== actorId) {
+        throw new ForbiddenException('Faqat o\'z natijangizni ko\'ra olasiz');
+      }
+    } else if (actorRole === Role.USTOZ) {
+      if (result.test.createdById !== actorId) {
+        throw new ForbiddenException('Bu test sizniki emas');
+      }
+    }
+    // SA/Manager — cheklovsiz
+
+    const student = await this.userRepo
+      .createQueryBuilder('u')
+      .withDeleted()
+      .where('u.id = :sid', { sid: result.studentId })
+      .getOne();
+
+    // Eski urinishlarda (selectedQuestionIds mexanizmi qo'shilishidan oldingi)
+    // bu ustun bo'sh bo'lishi mumkin — bunday holda javob berilgan savollar
+    // to'plamiga tayanamiz (faqat ko'rsatish uchun, ball hisoblashda emas)
+    const selectedIds = result.selectedQuestionIds?.length
+      ? result.selectedQuestionIds
+      : Object.keys(result.answers ?? {});
+    const questions = selectedIds.length
+      ? await this.questionRepo.findBy({ id: In(selectedIds) })
+      : [];
+    const questionMap = new Map(questions.map((q) => [q.id, q]));
+
+    // selectedQuestionIds tartibi — o'quvchiga aynan shu tartibda ko'rsatilgan edi
+    const breakdown = selectedIds
+      .map((qId) => questionMap.get(qId))
+      .filter((q): q is TestQuestion => !!q)
+      .map((q) => {
+        const studentAnswer = result.answers?.[q.id] ?? null;
+        return {
+          id: q.id,
+          question: q.question,
+          options: q.options,
+          difficulty: q.difficulty,
+          points: q.points,
+          correctAnswer: q.correctAnswer,
+          studentAnswer,
+          isCorrect: studentAnswer !== null && studentAnswer === q.correctAnswer,
+        };
+      });
+
+    return {
+      result: {
+        id: result.id,
+        score: Number(result.score),
+        earnedPoints: result.earnedPoints,
+        totalPoints: result.totalPoints,
+        attemptNumber: result.attemptNumber,
+        student: student
+          ? { firstName: student.firstName, lastName: student.lastName, archived: !!student.deletedAt }
+          : null,
+      },
+      questions: breakdown,
+    };
   }
 
   // ─── O'QUVCHI NATIJALARI ──────────────────────────────────────────────────

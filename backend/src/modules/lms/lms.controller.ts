@@ -229,6 +229,13 @@ export class TestsController {
     return this.testsService.getResults(id, user.id, user.role);
   }
 
+  // Bitta urinish — savol-savol batafsil (kim to'g'ri/xato javob berdi, to'g'ri variant)
+  @Get('results/:resultId/detail')
+  @Roles(Role.SUPER_ADMIN, Role.MANAGER, Role.USTOZ, Role.STUDENT)
+  getResultDetail(@Param('resultId', ParseUUIDPipe) resultId: string, @CurrentUser() user: User) {
+    return this.testsService.getResultDetail(resultId, user.id, user.role);
+  }
+
   // O'quvchi natijalari
   @Get('student/:studentId/results')
   @Roles(Role.SUPER_ADMIN, Role.MANAGER, Role.USTOZ, Role.STUDENT)

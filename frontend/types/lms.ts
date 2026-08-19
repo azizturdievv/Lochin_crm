@@ -168,6 +168,7 @@ export interface TestResult {
   test?:            { id: string; title: string; subject?: { id: string; name: string } };
   studentId:        string;
   student?:         { firstName: string; lastName: string };
+  studentArchived?: boolean;
   attemptNumber:    number;
   score:            number;
   totalPoints:      number;
@@ -178,6 +179,30 @@ export interface TestResult {
   timeSpentSeconds: number | null;
   cheatingFlag:     boolean;
   createdAt:        string;
+}
+
+// Bitta urinish — savol-savol batafsil, GET /tests/results/:resultId/detail
+export interface TestResultQuestionDetail {
+  id:            string;
+  question:      string;
+  options:       TestOption[];
+  difficulty:    TestDifficulty;
+  points:        number;
+  correctAnswer: string;
+  studentAnswer: string | null;
+  isCorrect:     boolean;
+}
+
+export interface TestResultDetailResponse {
+  result: {
+    id:            string;
+    score:         number;
+    earnedPoints:  number;
+    totalPoints:   number;
+    attemptNumber: number;
+    student:       { firstName: string; lastName: string; archived: boolean } | null;
+  };
+  questions: TestResultQuestionDetail[];
 }
 
 // Xodim ko'rinishi — GET /tests/:id/results

@@ -1,10 +1,12 @@
 'use client';
 
-import { X, AlertTriangle, BarChart3 } from 'lucide-react';
+import { X, AlertTriangle, BarChart3, Archive, ListChecks } from 'lucide-react';
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { scoreToLevel } from '@/types/lms';
 import type { TestResultsResponse } from '@/types/lms';
+import TestResultDetailModal from './TestResultDetailModal';
 
 interface Props {
   testId:  string;
@@ -19,6 +21,8 @@ function formatTime(sec: number | null): string {
 }
 
 export default function TestResultsModal({ testId, onClose }: Props) {
+  const [detailResultId, setDetailResultId] = useState<string | null>(null);
+
   const { data, isLoading } = useQuery({
     queryKey: ['test-results', testId],
     queryFn:  () => api.get<TestResultsResponse>(`/tests/${testId}/results`).then(r => r.data),
@@ -27,6 +31,15 @@ export default function TestResultsModal({ testId, onClose }: Props) {
   const test    = data?.test;
   const stats   = data?.stats;
   const results = data?.results ?? [];
+
+  if (detailResultId) {
+    return (
+      <TestResultDetailModal
+        resultId={detailResultId}
+        onClose={() => setDetailResultId(null)}
+      />
+    );
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
@@ -78,9 +91,14 @@ export default function TestResultsModal({ testId, onClose }: Props) {
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-sm font-semibold text-gray-900">
-                        {r.student ? `${r.student.firstName} ${r.student.lastName}` : "O'quvchi"}
+                        {r.student ? `${r.student.firstName} ${r.student.lastName}` : "O'quvchi topilmadi"}
                       </span>
                       <span className="text-[10px] text-gray-400">{r.attemptNumber}-urinish</span>
+                      {r.studentArchived && (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">
+                          <Archive size={10} /> Arxivlangan
+                        </span>
+                      )}
                       {r.cheatingFlag && (
                         <span className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">
                           <AlertTriangle size={10} /> Shubhali
@@ -91,6 +109,12 @@ export default function TestResultsModal({ testId, onClose }: Props) {
                       {r.earnedPoints}/{r.totalPoints} ball · {formatTime(r.timeSpentSeconds)}
                     </p>
                   </div>
+                  <button
+                    onClick={() => setDetailResultId(r.id)}
+                    className="shrink-0 flex items-center gap-1.5 text-[11px] font-medium text-primary-600 hover:text-primary-700 bg-primary-50 hover:bg-primary-100 px-2.5 py-1.5 rounded-xl transition-colors"
+                  >
+                    <ListChecks size={13} /> Batafsil
+                  </button>
                   <div className={`text-lg font-bold shrink-0 ${level.color}`}>
                     {r.score.toFixed(0)}%
                   </div>
