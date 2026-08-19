@@ -19,6 +19,7 @@ import { Subject } from '../../entities/subject.entity';
 import { Group } from '../../entities/group.entity';
 import { Role } from '../../common/enums/role.enum';
 import { AuditLogService } from '../audit-log/audit-log.service';
+import { TestProctorGateway } from './test-proctor.gateway';
 import {
   CreateTestDto,
   AddQuestionDto,
@@ -125,6 +126,7 @@ export class TestsService {
     @InjectRepository(Group)
     private groupRepo: Repository<Group>,
     private auditLog: AuditLogService,
+    private proctorGateway: TestProctorGateway,
   ) {}
 
   // ─── TEST YARATISH (DRAFT) ────────────────────────────────────────────────
@@ -159,6 +161,7 @@ export class TestsService {
       maxAttempts: dto.maxAttempts ?? 3,
       isBaseline: dto.isBaseline ?? false,
       level: dto.level ?? null,
+      resultsAutoVisible: dto.resultsAutoVisible ?? true,
       createdById: actorId,
       status: TestStatus.DRAFT,
     });
@@ -715,7 +718,17 @@ export class TestsService {
       },
     };
 
-    return { test: { id: test.id, title: test.title, scoreMethod: test.scoreMethod }, stats, results };
+    return {
+      test: {
+        id: test.id,
+        title: test.title,
+        scoreMethod: test.scoreMethod,
+        resultsAutoVisible: test.resultsAutoVisible,
+        resultsReleasedAt: test.resultsReleasedAt,
+      },
+      stats,
+      results,
+    };
   }
 
   // ─── BITTA URINISH — SAVOL-SAVOL BATAFSIL ─────────────────────────────────
@@ -736,6 +749,11 @@ export class TestsService {
     if (actorRole === Role.STUDENT) {
       if (result.studentId !== actorId) {
         throw new ForbiddenException('Faqat o\'z natijangizni ko\'ra olasiz');
+      }
+      // Nazorat ishi rejimi: natijalar hali ochilmagan bo'lsa, o'quvchi
+      // frontendni chetlab o'tib to'g'ridan-to'g'ri API chaqirsa ham ko'ra olmaydi
+      if (!result.test.resultsAutoVisible && !result.test.resultsReleasedAt) {
+        throw new ForbiddenException('Natijalar hali e\'lon qilinmagan');
       }
     } else if (actorRole === Role.USTOZ) {
       if (result.test.createdById !== actorId) {
@@ -794,6 +812,80 @@ export class TestsService {
     };
   }
 
+  // ─── NAZORAT ISHI: TAB/OYNA ALMASHTIRISH SIGNALI ──────────────────────────
+  // O'quvchi test davomida boshqa tab/oynaga o'tsa (masalan AI chatbotdan
+  // javob izlash uchun) chaqiriladi. Faqat tugallanmagan, o'ziga tegishli
+  // urinish uchun ishlaydi
+  async recordTabSwitch(resultId: string, studentId: string): Promise<{ tabSwitchCount: number }> {
+    const result = await this.resultRepo.findOne({
+      where: { id: resultId, studentId },
+      relations: { test: true },
+    });
+    if (!result) throw new NotFoundException('Test urinishi topilmadi');
+    if (result.finishedAt) {
+      // Urinish allaqachon tugagan — signal keraksiz, xato tashlamaymiz
+      // (frontend'da event tartibsiz kelib qolishi mumkin)
+      return { tabSwitchCount: result.tabSwitchCount };
+    }
+
+    const tabSwitchCount = result.tabSwitchCount + 1;
+    await this.resultRepo.update(resultId, { tabSwitchCount });
+
+    const student = await this.userRepo.findOne({
+      where: { id: studentId },
+      select: { firstName: true, lastName: true },
+    });
+    const studentName = student ? `${student.firstName} ${student.lastName}` : "O'quvchi";
+
+    // Jonli signal — shu paytda "Natijalar" oynasini ochib turganlarga darhol
+    this.proctorGateway.alertTabSwitch(result.testId, {
+      resultId, studentId, studentName, tabSwitchCount,
+    });
+
+    // Doimiy bildirishnoma — ustoz/manager keyinroq ochib ko'rsa ham qolsin
+    // (vaqt uzaytirish so'rovidagi bilan bir xil auditoriya konvensiyasi)
+    const notifTargets = await this.userRepo.find({
+      where: [{ role: Role.USTOZ }, { role: Role.MANAGER }],
+      select: { id: true },
+    });
+    await this.notifRepo.save(
+      notifTargets.map((u) =>
+        this.notifRepo.create({
+          userId: u.id,
+          type: NotificationType.TEST,
+          title: '⚠️ Nazorat ishida boshqa joyga chiqdi',
+          body: `${studentName}: "${result.test.title}" testida ${tabSwitchCount}-marta boshqa tab/oynaga chiqdi`,
+          data: { testId: result.testId, resultId, studentId, tabSwitchCount },
+          pushSent: false, smsSent: false, telegramSent: false,
+        }),
+      ),
+    );
+
+    return { tabSwitchCount };
+  }
+
+  // ─── NAZORAT ISHI: NATIJALARNI OCHISH ─────────────────────────────────────
+  async releaseResults(testId: string, actorId: string, actorRole: string): Promise<{ message: string }> {
+    const test = await this.testRepo.findOne({ where: { id: testId } });
+    if (!test) throw new NotFoundException('Test topilmadi');
+
+    if (actorRole === Role.USTOZ && test.createdById !== actorId) {
+      throw new ForbiddenException('Bu test sizniki emas');
+    }
+
+    await this.testRepo.update(testId, { resultsReleasedAt: new Date() });
+
+    await this.auditLog.log({
+      userId: actorId,
+      userRole: actorRole,
+      action: 'TEST_RESULTS_RELEASED',
+      entityName: 'tests',
+      entityId: testId,
+    });
+
+    return { message: `"${test.title}" natijalari o'quvchilarga ochildi` };
+  }
+
   // ─── O'QUVCHI NATIJALARI ──────────────────────────────────────────────────
   async getStudentResults(studentId: string, requesterId: string, requesterRole: string) {
     if (requesterRole === Role.STUDENT && studentId !== requesterId) {
@@ -816,6 +908,7 @@ export class TestsService {
       .leftJoin('t.createdBy', 'creator')
       .addSelect(['t.id','t.title','t.status','t.timeLimitMinutes','t.maxAttempts',
                   't.scoreMethod','t.questionsToShow','t.totalQuestions','t.isBaseline','t.level','t.createdAt',
+                  't.resultsAutoVisible','t.resultsReleasedAt',
                   's.id','s.name','creator.firstName','creator.lastName']);
 
     if (actorRole === Role.USTOZ) {
@@ -875,8 +968,16 @@ export class TestsService {
         (b, r) => (!b || Number(r.score) > Number(b.score) ? r : b), null,
       );
       const bestOrLatest = t.scoreMethod === 'best' ? best : (attempts[0] ?? null);
+      // Nazorat ishi rejimi: natijalar hali ochilmagan bo'lsa, ball va boshqa
+      // fosh qiluvchi maydonlar o'quvchiga yuborilmaydi — faqat "tugatgan"
+      // fakti (attemptsLeft to'g'ri hisoblanishi uchun)
+      const resultsHidden = bestOrLatest && !t.resultsAutoVisible && !t.resultsReleasedAt;
       // decimal ustun pg orqali satr sifatida qaytadi — frontend .toFixed() ishlatadi
-      const myResult = bestOrLatest ? { ...bestOrLatest, score: Number(bestOrLatest.score) } : null;
+      const myResult = !bestOrLatest
+        ? null
+        : resultsHidden
+          ? { id: bestOrLatest.id, finishedAt: bestOrLatest.finishedAt, resultsHidden: true as const }
+          : { ...bestOrLatest, score: Number(bestOrLatest.score) };
       return {
         ...t,
         myResult,

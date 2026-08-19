@@ -81,14 +81,18 @@ export interface Test {
   scoreMethod:      ScoreMethod;
   maxAttempts:      number;
   isBaseline:       boolean;
-  level?:           string | null;
-  visibleGroups?:   { id: string; name: string }[];
-  createdById:      string;
-  createdBy?:       { firstName: string; lastName: string };
-  questionCount?:   number;    // faqat findOne() javobida
-  myResult?:        TestResult | null;  // faqat talaba uchun findAll() javobida
-  myAttemptsLeft?:  number;             // faqat talaba uchun findAll() javobida
-  createdAt:        string;
+  level?:              string | null;
+  visibleGroups?:      { id: string; name: string }[];
+  resultsAutoVisible?: boolean;         // false = nazorat ishi rejimi
+  resultsReleasedAt?:  string | null;
+  createdById:         string;
+  createdBy?:          { firstName: string; lastName: string };
+  questionCount?:      number;    // faqat findOne() javobida
+  // faqat talaba uchun findAll() javobida — nazorat ishi hali ochilmagan
+  // bo'lsa, to'liq TestResult o'rniga redaktsiya qilingan shakl keladi
+  myResult?:           TestResult | { id: string; finishedAt: string | null; resultsHidden: true } | null;
+  myAttemptsLeft?:      number;
+  createdAt:            string;
 }
 
 export interface TestOption {
@@ -178,6 +182,7 @@ export interface TestResult {
   finishedAt:       string | null;
   timeSpentSeconds: number | null;
   cheatingFlag:     boolean;
+  tabSwitchCount:   number;
   createdAt:        string;
 }
 
@@ -214,7 +219,10 @@ export interface TestResultsStats {
 }
 
 export interface TestResultsResponse {
-  test:    { id: string; title: string; scoreMethod: ScoreMethod };
+  test: {
+    id: string; title: string; scoreMethod: ScoreMethod;
+    resultsAutoVisible: boolean; resultsReleasedAt: string | null;
+  };
   stats:   TestResultsStats;
   results: TestResult[];
 }

@@ -38,6 +38,7 @@ export default function CreateTestModal({ subjectId, onClose }: Props) {
   const [questionsToShow,setQuestionsToShow]= useState(10);
   const [maxAttempts,    setMaxAttempts]    = useState(3);
   const [groupIds,       setGroupIds]       = useState<string[]>([]);
+  const [isExam,         setIsExam]         = useState(false);
   const [questions,      setQuestions]      = useState<QuestionDraft[]>([emptyQuestion()]);
   const [error,          setError]          = useState('');
   const [activeQ,        setActiveQ]        = useState(0);
@@ -68,6 +69,7 @@ export default function CreateTestModal({ subjectId, onClose }: Props) {
         scoreMethod: 'best',
         ...(level.trim() && { level: level.trim() }),
         ...(groupIds.length > 0 && { groupIds }),
+        ...(isExam && { resultsAutoVisible: false }),
       });
 
       // 2) Har bir savolni alohida qo'shamiz — options {id,text}[], correctAnswer id sifatida
@@ -212,6 +214,18 @@ export default function CreateTestModal({ subjectId, onClose }: Props) {
                   className="w-full px-2.5 py-2 text-xs border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500"
                 />
               </div>
+              <label className="flex items-start gap-2 px-1 py-1.5 rounded-lg hover:bg-gray-50 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={isExam}
+                  onChange={e => setIsExam(e.target.checked)}
+                  className="mt-0.5 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                />
+                <span className="text-xs text-gray-700">
+                  Nazorat ishi
+                  <span className="block text-[10px] text-gray-400">O'quvchi natijasini siz ochmaguncha ko'rmaydi</span>
+                </span>
+              </label>
               {groups.length > 0 && (
                 <div>
                   <label className="text-[10px] font-medium text-gray-500 mb-1 block">

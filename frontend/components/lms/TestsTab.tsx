@@ -1,6 +1,6 @@
 'use client';
 
-import { FileText, Pencil, BarChart3, ListChecks } from 'lucide-react';
+import { FileText, Pencil, BarChart3, ListChecks, Lock } from 'lucide-react';
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
@@ -189,7 +189,13 @@ export default function TestsTab({ subjectId, groupId, canCreate, canApprove, ro
 
                   {/* Natija yoki boshlash */}
                   <div className="shrink-0 flex flex-col items-end gap-2">
-                    {result ? (
+                    {result && 'resultsHidden' in result ? (
+                      <div className="text-right">
+                        <div className="flex items-center gap-1 text-[10px] font-medium text-amber-600 bg-amber-50 px-2 py-1 rounded-full">
+                          <Lock size={10} /> Natijalar yopiq
+                        </div>
+                      </div>
+                    ) : result ? (
                       <div className="text-right">
                         <div className={`text-lg font-bold ${scoreToLevel(result.score).color}`}>
                           {result.score.toFixed(0)}%

@@ -57,4 +57,8 @@ export class TestResult extends BaseEntity {
   // AI anti-cheat bayrog'i
   @Column({ name: 'cheating_flag', default: false })
   cheatingFlag: boolean;
+
+  // Nazorat ishida boshqa tab/oynaga chiqib ketishlar soni (jonli kuzatuv uchun)
+  @Column({ name: 'tab_switch_count', default: 0 })
+  tabSwitchCount: number;
 }

@@ -102,6 +102,30 @@ export default function TestRunner({ test, onClose }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase]);
 
+  // Nazorat ishi: boshqa tab/oynaga chiqib ketishni aniqlash (masalan AI
+  // chatbotdan javob izlash) — sodir bo'lsa test oluvchi(lar)ga darhol
+  // xabar boradi. visibilitychange va blur ko'pincha birga otilgani uchun
+  // 2 soniyalik "sovutish" bilan ikkalanib yuborilishining oldi olinadi
+  const lastTabSwitchRef = useRef(0);
+  useEffect(() => {
+    if (phase !== 'playing' || !session) return;
+
+    const report = () => {
+      const now = Date.now();
+      if (now - lastTabSwitchRef.current < 2000) return;
+      lastTabSwitchRef.current = now;
+      api.post(`/tests/results/${session.testResultId}/tab-switch`).catch(() => {});
+    };
+
+    const onVisibility = () => { if (document.hidden) report(); };
+    document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener('blur', report);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('blur', report);
+    };
+  }, [phase, session]);
+
   useEffect(() => () => { if (advanceRef.current) clearTimeout(advanceRef.current); }, []);
 
   function handleSelect(optionId: string) {

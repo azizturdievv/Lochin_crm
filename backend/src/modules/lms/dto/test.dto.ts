@@ -72,6 +72,11 @@ export class CreateTestDto {
   @IsArray()
   @IsString({ each: true })
   groupIds?: string[];
+
+  // false = Nazorat ishi rejimi — natijalar SA/Manager/ustoz "ochguncha" yashirin
+  @IsOptional()
+  @IsBoolean()
+  resultsAutoVisible?: boolean;
 }
 
 // Savol opsiyasi

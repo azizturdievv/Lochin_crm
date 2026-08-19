@@ -1,5 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { JwtModule } from '@nestjs/jwt';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import {
   SubjectsController,
   MaterialsController,
@@ -13,6 +15,7 @@ import { TestsService } from './tests.service';
 import { HomeworkService } from './homework.service';
 import { BaselineService } from './baseline.service';
 import { MinioService } from './minio.service';
+import { TestProctorGateway } from './test-proctor.gateway';
 import { Subject } from '../../entities/subject.entity';
 import { Group } from '../../entities/group.entity';
 import { Material } from '../../entities/material.entity';
@@ -40,6 +43,14 @@ import { AuditLogModule } from '../audit-log/audit-log.module';
       BaselineAssessment,
       Enrollment, User, PointsLog, Notification,
     ]),
+    // JWT tekshirish uchun (WebSocket handshake — nazorat ishi jonli kuzatuvi)
+    JwtModule.registerAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (cfg: ConfigService) => ({
+        secret: cfg.get<string>('JWT_SECRET'),
+      }),
+    }),
     AuditLogModule,
   ],
   controllers: [
@@ -56,6 +67,7 @@ import { AuditLogModule } from '../audit-log/audit-log.module';
     HomeworkService,
     BaselineService,
     MinioService,
+    TestProctorGateway,
   ],
   exports: [MinioService, SubjectsService],
 })

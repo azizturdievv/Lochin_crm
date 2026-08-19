@@ -66,6 +66,16 @@ export class Test extends BaseEntity {
   @Column({ name: 'is_baseline', default: false })
   isBaseline: boolean;
 
+  // Nazorat ishi rejimi: false bo'lsa, o'quvchi o'z natijasini (ball va
+  // savol-savol batafsil) resultsReleasedAt belgilanmaguncha ko'ra olmaydi.
+  // Default true — oddiy mashq testlari hozirgidek darhol natija ko'rsatadi
+  @Column({ name: 'results_auto_visible', default: true })
+  resultsAutoVisible: boolean;
+
+  // SA/Manager/ustoz "Natijalarni ochish" bosganda to'ldiriladi
+  @Column({ name: 'results_released_at', type: 'timestamptz', nullable: true })
+  resultsReleasedAt: Date | null;
+
   // Daraja tegi — erkin matn (Beginner, A1, B1, B2, ...), test bazasini
   // qo'lda saralash uchun. Cheklangan enum emas — markaz o'zi xohlagan
   // daraja nomlarini ishlatishi mumkin

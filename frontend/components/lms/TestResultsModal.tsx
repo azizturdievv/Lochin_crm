@@ -1,12 +1,13 @@
 'use client';
 
-import { X, AlertTriangle, BarChart3, Archive, ListChecks } from 'lucide-react';
+import { X, AlertTriangle, BarChart3, Archive, ListChecks, MonitorX, Lock, Unlock } from 'lucide-react';
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { scoreToLevel } from '@/types/lms';
 import type { TestResultsResponse } from '@/types/lms';
 import TestResultDetailModal from './TestResultDetailModal';
+import { useTestProctorSocket } from '@/hooks/useTestProctorSocket';
 
 interface Props {
   testId:  string;
@@ -21,6 +22,7 @@ function formatTime(sec: number | null): string {
 }
 
 export default function TestResultsModal({ testId, onClose }: Props) {
+  const qc = useQueryClient();
   const [detailResultId, setDetailResultId] = useState<string | null>(null);
 
   const { data, isLoading } = useQuery({
@@ -28,9 +30,18 @@ export default function TestResultsModal({ testId, onClose }: Props) {
     queryFn:  () => api.get<TestResultsResponse>(`/tests/${testId}/results`).then(r => r.data),
   });
 
+  const { alerts } = useTestProctorSocket(testId);
+  const liveResultIds = new Set(alerts.filter(a => Date.now() - a.at < 15000).map(a => a.resultId));
+
+  const releaseMut = useMutation({
+    mutationFn: () => api.patch(`/tests/${testId}/release-results`),
+    onSuccess:  () => qc.invalidateQueries({ queryKey: ['test-results', testId] }),
+  });
+
   const test    = data?.test;
   const stats   = data?.stats;
   const results = data?.results ?? [];
+  const isGated = test && !test.resultsAutoVisible && !test.resultsReleasedAt;
 
   if (detailResultId) {
     return (
@@ -57,8 +68,39 @@ export default function TestResultsModal({ testId, onClose }: Props) {
               </p>
             )}
           </div>
-          <button onClick={onClose} className="w-8 h-8 rounded-xl hover:bg-gray-100 text-gray-400 hover:text-gray-600 flex items-center justify-center transition-colors shrink-0"><X size={16} /></button>
+          <div className="flex items-center gap-2 shrink-0">
+            {isGated && (
+              <button
+                onClick={() => releaseMut.mutate()}
+                disabled={releaseMut.isPending}
+                className="flex items-center gap-1.5 text-xs font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-3 py-1.5 rounded-xl transition-colors disabled:opacity-50"
+              >
+                <Unlock size={13} /> Natijalarni ochish
+              </button>
+            )}
+            <button onClick={onClose} className="w-8 h-8 rounded-xl hover:bg-gray-100 text-gray-400 hover:text-gray-600 flex items-center justify-center transition-colors"><X size={16} /></button>
+          </div>
         </div>
+
+        {/* Nazorat ishi holati */}
+        {test && !test.resultsAutoVisible && (
+          <div className={`mx-6 mt-4 px-3 py-2 rounded-xl text-xs font-medium flex items-center gap-2 shrink-0 ${
+            test.resultsReleasedAt ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'
+          }`}>
+            {test.resultsReleasedAt ? <Unlock size={13} /> : <Lock size={13} />}
+            {test.resultsReleasedAt
+              ? "Nazorat ishi — natijalar o'quvchilarga ochilgan"
+              : "Nazorat ishi — natijalar o'quvchilarga hali yopiq"}
+          </div>
+        )}
+
+        {/* Jonli signal: hozirgina chiqib ketgan */}
+        {alerts.length > 0 && Date.now() - alerts[0].at < 15000 && (
+          <div className="mx-6 mt-3 px-3 py-2 rounded-xl text-xs font-medium bg-red-50 text-red-700 flex items-center gap-2 shrink-0 animate-pulse">
+            <MonitorX size={13} />
+            {alerts[0].studentName} hozir boshqa tab/oynaga chiqdi ({alerts[0].tabSwitchCount}-marta)
+          </div>
+        )}
 
         {/* Daraja taqsimoti */}
         {stats && stats.total > 0 && (
@@ -85,7 +127,8 @@ export default function TestResultsModal({ testId, onClose }: Props) {
                 <div
                   key={r.id}
                   className={`flex items-center gap-3 border rounded-2xl px-4 py-2.5 ${
-                    r.cheatingFlag ? 'border-amber-200 bg-amber-50/40' : 'border-gray-100'
+                    liveResultIds.has(r.id) ? 'border-red-300 bg-red-50/50' :
+                    r.cheatingFlag || r.tabSwitchCount > 0 ? 'border-amber-200 bg-amber-50/40' : 'border-gray-100'
                   }`}
                 >
                   <div className="min-w-0 flex-1">
@@ -102,6 +145,13 @@ export default function TestResultsModal({ testId, onClose }: Props) {
                       {r.cheatingFlag && (
                         <span className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">
                           <AlertTriangle size={10} /> Shubhali
+                        </span>
+                      )}
+                      {r.tabSwitchCount > 0 && (
+                        <span className={`inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full ${
+                          liveResultIds.has(r.id) ? 'bg-red-100 text-red-700 animate-pulse' : 'bg-amber-100 text-amber-700'
+                        }`}>
+                          <MonitorX size={10} /> {r.tabSwitchCount} marta chiqdi
                         </span>
                       )}
                     </div>

@@ -236,6 +236,22 @@ export class TestsController {
     return this.testsService.getResultDetail(resultId, user.id, user.role);
   }
 
+  // Nazorat ishi: o'quvchi boshqa tab/oynaga chiqib ketdi
+  @Post('results/:resultId/tab-switch')
+  @Roles(Role.STUDENT)
+  @HttpCode(HttpStatus.OK)
+  recordTabSwitch(@Param('resultId', ParseUUIDPipe) resultId: string, @CurrentUser() user: User) {
+    return this.testsService.recordTabSwitch(resultId, user.id);
+  }
+
+  // Nazorat ishi: natijalarni o'quvchilarga ochish
+  @Patch(':id/release-results')
+  @Roles(Role.SUPER_ADMIN, Role.MANAGER, Role.USTOZ)
+  @HttpCode(HttpStatus.OK)
+  releaseResults(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: User) {
+    return this.testsService.releaseResults(id, user.id, user.role);
+  }
+
   // O'quvchi natijalari
   @Get('student/:studentId/results')
   @Roles(Role.SUPER_ADMIN, Role.MANAGER, Role.USTOZ, Role.STUDENT)
