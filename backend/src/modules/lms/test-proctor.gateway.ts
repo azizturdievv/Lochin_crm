@@ -104,11 +104,18 @@ export class TestProctorGateway implements OnGatewayConnection, OnGatewayDisconn
   }
 
   // ─── SERVER TARAFIDAN: o'quvchi chiqib ketganda chaqiriladi ─────────────
+  // Bu — asosiy oqim (natija saqlash + bildirishnoma) allaqachon muvaffaqiyatli
+  // bo'lgandan KEYIN chaqiriladigan qo'shimcha, "best-effort" signal. Shu
+  // sababli hech qanday xato bu yerdan tashqariga chiqmasligi kerak — aks
+  // holda faqat jonli signal muvaffaqiyatsiz bo'lgani uchun o'quvchiga 500
+  // xatosi qaytib ketishi mumkin edi (aynan shu sabab bilan avval bo'lgan)
   alertTabSwitch(testId: string, data: {
     resultId: string; studentId: string; studentName: string; tabSwitchCount: number;
   }): void {
-    const room = this.server?.sockets.adapter.rooms.get(`test:${testId}`);
-    this.logger.log(`Signal yuborilmoqda: test ${testId}, xonada ${room?.size ?? 0} kuzatuvchi`);
-    this.server?.to(`test:${testId}`).emit('tab_switch_alert', data);
+    try {
+      this.server?.to(`test:${testId}`).emit('tab_switch_alert', data);
+    } catch (err) {
+      this.logger.warn(`Jonli signal yuborilmadi (natija baribir saqlandi): ${err}`);
+    }
   }
 }
