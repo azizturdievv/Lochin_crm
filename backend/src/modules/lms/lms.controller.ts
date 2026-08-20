@@ -229,6 +229,13 @@ export class TestsController {
     return this.testsService.getResults(id, user.id, user.role);
   }
 
+  // Savol/mavzu tahlili — guruh eng ko'p qaysi mavzuda xato qilyapti
+  @Get(':id/question-analysis')
+  @Roles(Role.SUPER_ADMIN, Role.MANAGER, Role.USTOZ)
+  getQuestionAnalysis(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: User) {
+    return this.testsService.getQuestionAnalysis(id, user.id, user.role);
+  }
+
   // Bitta urinish — savol-savol batafsil (kim to'g'ri/xato javob berdi, to'g'ri variant)
   @Get('results/:resultId/detail')
   @Roles(Role.SUPER_ADMIN, Role.MANAGER, Role.USTOZ, Role.STUDENT)

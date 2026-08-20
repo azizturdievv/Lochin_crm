@@ -33,4 +33,9 @@ export class TestQuestion extends BaseEntity {
 
   @Column({ name: 'sort_order', default: 0 })
   sortOrder: number;
+
+  // Mavzu tegi — erkin matn ("Present Simple", "So'z boyligi", ...).
+  // Guruh qaysi mavzuda ko'proq xato qilayotganini tahlil qilish uchun
+  @Column({ type: 'varchar', nullable: true, length: 100 })
+  topic: string | null;
 }

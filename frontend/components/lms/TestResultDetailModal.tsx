@@ -64,9 +64,16 @@ export default function TestResultDetailModal({ resultId, onClose }: Props) {
                     )}
                     <p className="text-sm font-medium text-gray-900">{i + 1}. {q.question}</p>
                   </div>
-                  <span className={`shrink-0 text-[10px] font-medium px-2 py-0.5 rounded-full ${DIFFICULTY_META[q.difficulty].bg} ${DIFFICULTY_META[q.difficulty].color}`}>
-                    {DIFFICULTY_META[q.difficulty].label}
-                  </span>
+                  <div className="shrink-0 flex items-center gap-1.5">
+                    {q.topic && (
+                      <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700">
+                        {q.topic}
+                      </span>
+                    )}
+                    <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${DIFFICULTY_META[q.difficulty].bg} ${DIFFICULTY_META[q.difficulty].color}`}>
+                      {DIFFICULTY_META[q.difficulty].label}
+                    </span>
+                  </div>
                 </div>
 
                 <div className="space-y-1 ml-6">

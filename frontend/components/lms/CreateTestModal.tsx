@@ -23,10 +23,11 @@ interface QuestionDraft {
   options:    string[];
   correct:    number;
   difficulty: TestDifficulty;
+  topic:      string;
 }
 
 function emptyQuestion(): QuestionDraft {
-  return { text: '', options: ['', '', '', ''], correct: 0, difficulty: 'medium' };
+  return { text: '', options: ['', '', '', ''], correct: 0, difficulty: 'medium', topic: '' };
 }
 
 export default function CreateTestModal({ subjectId, onClose }: Props) {
@@ -81,6 +82,7 @@ export default function CreateTestModal({ subjectId, onClose }: Props) {
             correctAnswer: String(q.correct),
             difficulty: q.difficulty,
             points: 1,
+            ...(q.topic.trim() && { topic: q.topic.trim() }),
           }),
         ),
       );
@@ -327,6 +329,20 @@ export default function CreateTestModal({ subjectId, onClose }: Props) {
                     rows={3}
                     className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 resize-none"
                   />
+
+                  {/* Mavzu tegi */}
+                  <div>
+                    <label className="text-xs font-medium text-gray-600 mb-1 block">Mavzu (ixtiyoriy)</label>
+                    <input
+                      value={q.topic}
+                      onChange={e => updateQuestion(activeQ, { topic: e.target.value })}
+                      placeholder="Present Simple, So'z boyligi..."
+                      className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    />
+                    <p className="text-[10px] text-gray-400 mt-1">
+                      Guruh qaysi mavzuda ko&apos;proq xato qilayotganini keyin tahlil qilish uchun
+                    </p>
+                  </div>
 
                   {/* Variantlar */}
                   <div className="space-y-2">

@@ -216,6 +216,7 @@ export class TestsService {
       difficulty: dto.difficulty,
       points: dto.points ?? 1,
       imageUrl: dto.imageUrl ?? null,
+      topic: dto.topic ?? null,
       sortOrder: count,
     });
 
@@ -791,6 +792,7 @@ export class TestsService {
           options: q.options,
           difficulty: q.difficulty,
           points: q.points,
+          topic: q.topic,
           correctAnswer: q.correctAnswer,
           studentAnswer,
           isCorrect: studentAnswer !== null && studentAnswer === q.correctAnswer,
@@ -809,6 +811,91 @@ export class TestsService {
           : null,
       },
       questions: breakdown,
+    };
+  }
+
+  // ─── SAVOL/MAVZU TAHLILI — guruh eng ko'p qaysi mavzuda xato qiladi ───────
+  async getQuestionAnalysis(testId: string, actorId: string, actorRole: string) {
+    const test = await this.testRepo.findOne({ where: { id: testId } });
+    if (!test) throw new NotFoundException('Test topilmadi');
+
+    if (actorRole === Role.USTOZ && test.createdById !== actorId) {
+      throw new ForbiddenException('Bu test sizniki emas');
+    }
+
+    const questions = await this.questionRepo.find({ where: { testId } });
+
+    // Har o'quvchining ENG SO'NGGI tugallangan urinishi — hozirgi bilim
+    // darajasini eng yaxshi aks ettiradi (bir nechta urinish bo'lsa,
+    // avvalgi xatolar takrorlanib statistikani buzmasligi uchun)
+    const allResults = await this.resultRepo.find({
+      where: { testId },
+      order: { startedAt: 'DESC' },
+    });
+    const latestPerStudent = new Map<string, TestResult>();
+    for (const r of allResults) {
+      if (!r.finishedAt) continue;
+      if (!latestPerStudent.has(r.studentId)) latestPerStudent.set(r.studentId, r);
+    }
+
+    const stats = new Map<string, {
+      question: TestQuestion; shown: number; correct: number; wrong: number; unanswered: number;
+    }>();
+    for (const q of questions) {
+      stats.set(q.id, { question: q, shown: 0, correct: 0, wrong: 0, unanswered: 0 });
+    }
+
+    for (const result of latestPerStudent.values()) {
+      const selected = result.selectedQuestionIds?.length
+        ? result.selectedQuestionIds
+        : Object.keys(result.answers ?? {});
+      for (const qId of selected) {
+        const s = stats.get(qId);
+        if (!s) continue;
+        s.shown++;
+        const answer = result.answers?.[qId];
+        if (answer === undefined) { s.unanswered++; continue; }
+        if (answer === s.question.correctAnswer) s.correct++;
+        else s.wrong++;
+      }
+    }
+
+    const questionStats = [...stats.values()]
+      .filter((s) => s.shown > 0)
+      .map((s) => ({
+        id: s.question.id,
+        question: s.question.question,
+        topic: s.question.topic,
+        difficulty: s.question.difficulty,
+        shown: s.shown,
+        correct: s.correct,
+        wrong: s.wrong,
+        unanswered: s.unanswered,
+        wrongRate: Math.round((s.wrong / s.shown) * 100),
+      }))
+      .sort((a, b) => b.wrongRate - a.wrongRate);
+
+    // Mavzu bo'yicha yig'indi — teg qo'yilmagan savollar "Belgilanmagan"ga tushadi
+    const byTopic = new Map<string, { shown: number; correct: number; wrong: number }>();
+    for (const qs of questionStats) {
+      const key = qs.topic ?? 'Belgilanmagan';
+      if (!byTopic.has(key)) byTopic.set(key, { shown: 0, correct: 0, wrong: 0 });
+      const t = byTopic.get(key)!;
+      t.shown += qs.shown;
+      t.correct += qs.correct;
+      t.wrong += qs.wrong;
+    }
+    const topicStats = [...byTopic.entries()]
+      .map(([topic, t]) => ({
+        topic, ...t,
+        wrongRate: t.shown > 0 ? Math.round((t.wrong / t.shown) * 100) : 0,
+      }))
+      .sort((a, b) => b.wrongRate - a.wrongRate);
+
+    return {
+      studentsCounted: latestPerStudent.size,
+      topics: topicStats,
+      questions: questionStats,
     };
   }
 

@@ -112,6 +112,12 @@ export class AddQuestionDto {
   @IsOptional()
   @IsString()
   imageUrl?: string;
+
+  // Mavzu tegi (ixtiyoriy) — "Present Simple", "So'z boyligi"...
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  topic?: string;
 }
 
 // Bitta savol javobini darhol tekshirish (Duolingo uslubi — ball yozmaydi)

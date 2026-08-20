@@ -193,9 +193,37 @@ export interface TestResultQuestionDetail {
   options:       TestOption[];
   difficulty:    TestDifficulty;
   points:        number;
+  topic:         string | null;
   correctAnswer: string;
   studentAnswer: string | null;
   isCorrect:     boolean;
+}
+
+// Savol/mavzu tahlili, GET /tests/:id/question-analysis
+export interface TopicAnalysis {
+  topic:     string;
+  shown:     number;
+  correct:   number;
+  wrong:     number;
+  wrongRate: number;
+}
+
+export interface QuestionAnalysisItem {
+  id:         string;
+  question:   string;
+  topic:      string | null;
+  difficulty: TestDifficulty;
+  shown:      number;
+  correct:    number;
+  wrong:      number;
+  unanswered: number;
+  wrongRate:  number;
+}
+
+export interface QuestionAnalysisResponse {
+  studentsCounted: number;
+  topics:          TopicAnalysis[];
+  questions:       QuestionAnalysisItem[];
 }
 
 export interface TestResultDetailResponse {

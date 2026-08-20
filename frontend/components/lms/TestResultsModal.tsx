@@ -1,13 +1,19 @@
 'use client';
 
-import { X, AlertTriangle, BarChart3, Archive, ListChecks, MonitorX, Lock, Unlock } from 'lucide-react';
+import { X, AlertTriangle, BarChart3, Archive, ListChecks, MonitorX, Lock, Unlock, PieChart } from 'lucide-react';
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
-import { scoreToLevel } from '@/types/lms';
-import type { TestResultsResponse } from '@/types/lms';
+import { scoreToLevel, DIFFICULTY_META } from '@/types/lms';
+import type { TestResultsResponse, QuestionAnalysisResponse } from '@/types/lms';
 import TestResultDetailModal from './TestResultDetailModal';
 import { useTestProctorSocket } from '@/hooks/useTestProctorSocket';
+
+function wrongRateColor(rate: number): string {
+  if (rate >= 50) return 'text-red-600 bg-red-50';
+  if (rate >= 25) return 'text-amber-600 bg-amber-50';
+  return 'text-emerald-600 bg-emerald-50';
+}
 
 interface Props {
   testId:  string;
@@ -24,10 +30,17 @@ function formatTime(sec: number | null): string {
 export default function TestResultsModal({ testId, onClose }: Props) {
   const qc = useQueryClient();
   const [detailResultId, setDetailResultId] = useState<string | null>(null);
+  const [view, setView] = useState<'students' | 'analysis'>('students');
 
   const { data, isLoading } = useQuery({
     queryKey: ['test-results', testId],
     queryFn:  () => api.get<TestResultsResponse>(`/tests/${testId}/results`).then(r => r.data),
+  });
+
+  const { data: analysis, isLoading: analysisLoading } = useQuery({
+    queryKey: ['test-question-analysis', testId],
+    queryFn:  () => api.get<QuestionAnalysisResponse>(`/tests/${testId}/question-analysis`).then(r => r.data),
+    enabled:  view === 'analysis',
   });
 
   const { alerts } = useTestProctorSocket(testId);
@@ -102,8 +115,32 @@ export default function TestResultsModal({ testId, onClose }: Props) {
           </div>
         )}
 
+        {/* Ko'rinish tanlovi */}
+        <div className="flex gap-1.5 px-6 pt-4 shrink-0">
+          <button
+            onClick={() => setView('students')}
+            className={`text-xs px-3 py-1.5 rounded-xl font-medium transition-colors border ${
+              view === 'students'
+                ? 'bg-primary-600 text-white border-primary-600'
+                : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
+            }`}
+          >
+            O&apos;quvchilar
+          </button>
+          <button
+            onClick={() => setView('analysis')}
+            className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-xl font-medium transition-colors border ${
+              view === 'analysis'
+                ? 'bg-primary-600 text-white border-primary-600'
+                : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
+            }`}
+          >
+            <PieChart size={13} /> Savollar tahlili
+          </button>
+        </div>
+
         {/* Daraja taqsimoti */}
-        {stats && stats.total > 0 && (
+        {view === 'students' && stats && stats.total > 0 && (
           <div className="flex gap-2 px-6 pt-4 shrink-0">
             <span className="text-[10px] font-medium px-2 py-1 rounded-full bg-red-50 text-red-600">Oson: {stats.levelDistribution.easy}</span>
             <span className="text-[10px] font-medium px-2 py-1 rounded-full bg-amber-50 text-amber-600">O'rta: {stats.levelDistribution.medium}</span>
@@ -111,7 +148,72 @@ export default function TestResultsModal({ testId, onClose }: Props) {
           </div>
         )}
 
+        {/* Savollar/mavzu tahlili */}
+        {view === 'analysis' && (
+          <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+            {analysisLoading ? (
+              Array.from({ length: 3 }).map((_, i) => <div key={i} className="h-14 bg-gray-100 rounded-2xl animate-pulse" />)
+            ) : !analysis || analysis.questions.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-32 text-gray-400 gap-2">
+                <PieChart size={28} />
+                <p className="text-sm">Tahlil uchun yetarli ma&apos;lumot yo&apos;q</p>
+              </div>
+            ) : (
+              <>
+                <p className="text-[11px] text-gray-400">{analysis.studentsCounted} o&apos;quvchining tugallangan urinishi bo&apos;yicha</p>
+
+                {analysis.topics.length > 1 && (
+                  <div>
+                    <h3 className="text-xs font-semibold text-gray-700 mb-2">Mavzu bo&apos;yicha</h3>
+                    <div className="space-y-1.5">
+                      {analysis.topics.map(t => (
+                        <div key={t.topic} className="flex items-center justify-between gap-3 px-3 py-2 rounded-xl border border-gray-100">
+                          <span className="text-sm text-gray-800 truncate">{t.topic}</span>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <span className="text-[10px] text-gray-400">{t.wrong}/{t.shown} xato</span>
+                            <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${wrongRateColor(t.wrongRate)}`}>
+                              {t.wrongRate}%
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div>
+                  <h3 className="text-xs font-semibold text-gray-700 mb-2">Savol bo&apos;yicha (eng ko&apos;p xato — yuqorida)</h3>
+                  <div className="space-y-1.5">
+                    {analysis.questions.map((q, i) => (
+                      <div key={q.id} className="px-3 py-2 rounded-xl border border-gray-100">
+                        <div className="flex items-start justify-between gap-3">
+                          <p className="text-sm text-gray-800 min-w-0">{i + 1}. {q.question}</p>
+                          <span className={`shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full ${wrongRateColor(q.wrongRate)}`}>
+                            {q.wrongRate}%
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                          {q.topic && (
+                            <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700">{q.topic}</span>
+                          )}
+                          <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${DIFFICULTY_META[q.difficulty].bg} ${DIFFICULTY_META[q.difficulty].color}`}>
+                            {DIFFICULTY_META[q.difficulty].label}
+                          </span>
+                          <span className="text-[10px] text-gray-400">
+                            {q.correct} to&apos;g&apos;ri · {q.wrong} xato{q.unanswered > 0 && ` · ${q.unanswered} javobsiz`}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
         {/* Ro'yxat */}
+        {view === 'students' && (
         <div className="flex-1 overflow-y-auto px-6 py-4 space-y-2">
           {isLoading ? (
             Array.from({ length: 3 }).map((_, i) => <div key={i} className="h-16 bg-gray-100 rounded-2xl animate-pulse" />)
@@ -173,6 +275,7 @@ export default function TestResultsModal({ testId, onClose }: Props) {
             })
           )}
         </div>
+        )}
       </div>
     </div>
   );
