@@ -244,11 +244,20 @@ export class HomeworkService {
     const homework = await this.homeworkRepo.findOne({ where: { id: homeworkId } });
     if (!homework) throw new NotFoundException('Vazifa topilmadi');
 
-    const submissions = await this.submissionRepo.find({
+    const rawSubmissions = await this.submissionRepo.find({
       where: { homeworkId },
-      relations: { student: true },
       order: { submittedAt: 'DESC' },
     });
+
+    // O'quvchi keyinchalik arxivlangan bo'lsa ham, topshiriq ro'yxatida ismi
+    // ko'rinishi kerak — TypeORM relation-join arxivlangan yozuvni avtomatik
+    // chetlab o'tadi, shuning uchun alohida so'rov (.withDeleted()) bilan olinadi
+    const studentIds = [...new Set(rawSubmissions.map((s) => s.studentId))];
+    const students = studentIds.length
+      ? await this.userRepo.createQueryBuilder('u').withDeleted().where('u.id IN (:...ids)', { ids: studentIds }).getMany()
+      : [];
+    const studentMap = new Map(students.map((s) => [s.id, s]));
+    const submissions = rawSubmissions.map((s) => ({ ...s, student: studentMap.get(s.studentId) ?? null }));
 
     const stats = {
       total: submissions.length,

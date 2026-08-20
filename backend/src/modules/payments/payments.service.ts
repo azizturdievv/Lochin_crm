@@ -288,12 +288,29 @@ export class PaymentsService {
   }
 
   async findOne(id: string) {
-    const payment = await this.paymentRepo.findOne({
-      where: { id },
-      relations: { student: true, receivedBy: true },
-    });
+    const payment = await this.paymentRepo.findOne({ where: { id } });
     if (!payment) throw new NotFoundException('To\'lov topilmadi');
-    return { ...payment, receipt: this.buildReceiptData(payment) };
+    const withPeople = await this.attachStudentAndReceiver(payment);
+    return { ...withPeople, receipt: this.buildReceiptData(withPeople) };
+  }
+
+  // O'quvchi yoki qabul qiluvchi keyinchalik arxivlangan (o'qishni tashlagan
+  // yoki ishdan ketgan) bo'lsa ham, to'lov tarixida ismi ko'rinishi kerak.
+  // TypeORM'ning relation-join'i arxivlangan bog'liq yozuvni avtomatik
+  // chetlab o'tadi — shuning uchun alohida so'rov (.withDeleted()) bilan olinadi
+  private async attachStudentAndReceiver<T extends Payment>(
+    payment: T,
+  ): Promise<T & { student: User | null; receivedBy: User | null }> {
+    const ids = [payment.studentId, payment.receivedById].filter((id): id is string => !!id);
+    const people = ids.length
+      ? await this.userRepo.createQueryBuilder('u').withDeleted().where('u.id IN (:...ids)', { ids }).getMany()
+      : [];
+    const byId = new Map(people.map((p) => [p.id, p]));
+    return {
+      ...payment,
+      student: byId.get(payment.studentId) ?? null,
+      receivedBy: payment.receivedById ? (byId.get(payment.receivedById) ?? null) : null,
+    };
   }
 
   // ─── QARZDORLAR RO'YXATI ─────────────────────────────────────────────────
@@ -819,13 +836,11 @@ export class PaymentsService {
   }
 
   // ─── KVITANSIYA (TERMAL PRINTER) ─────────────────────────────────────────
-  getReceiptData(paymentId: string) {
-    return this.paymentRepo
-      .findOne({ where: { id: paymentId }, relations: { student: true, receivedBy: true } })
-      .then((p) => {
-        if (!p) throw new NotFoundException('To\'lov topilmadi');
-        return this.buildReceiptData(p);
-      });
+  async getReceiptData(paymentId: string) {
+    const payment = await this.paymentRepo.findOne({ where: { id: paymentId } });
+    if (!payment) throw new NotFoundException('To\'lov topilmadi');
+    const withPeople = await this.attachStudentAndReceiver(payment);
+    return this.buildReceiptData(withPeople);
   }
 
   async markReceiptPrinted(paymentId: string, actorId: string) {

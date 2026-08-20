@@ -361,6 +361,18 @@ export class AttendanceService {
       throw new ForbiddenException('Bu dars sizniki emas');
     }
 
+    // Ustoz keyinchalik arxivlangan (ishdan ketgan) bo'lsa ham, dars
+    // davomatida ismi ko'rinishi kerak — TypeORM relation-join arxivlangan
+    // yozuvni avtomatik chetlab o'tadi, shuning uchun alohida olinadi
+    if (lesson.teacherId && !lesson.teacher) {
+      const archivedTeacher = await this.userRepo
+        .createQueryBuilder('u')
+        .withDeleted()
+        .where('u.id = :tid', { tid: lesson.teacherId })
+        .getOne();
+      if (archivedTeacher) lesson.teacher = archivedTeacher;
+    }
+
     // Guruh o'quvchilari — faol yozuvlar
     const students = await this.userRepo
       .createQueryBuilder('u')
