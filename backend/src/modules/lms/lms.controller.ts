@@ -26,7 +26,7 @@ import { CreateSubjectDto, UpdateSubjectDto } from './dto/subject.dto';
 import { CreateMaterialDto, UpdateMaterialDto } from './dto/material.dto';
 import {
   CreateTestDto, AddQuestionDto, CheckAnswerDto, SubmitTestDto,
-  TimeExtensionRequestDto, UpdateTestStatusDto,
+  TimeExtensionRequestDto, UpdateTestStatusDto, GrantAttemptDto,
 } from './dto/test.dto';
 import { CreateHomeworkDto, GradeHomeworkDto } from './dto/homework.dto';
 import { CreateBaselineDto } from './dto/baseline.dto';
@@ -202,6 +202,19 @@ export class TestsController {
   @HttpCode(HttpStatus.OK)
   startTest(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: User) {
     return this.testsService.startTest(id, user.id);
+  }
+
+  // O'quvchiga qo'shimcha urinish berish (testning umumiy maxAttempts'ini o'zgartirmaydi)
+  @Post(':id/students/:studentId/grant-attempt')
+  @Roles(Role.SUPER_ADMIN, Role.MANAGER, Role.USTOZ)
+  @HttpCode(HttpStatus.OK)
+  grantAttempt(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('studentId', ParseUUIDPipe) studentId: string,
+    @Body() dto: GrantAttemptDto,
+    @CurrentUser() user: User,
+  ) {
+    return this.testsService.grantAttempt(id, studentId, dto, user.id, user.role);
   }
 
   // Bitta savolni darhol tekshirish (Duolingo uslubi — ball yozmaydi)

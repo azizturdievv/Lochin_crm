@@ -180,3 +180,11 @@ export class UpdateTestStatusDto {
   @IsString()
   comment?: string;
 }
+
+// O'quvchiga qo'shimcha urinish berish
+export class GrantAttemptDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(300)
+  reason?: string;
+}

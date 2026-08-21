@@ -92,6 +92,7 @@ export interface Test {
   // bo'lsa, to'liq TestResult o'rniga redaktsiya qilingan shakl keladi
   myResult?:           TestResult | { id: string; finishedAt: string | null; resultsHidden: true } | null;
   myAttemptsLeft?:      number;
+  myTotalAttempts?:     number;   // maxAttempts + berilgan qo'shimcha urinishlar
   createdAt:            string;
 }
 

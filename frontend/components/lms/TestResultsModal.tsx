@@ -1,6 +1,6 @@
 'use client';
 
-import { X, AlertTriangle, BarChart3, Archive, ListChecks, MonitorX, Lock, Unlock, PieChart } from 'lucide-react';
+import { X, AlertTriangle, BarChart3, Archive, ListChecks, MonitorX, Lock, Unlock, PieChart, RotateCcw, Check } from 'lucide-react';
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
@@ -49,6 +49,15 @@ export default function TestResultsModal({ testId, onClose }: Props) {
   const releaseMut = useMutation({
     mutationFn: () => api.patch(`/tests/${testId}/release-results`),
     onSuccess:  () => qc.invalidateQueries({ queryKey: ['test-results', testId] }),
+  });
+
+  const [grantedIds, setGrantedIds] = useState<Set<string>>(new Set());
+  const grantAttemptMut = useMutation({
+    mutationFn: (studentId: string) =>
+      api.post(`/tests/${testId}/students/${studentId}/grant-attempt`, {}),
+    onSuccess: (_data, studentId) => {
+      setGrantedIds(prev => new Set(prev).add(studentId));
+    },
   });
 
   const test    = data?.test;
@@ -267,6 +276,20 @@ export default function TestResultsModal({ testId, onClose }: Props) {
                   >
                     <ListChecks size={13} /> Batafsil
                   </button>
+                  {grantedIds.has(r.studentId) ? (
+                    <span className="shrink-0 flex items-center gap-1.5 text-[11px] font-medium text-emerald-700 bg-emerald-50 px-2.5 py-1.5 rounded-xl">
+                      <Check size={13} /> Berildi
+                    </span>
+                  ) : (
+                    <button
+                      onClick={() => grantAttemptMut.mutate(r.studentId)}
+                      disabled={grantAttemptMut.isPending}
+                      title="Qo'shimcha urinish berish"
+                      className="shrink-0 flex items-center gap-1.5 text-[11px] font-medium text-amber-700 hover:text-amber-800 bg-amber-50 hover:bg-amber-100 px-2.5 py-1.5 rounded-xl transition-colors disabled:opacity-50"
+                    >
+                      <RotateCcw size={13} /> Qayta urinish
+                    </button>
+                  )}
                   <div className={`text-lg font-bold shrink-0 ${level.color}`}>
                     {r.score.toFixed(0)}%
                   </div>

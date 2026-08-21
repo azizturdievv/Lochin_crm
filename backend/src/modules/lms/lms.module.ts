@@ -23,6 +23,7 @@ import { Test } from '../../entities/test.entity';
 import { TestQuestion } from '../../entities/test-question.entity';
 import { TestResult } from '../../entities/test-result.entity';
 import { TestTimeExtension } from '../../entities/test-time-extension.entity';
+import { TestAttemptGrant } from '../../entities/test-attempt-grant.entity';
 import { Homework } from '../../entities/homework.entity';
 import { HomeworkSubmission } from '../../entities/homework-submission.entity';
 import { Lesson } from '../../entities/lesson.entity';
@@ -37,7 +38,7 @@ import { AuditLogModule } from '../audit-log/audit-log.module';
   imports: [
     TypeOrmModule.forFeature([
       Subject, Group, Material,
-      Test, TestQuestion, TestResult, TestTimeExtension,
+      Test, TestQuestion, TestResult, TestTimeExtension, TestAttemptGrant,
       Homework, HomeworkSubmission,
       Lesson,
       BaselineAssessment,

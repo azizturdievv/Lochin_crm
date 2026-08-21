@@ -11,6 +11,7 @@ import { Test, TestStatus, TestDifficulty } from '../../entities/test.entity';
 import { TestQuestion } from '../../entities/test-question.entity';
 import { TestResult } from '../../entities/test-result.entity';
 import { TestTimeExtension, ExtensionStatus } from '../../entities/test-time-extension.entity';
+import { TestAttemptGrant } from '../../entities/test-attempt-grant.entity';
 import { Enrollment, EnrollmentStatus } from '../../entities/enrollment.entity';
 import { Notification, NotificationType } from '../../entities/notification.entity';
 import { PointsLog, PointsAction } from '../../entities/points-log.entity';
@@ -27,6 +28,7 @@ import {
   SubmitTestDto,
   TimeExtensionRequestDto,
   UpdateTestStatusDto,
+  GrantAttemptDto,
 } from './dto/test.dto';
 
 // 3:5:2 nisbat: oson:o'rta:qiyin
@@ -38,7 +40,7 @@ const TEST_STATUS_TRANSITIONS: Record<TestStatus, TestStatus[]> = {
   [TestStatus.DRAFT]:     [TestStatus.REVIEW],
   [TestStatus.REVIEW]:    [TestStatus.PUBLISHED],
   [TestStatus.PUBLISHED]: [TestStatus.ARCHIVED],
-  [TestStatus.ARCHIVED]:  [],
+  [TestStatus.ARCHIVED]:  [TestStatus.PUBLISHED],
 };
 
 const TEST_STATUS_LABELS: Record<TestStatus, string> = {
@@ -113,6 +115,8 @@ export class TestsService {
     private resultRepo: Repository<TestResult>,
     @InjectRepository(TestTimeExtension)
     private extensionRepo: Repository<TestTimeExtension>,
+    @InjectRepository(TestAttemptGrant)
+    private attemptGrantRepo: Repository<TestAttemptGrant>,
     @InjectRepository(Enrollment)
     private enrollmentRepo: Repository<Enrollment>,
     @InjectRepository(Notification)
@@ -296,10 +300,14 @@ export class TestsService {
       throw new BadRequestException('Bu test hali nashr qilinmagan');
     }
 
-    // Urinishlar sonini tekshirish
+    // Urinishlar sonini tekshirish (SA/Manager/Ustoz tomonidan berilgan
+    // qo'shimcha urinishlar ham hisobga olinadi)
     const attempts = await this.resultRepo.count({ where: { testId, studentId } });
-    if (attempts >= test.maxAttempts) {
-      throw new BadRequestException(`Maksimal urinishlar soni (${test.maxAttempts}) tugadi`);
+    const grants = await this.attemptGrantRepo.find({ where: { testId, studentId } });
+    const extraAttempts = grants.reduce((sum, g) => sum + g.extraAttempts, 0);
+    const allowedAttempts = test.maxAttempts + extraAttempts;
+    if (attempts >= allowedAttempts) {
+      throw new BadRequestException(`Maksimal urinishlar soni (${allowedAttempts}) tugadi`);
     }
 
     // O'quvchi faniga yozilganligini tekshirish
@@ -345,7 +353,7 @@ export class TestsService {
       // Ikki tenglashuvchi so'rov bir vaqtda shu urinish raqamini yaratmoqchi
       // bo'lsa (check-then-act poyga holati) — DB unique cheklovi buni ushlaydi
       if ((err as { code?: string }).code === '23505') {
-        throw new BadRequestException(`Maksimal urinishlar soni (${test.maxAttempts}) tugadi`);
+        throw new BadRequestException(`Maksimal urinishlar soni (${allowedAttempts}) tugadi`);
       }
       throw err;
     }
@@ -366,6 +374,58 @@ export class TestsService {
       questions: shuffle(questions),
       startedAt: result.startedAt,
     };
+  }
+
+  // ─── QO'SHIMCHA URINISH BERISH (SA/Manager/o'z testi bo'lsa Ustoz) ────────
+  // maxAttempts'ni butun test uchun o'zgartirmaydi — faqat shu bitta
+  // o'quvchiga bitta qo'shimcha urinish qo'shadi (masalan, birinchi
+  // urinishini shoshilib/tasodifan tugatgan bo'lsa)
+  async grantAttempt(
+    testId: string,
+    studentId: string,
+    dto: GrantAttemptDto,
+    actorId: string,
+    actorRole: string,
+  ) {
+    const test = await this.testRepo.findOne({ where: { id: testId } });
+    if (!test) throw new NotFoundException('Test topilmadi');
+
+    if (actorRole === Role.USTOZ && test.createdById !== actorId) {
+      throw new ForbiddenException('Bu test sizniki emas');
+    }
+
+    const student = await this.userRepo.findOne({ where: { id: studentId, role: Role.STUDENT } });
+    if (!student) throw new NotFoundException('O\'quvchi topilmadi');
+
+    const grant = this.attemptGrantRepo.create({
+      testId,
+      studentId,
+      extraAttempts: 1,
+      reason: dto.reason ?? null,
+      grantedById: actorId,
+    });
+    await this.attemptGrantRepo.save(grant);
+
+    await this.auditLog.log({
+      userId: actorId,
+      userRole: actorRole,
+      action: 'TEST_ATTEMPT_GRANTED',
+      entityName: 'tests',
+      entityId: testId,
+      newValues: { studentId, reason: dto.reason },
+    });
+
+    await this.notifRepo.save(
+      this.notifRepo.create({
+        userId: studentId,
+        type: NotificationType.SYSTEM,
+        title: '🔄 Qo\'shimcha urinish berildi',
+        body: `"${test.title}" testini qayta topshirishingiz mumkin.`,
+        pushSent: false, smsSent: false, telegramSent: false,
+      }),
+    );
+
+    return { message: 'Qo\'shimcha urinish berildi' };
   }
 
   // ─── BITTA SAVOLNI DARHOL TEKSHIRISH (Duolingo uslubi) ───────────────────
@@ -1049,6 +1109,15 @@ export class TestsService {
       byTest.get(r.testId)!.push(r);
     }
 
+    // SA/Manager/Ustoz tomonidan berilgan qo'shimcha urinishlar
+    const myGrants = await this.attemptGrantRepo.find({
+      where: { studentId: actorId, testId: In(testIds) },
+    });
+    const extraByTest = new Map<string, number>();
+    for (const g of myGrants) {
+      extraByTest.set(g.testId, (extraByTest.get(g.testId) ?? 0) + g.extraAttempts);
+    }
+
     return tests.map((t) => {
       const attempts = byTest.get(t.id) ?? [];
       const best = attempts.reduce<TestResult | null>(
@@ -1065,10 +1134,12 @@ export class TestsService {
         : resultsHidden
           ? { id: bestOrLatest.id, finishedAt: bestOrLatest.finishedAt, resultsHidden: true as const }
           : { ...bestOrLatest, score: Number(bestOrLatest.score) };
+      const allowedAttempts = t.maxAttempts + (extraByTest.get(t.id) ?? 0);
       return {
         ...t,
         myResult,
-        myAttemptsLeft: Math.max(0, t.maxAttempts - attempts.length),
+        myAttemptsLeft: Math.max(0, allowedAttempts - attempts.length),
+        myTotalAttempts: allowedAttempts,
       };
     });
   }

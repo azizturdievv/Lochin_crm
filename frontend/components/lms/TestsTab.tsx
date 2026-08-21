@@ -25,6 +25,7 @@ const STATUS_FILTERS: Array<{ value: TestStatus | 'all'; label: string }> = [
   { value: 'published', label: 'Nashr'       },
   { value: 'review',    label: 'Tekshiruvda' },
   { value: 'draft',     label: 'Qoralama'    },
+  { value: 'archived',  label: 'Arxiv'       },
 ];
 
 export default function TestsTab({ subjectId, groupId, canCreate, canApprove, role, userId }: Props) {
@@ -55,6 +56,11 @@ export default function TestsTab({ subjectId, groupId, canCreate, canApprove, ro
 
   const archiveMut = useMutation({
     mutationFn: (id: string) => api.patch(`/tests/${id}/status`, { status: 'archived' }),
+    onSuccess:  () => qc.invalidateQueries({ queryKey: ['tests', subjectId, groupId] }),
+  });
+
+  const unarchiveMut = useMutation({
+    mutationFn: (id: string) => api.patch(`/tests/${id}/status`, { status: 'published' }),
     onSuccess:  () => qc.invalidateQueries({ queryKey: ['tests', subjectId, groupId] }),
   });
 
@@ -149,7 +155,8 @@ export default function TestsTab({ subjectId, groupId, canCreate, canApprove, ro
           {filtered.map(test => {
             const sMeta      = TEST_STATUS_META[test.status];
             const result     = test.myResult;
-            const attemptsLeft = test.myAttemptsLeft ?? test.maxAttempts;
+            const totalAttempts = test.myTotalAttempts ?? test.maxAttempts;
+            const attemptsLeft = test.myAttemptsLeft ?? totalAttempts;
             // Faqat talaba testni "boshlashi" mumkin — backend ham shuni talab
             // qiladi (@Roles(STUDENT)); xodimlar buni bosishi 403ga olib kelardi
             const canTake    = role === 'student' && test.status === 'published' && attemptsLeft > 0;
@@ -178,7 +185,7 @@ export default function TestsTab({ subjectId, groupId, canCreate, canApprove, ro
                     <div className="flex items-center gap-3 mt-1.5 flex-wrap">
                       <span className="text-xs text-gray-400">⏱ {test.timeLimitMinutes} daq</span>
                       <span className="text-xs text-gray-400">{test.questionsToShow}/{test.totalQuestions} savol</span>
-                      <span className="text-xs text-gray-400">{attemptsLeft}/{test.maxAttempts} urinish qoldi</span>
+                      <span className="text-xs text-gray-400">{attemptsLeft}/{totalAttempts} urinish qoldi</span>
                       {test.createdBy && (
                         <span className="text-xs text-gray-400">
                           {test.createdBy.firstName} {test.createdBy.lastName[0]}.
@@ -240,6 +247,15 @@ export default function TestsTab({ subjectId, groupId, canCreate, canApprove, ro
                           className="text-xs bg-gray-100 text-gray-600 hover:bg-gray-200 px-3 py-1.5 rounded-xl transition-colors"
                         >
                           Arxiv
+                        </button>
+                      )}
+                      {canApprove && test.status === 'archived' && (
+                        <button
+                          onClick={() => unarchiveMut.mutate(test.id)}
+                          disabled={unarchiveMut.isPending}
+                          className="text-xs bg-emerald-50 text-emerald-700 hover:bg-emerald-100 px-3 py-1.5 rounded-xl transition-colors font-medium"
+                        >
+                          Arxivdan qaytarish
                         </button>
                       )}
                       {canViewResults && (
