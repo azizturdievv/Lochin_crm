@@ -47,6 +47,7 @@ import { LessonSubstitution } from '../entities/lesson-substitution.entity';
 import { TeacherAbsence } from '../entities/teacher-absence.entity';
 import { HomeworkSubmission } from '../entities/homework-submission.entity';
 import { TestTimeExtension } from '../entities/test-time-extension.entity';
+import { TestAttemptGrant } from '../entities/test-attempt-grant.entity';
 import { EventQuestion } from '../entities/event-question.entity';
 import { EventSubmission } from '../entities/event-submission.entity';
 import { SpellingError } from '../entities/spelling-error.entity';
@@ -112,6 +113,7 @@ export const getDatabaseConfig = (config: ConfigService): TypeOrmModuleOptions =
     TeacherAbsence,
     HomeworkSubmission,
     TestTimeExtension,
+    TestAttemptGrant,
     EventQuestion,
     EventSubmission,
     SpellingError,
