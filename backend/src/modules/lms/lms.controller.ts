@@ -25,7 +25,8 @@ import { MinioService } from './minio.service';
 import { CreateSubjectDto, UpdateSubjectDto } from './dto/subject.dto';
 import { CreateMaterialDto, UpdateMaterialDto } from './dto/material.dto';
 import {
-  CreateTestDto, AddQuestionDto, CheckAnswerDto, SubmitTestDto,
+  CreateTestDto, UpdateTestDto, AddQuestionDto, UpdateQuestionDto, BulkAddQuestionsDto,
+  CheckAnswerDto, SubmitTestDto,
   TimeExtensionRequestDto, UpdateTestStatusDto, GrantAttemptDto,
 } from './dto/test.dto';
 import { CreateHomeworkDto, GradeHomeworkDto } from './dto/homework.dto';
@@ -160,8 +161,8 @@ export class TestsController {
 
   @Get(':id')
   @Roles(Role.SUPER_ADMIN, Role.MANAGER, Role.USTOZ)
-  findOne(@Param('id', ParseUUIDPipe) id: string) {
-    return this.testsService.findOne(id);
+  findOne(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: User) {
+    return this.testsService.findOne(id, user.id, user.role);
   }
 
   @Post()
@@ -169,6 +170,26 @@ export class TestsController {
   @HttpCode(HttpStatus.CREATED)
   create(@Body() dto: CreateTestDto, @CurrentUser() user: User) {
     return this.testsService.createTest(dto, user.id, user.role);
+  }
+
+  // Test sozlamalarini tahrirlash (SA/Manager cheklovsiz, Ustoz — o'z fani)
+  @Patch(':id')
+  @Roles(Role.SUPER_ADMIN, Role.MANAGER, Role.USTOZ)
+  @HttpCode(HttpStatus.OK)
+  update(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateTestDto,
+    @CurrentUser() user: User,
+  ) {
+    return this.testsService.updateTest(id, dto, user.id, user.role);
+  }
+
+  // Testni shablon sifatida nusxalash — yangi DRAFT test yaratadi
+  @Post(':id/duplicate')
+  @Roles(Role.SUPER_ADMIN, Role.MANAGER, Role.USTOZ)
+  @HttpCode(HttpStatus.CREATED)
+  duplicate(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: User) {
+    return this.testsService.duplicateTest(id, user.id, user.role);
   }
 
   // Test zanjiri: draft → review → published
@@ -193,6 +214,43 @@ export class TestsController {
     @CurrentUser() user: User,
   ) {
     return this.testsService.addQuestion(id, dto, user.id, user.role);
+  }
+
+  // Bir nechta savolni birdaniga qo'shish (matndan import)
+  @Post(':id/questions/bulk')
+  @Roles(Role.SUPER_ADMIN, Role.MANAGER, Role.USTOZ)
+  @HttpCode(HttpStatus.CREATED)
+  bulkAddQuestions(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: BulkAddQuestionsDto,
+    @CurrentUser() user: User,
+  ) {
+    return this.testsService.bulkAddQuestions(id, dto, user.id, user.role);
+  }
+
+  // Savolni tahrirlash
+  @Patch(':id/questions/:questionId')
+  @Roles(Role.SUPER_ADMIN, Role.MANAGER, Role.USTOZ)
+  @HttpCode(HttpStatus.OK)
+  updateQuestion(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('questionId', ParseUUIDPipe) questionId: string,
+    @Body() dto: UpdateQuestionDto,
+    @CurrentUser() user: User,
+  ) {
+    return this.testsService.updateQuestion(id, questionId, dto, user.id, user.role);
+  }
+
+  // Savolni o'chirish (soft-delete)
+  @Delete(':id/questions/:questionId')
+  @Roles(Role.SUPER_ADMIN, Role.MANAGER, Role.USTOZ)
+  @HttpCode(HttpStatus.OK)
+  deleteQuestion(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('questionId', ParseUUIDPipe) questionId: string,
+    @CurrentUser() user: User,
+  ) {
+    return this.testsService.deleteQuestion(id, questionId, user.id, user.role);
   }
 
   // Test boshlash

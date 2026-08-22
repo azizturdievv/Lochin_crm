@@ -77,6 +77,64 @@ export class CreateTestDto {
   @IsOptional()
   @IsBoolean()
   resultsAutoVisible?: boolean;
+
+  // Nechta xato javobdan keyin urinish avtomatik tugaydi. Berilmasa = cheksiz
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  livesLimit?: number;
+}
+
+// Test sozlamalarini tahrirlash — hammasi ixtiyoriy
+export class UpdateTestDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  title?: string;
+
+  @IsOptional()
+  @IsString()
+  description?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(5)
+  timeLimitMinutes?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  questionsToShow?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  maxAttempts?: number;
+
+  @IsOptional()
+  @IsEnum(['best', 'average', 'last'])
+  scoreMethod?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  level?: string;
+
+  // Bo'sh massiv = fanning barcha guruhiga ko'rinsin (cheklovni tozalash)
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  groupIds?: string[];
+
+  @IsOptional()
+  @IsBoolean()
+  resultsAutoVisible?: boolean;
+
+  // null = jonlar cheksiz
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  livesLimit?: number | null;
 }
 
 // Savol opsiyasi
@@ -118,6 +176,54 @@ export class AddQuestionDto {
   @IsString()
   @MaxLength(100)
   topic?: string;
+}
+
+// Bir nechta savolni birdaniga qo'shish (matndan import)
+export class BulkAddQuestionsDto {
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => AddQuestionDto)
+  questions: AddQuestionDto[];
+}
+
+// Savolni tahrirlash — hammasi ixtiyoriy
+export class UpdateQuestionDto {
+  @IsOptional()
+  @IsString()
+  question?: string;
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => OptionDto)
+  options?: OptionDto[];
+
+  @IsOptional()
+  @IsString()
+  correctAnswer?: string;
+
+  @IsOptional()
+  @IsEnum(TestDifficulty)
+  difficulty?: TestDifficulty;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  points?: number;
+
+  @IsOptional()
+  @IsString()
+  imageUrl?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  topic?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  sortOrder?: number;
 }
 
 // Bitta savol javobini darhol tekshirish (Duolingo uslubi — ball yozmaydi)

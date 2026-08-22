@@ -1,14 +1,13 @@
 'use client';
 
-import { FileText, Pencil, BarChart3, ListChecks, Lock } from 'lucide-react';
+import { FileText, Pencil, ListChecks } from 'lucide-react';
 import { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { TEST_STATUS_META, scoreToLevel } from '@/types/lms';
 import type { Test, TestStatus } from '@/types/lms';
 import TestRunner from './TestRunner';
-import CreateTestModal from './CreateTestModal';
-import TestResultsModal from './TestResultsModal';
+import TestDetailModal from './TestDetailModal';
 import TestResultDetailModal from './TestResultDetailModal';
 
 interface Props {
@@ -33,8 +32,8 @@ export default function TestsTab({ subjectId, groupId, canCreate, canApprove, ro
   const [statusFilter, setStatusFilter] = useState<TestStatus | 'all'>('published');
   const [levelFilter,  setLevelFilter]  = useState<string | 'all'>('all');
   const [activeTest,   setActiveTest]   = useState<Test | null>(null);
-  const [createOpen,   setCreateOpen]   = useState(false);
-  const [resultsTestId, setResultsTestId] = useState<string | null>(null);
+  const [detailTestId, setDetailTestId] = useState<string | null>(null);
+  const [creatingTest, setCreatingTest] = useState(false);
   const [myDetailResultId, setMyDetailResultId] = useState<string | null>(null);
 
   const { data: tests = [], isLoading } = useQuery({
@@ -42,26 +41,6 @@ export default function TestsTab({ subjectId, groupId, canCreate, canApprove, ro
     queryFn:  () => api.get<Test[]>('/tests', {
       params: { subjectId },
     }).then(r => r.data),
-  });
-
-  const sendToReviewMut = useMutation({
-    mutationFn: (id: string) => api.patch(`/tests/${id}/status`, { status: 'review' }),
-    onSuccess:  () => qc.invalidateQueries({ queryKey: ['tests', subjectId, groupId] }),
-  });
-
-  const approveMut = useMutation({
-    mutationFn: (id: string) => api.patch(`/tests/${id}/status`, { status: 'published' }),
-    onSuccess:  () => qc.invalidateQueries({ queryKey: ['tests', subjectId, groupId] }),
-  });
-
-  const archiveMut = useMutation({
-    mutationFn: (id: string) => api.patch(`/tests/${id}/status`, { status: 'archived' }),
-    onSuccess:  () => qc.invalidateQueries({ queryKey: ['tests', subjectId, groupId] }),
-  });
-
-  const unarchiveMut = useMutation({
-    mutationFn: (id: string) => api.patch(`/tests/${id}/status`, { status: 'published' }),
-    onSuccess:  () => qc.invalidateQueries({ queryKey: ['tests', subjectId, groupId] }),
   });
 
   const levels = Array.from(new Set(tests.map(t => t.level).filter((l): l is string => !!l)));
@@ -130,7 +109,7 @@ export default function TestsTab({ subjectId, groupId, canCreate, canApprove, ro
         )}
         {canCreate && (
           <button
-            onClick={() => setCreateOpen(true)}
+            onClick={() => setCreatingTest(true)}
             className="flex items-center gap-1.5 bg-primary-600 hover:bg-primary-700 text-white text-sm font-medium px-4 py-2 rounded-xl transition-colors"
           >
             <Pencil size={14} /> Test draft
@@ -159,14 +138,15 @@ export default function TestsTab({ subjectId, groupId, canCreate, canApprove, ro
             const attemptsLeft = test.myAttemptsLeft ?? totalAttempts;
             // Faqat talaba testni "boshlashi" mumkin — backend ham shuni talab
             // qiladi (@Roles(STUDENT)); xodimlar buni bosishi 403ga olib kelardi
-            const canTake    = role === 'student' && test.status === 'published' && attemptsLeft > 0;
-            const canViewResults = (canApprove || (role === 'ustoz' && test.createdById === userId))
-              && (test.status === 'published' || test.status === 'archived');
+            const canTake = role === 'student' && test.status === 'published' && attemptsLeft > 0;
+            // Xodim uchun — kartaning o'zi bosilganda sozlamalar/natijalar ochiladi
+            const isStaff = role !== 'student';
 
             return (
               <div
                 key={test.id}
-                className="bg-white border border-gray-100 rounded-2xl px-5 py-4 hover:border-emerald-200 hover:shadow-sm transition-all"
+                onClick={isStaff ? () => setDetailTestId(test.id) : undefined}
+                className={`bg-white border border-gray-100 rounded-2xl px-5 py-4 hover:border-emerald-200 hover:shadow-sm transition-all ${isStaff ? 'cursor-pointer' : ''}`}
               >
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex-1 min-w-0">
@@ -185,7 +165,9 @@ export default function TestsTab({ subjectId, groupId, canCreate, canApprove, ro
                     <div className="flex items-center gap-3 mt-1.5 flex-wrap">
                       <span className="text-xs text-gray-400">⏱ {test.timeLimitMinutes} daq</span>
                       <span className="text-xs text-gray-400">{test.questionsToShow}/{test.totalQuestions} savol</span>
-                      <span className="text-xs text-gray-400">{attemptsLeft}/{totalAttempts} urinish qoldi</span>
+                      {role === 'student' && (
+                        <span className="text-xs text-gray-400">{attemptsLeft}/{totalAttempts} urinish qoldi</span>
+                      )}
                       {test.createdBy && (
                         <span className="text-xs text-gray-400">
                           {test.createdBy.firstName} {test.createdBy.lastName[0]}.
@@ -194,93 +176,49 @@ export default function TestsTab({ subjectId, groupId, canCreate, canApprove, ro
                     </div>
                   </div>
 
-                  {/* Natija yoki boshlash */}
-                  <div className="shrink-0 flex flex-col items-end gap-2">
-                    {result && 'resultsHidden' in result ? (
-                      <div className="text-right">
-                        <div className="flex items-center gap-1 text-[10px] font-medium text-amber-600 bg-amber-50 px-2 py-1 rounded-full">
-                          <Lock size={10} /> Natijalar yopiq
+                  {/* Natija yoki boshlash — faqat talaba uchun */}
+                  {role === 'student' && (
+                    <div className="shrink-0 flex flex-col items-end gap-2">
+                      {result && 'resultsHidden' in result ? (
+                        <div className="text-right">
+                          <div className="flex items-center gap-1 text-[10px] font-medium text-amber-600 bg-amber-50 px-2 py-1 rounded-full">
+                            Natijalar yopiq
+                          </div>
                         </div>
-                      </div>
-                    ) : result ? (
-                      <div className="text-right">
-                        <div className={`text-lg font-bold ${scoreToLevel(result.score).color}`}>
-                          {result.score.toFixed(0)}%
-                        </div>
-                        <div className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${scoreToLevel(result.score).bg} ${scoreToLevel(result.score).color}`}>
-                          {scoreToLevel(result.score).label}
-                        </div>
-                        {role === 'student' && (
+                      ) : result ? (
+                        <div className="text-right">
+                          <div className={`text-lg font-bold ${scoreToLevel(result.score).color}`}>
+                            {result.score.toFixed(0)}%
+                          </div>
+                          <div className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${scoreToLevel(result.score).bg} ${scoreToLevel(result.score).color}`}>
+                            {scoreToLevel(result.score).label}
+                          </div>
                           <button
                             onClick={() => setMyDetailResultId(result.id)}
                             className="mt-1 flex items-center gap-1 text-[10px] font-medium text-primary-600 hover:text-primary-700"
                           >
                             <ListChecks size={11} /> Batafsil
                           </button>
+                        </div>
+                      ) : null}
+
+                      <div className="flex gap-2">
+                        {canTake && (
+                          <button
+                            onClick={() => setActiveTest(test)}
+                            className="text-xs bg-primary-600 hover:bg-primary-700 text-white px-3 py-1.5 rounded-xl transition-colors font-medium"
+                          >
+                            {result ? 'Qayta urinish' : '▶ Boshlash'}
+                          </button>
+                        )}
+                        {!canTake && test.status === 'published' && attemptsLeft === 0 && result && (
+                          <span className="text-xs text-gray-400 bg-gray-50 px-3 py-1.5 rounded-xl">
+                            Urinish qolmadi
+                          </span>
                         )}
                       </div>
-                    ) : null}
-
-                    <div className="flex gap-2">
-                      {test.status === 'draft' && (canApprove || test.createdById === userId) && (
-                        <button
-                          onClick={() => sendToReviewMut.mutate(test.id)}
-                          disabled={sendToReviewMut.isPending}
-                          className="text-xs bg-purple-50 text-purple-700 hover:bg-purple-100 px-3 py-1.5 rounded-xl transition-colors font-medium"
-                        >
-                          Tekshiruvga yuborish
-                        </button>
-                      )}
-                      {canApprove && test.status === 'review' && (
-                        <button
-                          onClick={() => approveMut.mutate(test.id)}
-                          disabled={approveMut.isPending}
-                          className="text-xs bg-emerald-50 text-emerald-700 hover:bg-emerald-100 px-3 py-1.5 rounded-xl transition-colors font-medium"
-                        >
-                          Tasdiqlash
-                        </button>
-                      )}
-                      {canApprove && test.status === 'published' && (
-                        <button
-                          onClick={() => archiveMut.mutate(test.id)}
-                          disabled={archiveMut.isPending}
-                          className="text-xs bg-gray-100 text-gray-600 hover:bg-gray-200 px-3 py-1.5 rounded-xl transition-colors"
-                        >
-                          Arxiv
-                        </button>
-                      )}
-                      {canApprove && test.status === 'archived' && (
-                        <button
-                          onClick={() => unarchiveMut.mutate(test.id)}
-                          disabled={unarchiveMut.isPending}
-                          className="text-xs bg-emerald-50 text-emerald-700 hover:bg-emerald-100 px-3 py-1.5 rounded-xl transition-colors font-medium"
-                        >
-                          Arxivdan qaytarish
-                        </button>
-                      )}
-                      {canViewResults && (
-                        <button
-                          onClick={() => setResultsTestId(test.id)}
-                          className="text-xs flex items-center gap-1.5 bg-blue-50 text-blue-700 hover:bg-blue-100 px-3 py-1.5 rounded-xl transition-colors font-medium"
-                        >
-                          <BarChart3 size={14} /> Natijalar
-                        </button>
-                      )}
-                      {canTake && (
-                        <button
-                          onClick={() => setActiveTest(test)}
-                          className="text-xs bg-primary-600 hover:bg-primary-700 text-white px-3 py-1.5 rounded-xl transition-colors font-medium"
-                        >
-                          {result ? 'Qayta urinish' : '▶ Boshlash'}
-                        </button>
-                      )}
-                      {role === 'student' && !canTake && test.status === 'published' && attemptsLeft === 0 && result && (
-                        <span className="text-xs text-gray-400 bg-gray-50 px-3 py-1.5 rounded-xl">
-                          Urinish qolmadi
-                        </span>
-                      )}
                     </div>
-                  </div>
+                  )}
                 </div>
               </div>
             );
@@ -288,18 +226,26 @@ export default function TestsTab({ subjectId, groupId, canCreate, canApprove, ro
         </div>
       )}
 
-      {createOpen && (
-        <CreateTestModal
+      {creatingTest && (
+        <TestDetailModal
           subjectId={subjectId}
           groupId={groupId}
-          onClose={() => setCreateOpen(false)}
+          role={role}
+          userId={userId}
+          canApprove={canApprove}
+          onClose={() => setCreatingTest(false)}
         />
       )}
 
-      {resultsTestId && (
-        <TestResultsModal
-          testId={resultsTestId}
-          onClose={() => setResultsTestId(null)}
+      {detailTestId && (
+        <TestDetailModal
+          testId={detailTestId}
+          subjectId={subjectId}
+          groupId={groupId}
+          role={role}
+          userId={userId}
+          canApprove={canApprove}
+          onClose={() => setDetailTestId(null)}
         />
       )}
 

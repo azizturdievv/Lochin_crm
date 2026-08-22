@@ -61,4 +61,12 @@ export class TestResult extends BaseEntity {
   // Nazorat ishida boshqa tab/oynaga chiqib ketishlar soni (jonli kuzatuv uchun)
   @Column({ name: 'tab_switch_count', default: 0 })
   tabSwitchCount: number;
+
+  // Shu urinishda hozirgacha berilgan xato javoblar soni (checkAnswer'da oshiriladi)
+  @Column({ name: 'wrong_count', default: 0 })
+  wrongCount: number;
+
+  // true = urinish jonlar (test.livesLimit) tugagani sababli avtomatik yakunlangan
+  @Column({ default: false })
+  eliminated: boolean;
 }

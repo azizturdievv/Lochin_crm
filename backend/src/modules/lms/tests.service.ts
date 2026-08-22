@@ -23,7 +23,10 @@ import { AuditLogService } from '../audit-log/audit-log.service';
 import { TestProctorGateway } from './test-proctor.gateway';
 import {
   CreateTestDto,
+  UpdateTestDto,
   AddQuestionDto,
+  UpdateQuestionDto,
+  BulkAddQuestionsDto,
   CheckAnswerDto,
   SubmitTestDto,
   TimeExtensionRequestDto,
@@ -166,6 +169,7 @@ export class TestsService {
       isBaseline: dto.isBaseline ?? false,
       level: dto.level ?? null,
       resultsAutoVisible: dto.resultsAutoVisible ?? true,
+      livesLimit: dto.livesLimit ?? null,
       createdById: actorId,
       status: TestStatus.DRAFT,
     });
@@ -193,17 +197,14 @@ export class TestsService {
   }
 
   // ─── SAVOL QO'SHISH ───────────────────────────────────────────────────────
+  // Test istalgan holatda (draft/review/published/archived) bo'lishi mumkin —
+  // SA/Manager/o'z fanini o'qitadigan ustoz nashr qilingan testga ham savol
+  // qo'sha oladi (masalan xato topilib, darhol to'ldirish kerak bo'lganda)
   async addQuestion(testId: string, dto: AddQuestionDto, actorId: string, actorRole: string) {
     const test = await this.testRepo.findOne({ where: { id: testId } });
     if (!test) throw new NotFoundException('Test topilmadi');
 
-    if (test.status !== TestStatus.DRAFT) {
-      throw new BadRequestException('Nashr qilingan yoki ko\'rib chiqilayotgan testga savol qo\'shib bo\'lmaydi');
-    }
-
-    if (actorRole === Role.USTOZ && test.createdById !== actorId) {
-      throw new ForbiddenException('Bu test sizniki emas');
-    }
+    await this.assertCanManageTest(test, actorId, actorRole);
 
     // correctAnswer opsiyalar ichida borligini tekshirish
     const optionIds = dto.options.map((o) => o.id);
@@ -225,7 +226,148 @@ export class TestsService {
     });
 
     await this.questionRepo.save(question);
+
+    await this.auditLog.log({
+      userId: actorId, userRole: actorRole,
+      action: 'TEST_QUESTION_ADDED',
+      entityName: 'test_questions', entityId: question.id,
+      newValues: { testId, question: dto.question },
+    });
+
     return question;
+  }
+
+  // ─── BIR NECHTA SAVOLNI BIRDANIGA QO'SHISH (matndan import) ──────────────
+  async bulkAddQuestions(
+    testId: string,
+    dto: BulkAddQuestionsDto,
+    actorId: string,
+    actorRole: string,
+  ) {
+    const test = await this.testRepo.findOne({ where: { id: testId } });
+    if (!test) throw new NotFoundException('Test topilmadi');
+
+    await this.assertCanManageTest(test, actorId, actorRole);
+
+    for (const q of dto.questions) {
+      const optionIds = q.options.map((o) => o.id);
+      if (!optionIds.includes(q.correctAnswer)) {
+        throw new BadRequestException(`"${q.question}" — to'g'ri javob opsiyalar ichida bo'lishi kerak`);
+      }
+    }
+
+    let sortOrder = await this.questionRepo.count({ where: { testId } });
+    const created = this.questionRepo.create(
+      dto.questions.map((q) => ({
+        testId,
+        question: q.question,
+        options: q.options,
+        correctAnswer: q.correctAnswer,
+        difficulty: q.difficulty,
+        points: q.points ?? 1,
+        imageUrl: q.imageUrl ?? null,
+        topic: q.topic ?? null,
+        sortOrder: sortOrder++,
+      })),
+    );
+    await this.questionRepo.save(created);
+
+    await this.auditLog.log({
+      userId: actorId, userRole: actorRole,
+      action: 'TEST_QUESTION_ADDED',
+      entityName: 'test_questions', entityId: testId,
+      newValues: { testId, count: created.length },
+    });
+
+    return created;
+  }
+
+  // ─── SAVOLNI TAHRIRLASH ────────────────────────────────────────────────────
+  async updateQuestion(
+    testId: string,
+    questionId: string,
+    dto: UpdateQuestionDto,
+    actorId: string,
+    actorRole: string,
+  ) {
+    const test = await this.testRepo.findOne({ where: { id: testId } });
+    if (!test) throw new NotFoundException('Test topilmadi');
+    await this.assertCanManageTest(test, actorId, actorRole);
+
+    const question = await this.questionRepo.findOne({ where: { id: questionId, testId } });
+    if (!question) throw new NotFoundException('Savol topilmadi');
+
+    // To'g'ri javob/opsiyalar/ball — bularni o'zgartirish avval tugallangan
+    // natijalarni "jimgina" muzlatilgan ball bilan zid qilib qo'yishi mumkin
+    // (getResultDetail/getQuestionAnalysis to'g'ri javobni JONLI hisoblaydi).
+    // SA cheklovsiz; Manager/Ustoz — shu savolga natija bog'lanmagan bo'lsagina
+    const touchesScoring = dto.correctAnswer !== undefined || dto.options !== undefined || dto.points !== undefined;
+    if (touchesScoring && actorRole !== Role.SUPER_ADMIN) {
+      const hasResults = await this.questionHasFinishedResults(testId, questionId);
+      if (hasResults) {
+        throw new BadRequestException(
+          'Bu savolga allaqachon tugallangan natijalar bog\'langan — javob/ball o\'zgartirish uchun super adminga murojaat qiling',
+        );
+      }
+    }
+
+    const finalOptions = dto.options ?? question.options;
+    const finalCorrect = dto.correctAnswer ?? question.correctAnswer;
+    if (!finalOptions.some((o) => o.id === finalCorrect)) {
+      throw new BadRequestException('To\'g\'ri javob opsiyalar ichida bo\'lishi kerak');
+    }
+
+    const updateData: Partial<TestQuestion> = {};
+    if (dto.question !== undefined) updateData.question = dto.question;
+    if (dto.options !== undefined) updateData.options = dto.options;
+    if (dto.correctAnswer !== undefined) updateData.correctAnswer = dto.correctAnswer;
+    if (dto.difficulty !== undefined) updateData.difficulty = dto.difficulty;
+    if (dto.points !== undefined) updateData.points = dto.points;
+    if (dto.imageUrl !== undefined) updateData.imageUrl = dto.imageUrl ?? null;
+    if (dto.topic !== undefined) updateData.topic = dto.topic ?? null;
+    if (dto.sortOrder !== undefined) updateData.sortOrder = dto.sortOrder;
+
+    await this.questionRepo.update(questionId, updateData);
+
+    await this.auditLog.log({
+      userId: actorId, userRole: actorRole,
+      action: touchesScoring ? 'TEST_QUESTION_ANSWER_CHANGED' : 'TEST_QUESTION_UPDATED',
+      entityName: 'test_questions', entityId: questionId,
+      oldValues: { question: question.question, correctAnswer: question.correctAnswer },
+      newValues: dto as unknown as Record<string, unknown>,
+    });
+
+    return this.questionRepo.findOne({ where: { id: questionId } });
+  }
+
+  // ─── SAVOLNI O'CHIRISH (soft-delete) ──────────────────────────────────────
+  async deleteQuestion(testId: string, questionId: string, actorId: string, actorRole: string) {
+    const test = await this.testRepo.findOne({ where: { id: testId } });
+    if (!test) throw new NotFoundException('Test topilmadi');
+    await this.assertCanManageTest(test, actorId, actorRole);
+
+    const question = await this.questionRepo.findOne({ where: { id: questionId, testId } });
+    if (!question) throw new NotFoundException('Savol topilmadi');
+
+    if (test.status === TestStatus.REVIEW || test.status === TestStatus.PUBLISHED) {
+      const remaining = await this.questionRepo.count({ where: { testId } });
+      if (remaining - 1 < test.questionsToShow) {
+        throw new BadRequestException(
+          `Bu savolni o'chirish mumkin emas — testda kamida ${test.questionsToShow} ta savol qolishi kerak`,
+        );
+      }
+    }
+
+    await this.questionRepo.softDelete(questionId);
+
+    await this.auditLog.log({
+      userId: actorId, userRole: actorRole,
+      action: 'TEST_QUESTION_DELETED',
+      entityName: 'test_questions', entityId: questionId,
+      oldValues: { question: question.question },
+    });
+
+    return { message: 'Savol o\'chirildi' };
   }
 
   // ─── TEST ZANJIRI: DRAFT → REVIEW → PUBLISHED ────────────────────────────
@@ -428,12 +570,169 @@ export class TestsService {
     return { message: 'Qo\'shimcha urinish berildi' };
   }
 
+  // ─── RBAC: TEST BOSHQARISH HUQUQI ─────────────────────────────────────────
+  // Tahrirlash (sozlama/savol) uchun ishlatiladi — SA/Manager cheklovsiz,
+  // Ustoz FAQAT o'zi o'qitadigan fandagi testni boshqara oladi (o'zi
+  // yaratmagan bo'lsa ham). Natijalar/qayta-urinish-berish/holat-o'zgartirish
+  // hamon eski, torroq "faqat o'zi yaratgan" qoidasida qoladi — bu yerga tegmaydi
+  private async assertCanManageTest(test: Test, actorId: string, actorRole: string): Promise<void> {
+    if (actorRole === Role.SUPER_ADMIN || actorRole === Role.MANAGER) return;
+    if (actorRole === Role.USTOZ) {
+      const teaches = await this.groupRepo.exists({
+        where: { subjectId: test.subjectId, teacherId: actorId },
+      });
+      if (!teaches) throw new ForbiddenException('Siz bu fanni o\'qitmaysiz');
+      return;
+    }
+    throw new ForbiddenException('Bu amalni bajarish uchun ruxsat yo\'q');
+  }
+
+  // Shu savolga tegishli, allaqachon tugallangan (finished_at bor) natija
+  // bor-yo'qligi — javob-to'g'riligini o'zgartirish xavfsizmi tekshirish uchun
+  private async questionHasFinishedResults(testId: string, questionId: string): Promise<boolean> {
+    const count = await this.resultRepo
+      .createQueryBuilder('r')
+      .where('r.test_id = :testId', { testId })
+      .andWhere('r.finished_at IS NOT NULL')
+      .andWhere('r.selected_question_ids @> :qid', { qid: JSON.stringify([questionId]) })
+      .getCount();
+    return count > 0;
+  }
+
+  // ─── TEST SOZLAMALARINI TAHRIRLASH ────────────────────────────────────────
+  async updateTest(testId: string, dto: UpdateTestDto, actorId: string, actorRole: string) {
+    const test = await this.testRepo.findOne({
+      where: { id: testId },
+      relations: { visibleGroups: true },
+    });
+    if (!test) throw new NotFoundException('Test topilmadi');
+    await this.assertCanManageTest(test, actorId, actorRole);
+
+    const updateData: Partial<Test> = {};
+    if (dto.title !== undefined) updateData.title = dto.title;
+    if (dto.description !== undefined) updateData.description = dto.description ?? null;
+    if (dto.timeLimitMinutes !== undefined) updateData.timeLimitMinutes = dto.timeLimitMinutes;
+    if (dto.questionsToShow !== undefined) updateData.questionsToShow = dto.questionsToShow;
+    if (dto.maxAttempts !== undefined) updateData.maxAttempts = dto.maxAttempts;
+    if (dto.scoreMethod !== undefined) updateData.scoreMethod = dto.scoreMethod;
+    if (dto.level !== undefined) updateData.level = dto.level ?? null;
+    if (dto.resultsAutoVisible !== undefined) updateData.resultsAutoVisible = dto.resultsAutoVisible;
+    if (dto.livesLimit !== undefined) updateData.livesLimit = dto.livesLimit ?? null;
+
+    if (Object.keys(updateData).length > 0) {
+      await this.testRepo.update(testId, updateData);
+    }
+
+    // Guruh ko'rinishini to'liq almashtirish (faqat qo'shish emas) — berilgan
+    // to'plamda yo'q, lekin hozir bog'langan guruhlar olib tashlanadi
+    if (dto.groupIds !== undefined) {
+      let targetGroupIds: string[] = [];
+      if (dto.groupIds.length) {
+        const groups = await this.groupRepo.find({
+          where: { id: In(dto.groupIds), subjectId: test.subjectId },
+        });
+        if (groups.length !== dto.groupIds.length) {
+          throw new BadRequestException('Ba\'zi guruhlar topilmadi yoki bu fanga tegishli emas');
+        }
+        targetGroupIds = groups.map((g) => g.id);
+      }
+      const currentIds = (test.visibleGroups ?? []).map((g) => g.id);
+      const toAdd = targetGroupIds.filter((id) => !currentIds.includes(id));
+      const toRemove = currentIds.filter((id) => !targetGroupIds.includes(id));
+      if (toAdd.length || toRemove.length) {
+        await this.testRepo
+          .createQueryBuilder()
+          .relation(Test, 'visibleGroups')
+          .of(testId)
+          .addAndRemove(toAdd, toRemove);
+      }
+    }
+
+    await this.auditLog.log({
+      userId: actorId, userRole: actorRole,
+      action: 'TEST_UPDATED',
+      entityName: 'tests', entityId: testId,
+      newValues: dto as unknown as Record<string, unknown>,
+    });
+
+    return this.findOne(testId, actorId, actorRole);
+  }
+
+  // ─── TESTNI NUSXALASH (shablon sifatida) ──────────────────────────────────
+  async duplicateTest(testId: string, actorId: string, actorRole: string) {
+    const source = await this.testRepo.findOne({
+      where: { id: testId },
+      relations: { visibleGroups: true },
+    });
+    if (!source) throw new NotFoundException('Test topilmadi');
+    // Manba testga tegilmaydi — faqat o'qish huquqi kifoya, shuning uchun
+    // assertCanManageTest bilan bir xil (o'z fanini o'qitadigan ustoz uchun)
+    await this.assertCanManageTest(source, actorId, actorRole);
+
+    const questions = await this.questionRepo.find({ where: { testId } });
+
+    const copy = this.testRepo.create({
+      title: `${source.title} (nusxa)`,
+      subjectId: source.subjectId,
+      description: source.description,
+      totalQuestions: source.totalQuestions,
+      questionsToShow: source.questionsToShow,
+      timeLimitMinutes: source.timeLimitMinutes,
+      scoreMethod: source.scoreMethod,
+      maxAttempts: source.maxAttempts,
+      isBaseline: false,
+      level: source.level,
+      resultsAutoVisible: source.resultsAutoVisible,
+      livesLimit: source.livesLimit,
+      createdById: actorId,
+      status: TestStatus.DRAFT,
+    });
+    await this.testRepo.save(copy);
+
+    if (source.visibleGroups?.length) {
+      await this.testRepo
+        .createQueryBuilder()
+        .relation(Test, 'visibleGroups')
+        .of(copy.id)
+        .add(source.visibleGroups.map((g) => g.id));
+    }
+
+    if (questions.length) {
+      const copiedQuestions = this.questionRepo.create(
+        questions.map((q) => ({
+          testId: copy.id,
+          question: q.question,
+          options: q.options,
+          correctAnswer: q.correctAnswer,
+          difficulty: q.difficulty,
+          points: q.points,
+          imageUrl: q.imageUrl,
+          topic: q.topic,
+          sortOrder: q.sortOrder,
+        })),
+      );
+      await this.questionRepo.save(copiedQuestions);
+    }
+
+    await this.auditLog.log({
+      userId: actorId, userRole: actorRole,
+      action: 'TEST_DUPLICATED',
+      entityName: 'tests', entityId: copy.id,
+      newValues: { sourceTestId: testId },
+    });
+
+    return copy;
+  }
+
   // ─── BITTA SAVOLNI DARHOL TEKSHIRISH (Duolingo uslubi) ───────────────────
   // Ball yozmaydi/oshirmaydi — faqat to'g'ri/xato ko'rsatadi. Javob darhol
   // result.answers'ga yoziladi — shu bilan "peek" (qayta-qayta sinab ko'rish)
   // oldini oladi va yakuniy submitTest() uchun ma'lumot manbai bo'ladi.
   async checkAnswer(dto: CheckAnswerDto, studentId: string) {
-    const result = await this.resultRepo.findOne({ where: { id: dto.testResultId, studentId } });
+    const result = await this.resultRepo.findOne({
+      where: { id: dto.testResultId, studentId },
+      relations: { test: true },
+    });
     if (!result) throw new NotFoundException('Test natijasi topilmadi');
     if (result.finishedAt) throw new ConflictException('Bu test allaqachon yakunlangan');
 
@@ -455,12 +754,24 @@ export class TestsService {
     if (!question) throw new NotFoundException('Savol topilmadi');
 
     const correct = question.correctAnswer === dto.answer;
+    const updatedAnswers = { ...existing, [dto.questionId]: dto.answer };
 
-    await this.resultRepo.update(result.id, {
-      answers: { ...existing, [dto.questionId]: dto.answer },
-    });
+    // Jonlar (lives) mexanizmi: test.livesLimit belgilangan bo'lsa, xato
+    // javoblar shu songa yetganda urinish serverda darhol yakunlanadi —
+    // frontend "jonlar tugadi" holatini o'zi hisoblab, keyin qayta
+    // check-answer chaqirib davom etishga urinsa ham, quyidagi finishedAt
+    // tekshiruvi buni bir zumda to'xtatadi (chetlab o'tish imkonsiz)
+    const wrongCount = result.wrongCount + (correct ? 0 : 1);
+    const livesLimit = result.test.livesLimit;
+    const eliminated = !correct && livesLimit != null && wrongCount >= livesLimit;
 
-    return { correct, correctAnswer: question.correctAnswer };
+    if (eliminated) {
+      const finalized = await this.finalizeAttempt(result, updatedAnswers, { eliminated: true, wrongCount });
+      return { correct, correctAnswer: question.correctAnswer, eliminated: true, result: finalized };
+    }
+
+    await this.resultRepo.update(result.id, { answers: updatedAnswers, wrongCount });
+    return { correct, correctAnswer: question.correctAnswer, eliminated: false };
   }
 
   // ─── TEST JAVOBLARINI YUBORISH ────────────────────────────────────────────
@@ -473,6 +784,20 @@ export class TestsService {
     if (!result) throw new NotFoundException('Test natijasi topilmadi');
     if (result.finishedAt) throw new ConflictException('Bu test allaqachon yakunlangan');
 
+    return this.finalizeAttempt(result, dto.answers, {
+      eliminated: false,
+      questionTimes: dto.questionTimes,
+    });
+  }
+
+  // ─── URINISHNI YAKUNLASH — submitTest VA jonlar tugaganda checkAnswer
+  // ikkalasi ham shu bitta joydan foydalanadi (ball hisoblash, anti-cheat,
+  // 90%+ mukofot — bir xil mantiq ikki joyda takrorlanmasligi uchun) ───────
+  private async finalizeAttempt(
+    result: TestResult,
+    answers: Record<string, string>,
+    opts: { eliminated: boolean; questionTimes?: Record<string, number>; wrongCount?: number },
+  ) {
     const test = result.test;
     const now = new Date();
     const timeSpentSeconds = Math.round((now.getTime() - result.startedAt.getTime()) / 1000);
@@ -489,7 +814,7 @@ export class TestsService {
     }
 
     // Savollarni olish (faqat ushbu testga tegishli)
-    const questionIds = Object.keys(dto.answers);
+    const questionIds = Object.keys(answers);
     const questions = await this.questionRepo.findBy({ testId: result.testId });
     const questionMap = new Map(questions.map((q) => [q.id, q]));
     const selectedIds = result.selectedQuestionIds ?? [];
@@ -500,7 +825,7 @@ export class TestsService {
     let earnedPoints = 0;
     const checkedAnswers: Record<string, boolean> = {};
 
-    for (const [qId, answer] of Object.entries(dto.answers)) {
+    for (const [qId, answer] of Object.entries(answers)) {
       if (!selectedIds.includes(qId)) continue;
       const question = questionMap.get(qId);
       if (!question) continue;
@@ -518,23 +843,25 @@ export class TestsService {
     const cheatingFlag = this.detectCheating({
       timeSpentSeconds,
       questionsCount: questionIds.length,
-      questionTimes: dto.questionTimes,
+      questionTimes: opts.questionTimes,
     });
 
     await this.resultRepo.update(result.id, {
-      answers: dto.answers,
+      answers,
       score,
       earnedPoints,
       finishedAt: now,
       timeSpentSeconds,
       cheatingFlag,
+      eliminated: opts.eliminated,
+      ...(opts.wrongCount !== undefined && { wrongCount: opts.wrongCount }),
     });
 
     // Ball tizimi: 90%+ → +20 ball
     if (score >= 90) {
       await this.pointsRepo.save(
         this.pointsRepo.create({
-          userId: studentId,
+          userId: result.studentId,
           action: PointsAction.TEST_HIGH_SCORE,
           points: 20,
           description: `Test natijasi ${score}%: "${test.title}"`,
@@ -542,7 +869,7 @@ export class TestsService {
           referenceType: 'test_result',
         }),
       );
-      await this.userRepo.increment({ id: studentId }, 'totalPoints', 20);
+      await this.userRepo.increment({ id: result.studentId }, 'totalPoints', 20);
     }
 
     // Qiyinlik darajasini aniqlash
@@ -556,6 +883,7 @@ export class TestsService {
       timeSpentSeconds,
       level,
       cheatingFlag,
+      eliminated: opts.eliminated,
       checkedAnswers: Object.fromEntries(
         Object.entries(checkedAnswers).map(([id, correct]) => [
           id,
@@ -835,8 +1163,12 @@ export class TestsService {
     const selectedIds = result.selectedQuestionIds?.length
       ? result.selectedQuestionIds
       : Object.keys(result.answers ?? {});
+    // .withDeleted() — savol keyinroq o'chirilgan (soft-delete) bo'lsa ham,
+    // avval shu savolni topshirgan o'quvchining natija-tafsiloti bo'sh
+    // joy bilan qolmasligi kerak
     const questions = selectedIds.length
-      ? await this.questionRepo.findBy({ id: In(selectedIds) })
+      ? await this.questionRepo.createQueryBuilder('q').withDeleted()
+          .where('q.id IN (:...ids)', { ids: selectedIds }).getMany()
       : [];
     const questionMap = new Map(questions.map((q) => [q.id, q]));
 
@@ -883,7 +1215,10 @@ export class TestsService {
       throw new ForbiddenException('Bu test sizniki emas');
     }
 
-    const questions = await this.questionRepo.find({ where: { testId } });
+    // .withDeleted() — o'chirilgan savolga tegishli eski natijalar ham
+    // tahlildan tushib qolmasligi uchun
+    const questions = await this.questionRepo.createQueryBuilder('q').withDeleted()
+      .where('q.test_id = :testId', { testId }).getMany();
 
     // Har o'quvchining ENG SO'NGGI tugallangan urinishi — hozirgi bilim
     // darajasini eng yaxshi aks ettiradi (bir nechta urinish bo'lsa,
@@ -1055,11 +1390,17 @@ export class TestsService {
       .leftJoin('t.createdBy', 'creator')
       .addSelect(['t.id','t.title','t.status','t.timeLimitMinutes','t.maxAttempts',
                   't.scoreMethod','t.questionsToShow','t.totalQuestions','t.isBaseline','t.level','t.createdAt',
-                  't.resultsAutoVisible','t.resultsReleasedAt',
+                  't.resultsAutoVisible','t.resultsReleasedAt','t.livesLimit',
                   's.id','s.name','creator.firstName','creator.lastName']);
 
     if (actorRole === Role.USTOZ) {
-      qb.where('t.created_by = :uid', { uid: actorId });
+      // Ustoz o'zi yaratmagan, lekin o'z fanidagi testlarni ham ko'rishi
+      // kerak — assertCanManageTest'dagi tahrirlash huquqi bilan mos kelishi
+      // uchun (aks holda tahrirlash huquqi bor, lekin ro'yxatda karta yo'q)
+      qb.where(
+        't.subject_id IN (SELECT subject_id FROM groups WHERE teacher_id = :uid)',
+        { uid: actorId },
+      );
     }
     if (query.subjectId) qb.andWhere('t.subject_id = :sid', { sid: query.subjectId });
 
@@ -1144,12 +1485,18 @@ export class TestsService {
     });
   }
 
-  async findOne(id: string) {
+  // actorId/actorRole ixtiyoriy — duplicateTest/updateTest o'zlari allaqachon
+  // assertCanManageTest orqali tekshirib bo'lgach shu metodni chaqiradi
+  async findOne(id: string, actorId?: string, actorRole?: string) {
     const test = await this.testRepo.findOne({
       where: { id },
       relations: { subject: true, visibleGroups: true },
     });
     if (!test) throw new NotFoundException('Test topilmadi');
+
+    // Ustoz boshqa fandagi (o'zi o'qitmaydigan) testning to'liq javob
+    // kalitini ko'ra olmasligi kerak — SA/Manager cheklovsiz
+    if (actorRole) await this.assertCanManageTest(test, actorId!, actorRole);
 
     const questionCount = await this.questionRepo.count({ where: { testId: id } });
     const questions = await this.questionRepo.find({

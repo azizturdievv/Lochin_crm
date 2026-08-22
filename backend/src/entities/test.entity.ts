@@ -82,6 +82,11 @@ export class Test extends BaseEntity {
   @Column({ type: 'varchar', nullable: true, length: 50 })
   level: string | null;
 
+  // Nechta xato javobdan keyin urinish avtomatik tugaydi (jon/hayot
+  // mexanizmi, Duolingo uslubi). NULL = cheksiz — standart, "jonsiz" rejim
+  @Column({ name: 'lives_limit', type: 'smallint', nullable: true })
+  livesLimit: number | null;
+
   // Bo'sh bo'lsa — fanning barcha guruhiga ko'rinadi (eski xatti-harakat).
   // To'ldirilsa — FAQAT shu guruhlarga ko'rinadi (masalan daraja bo'yicha
   // maqsadli test tayinlash uchun)

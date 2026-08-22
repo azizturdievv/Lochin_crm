@@ -14,14 +14,15 @@ interface Props {
   onClose: () => void;
 }
 
-const MAX_HEARTS = 3;
 const FEEDBACK_DELAY_MS = 1200;
 
 export default function TestRunner({ test, onClose }: Props) {
+  const livesLimit = test.livesLimit ?? null;
   const [phase,       setPhase]       = useState<'start' | 'playing' | 'finished'>('start');
   const [session,     setSession]     = useState<TestStartResponse | null>(null);
   const [index,       setIndex]       = useState(0);
-  const [hearts,      setHearts]      = useState(MAX_HEARTS);
+  const [hearts,      setHearts]      = useState(livesLimit ?? 0);
+  const [eliminated,  setEliminated]  = useState(false);
   const [selected,    setSelected]    = useState<string | null>(null);
   const [feedback,    setFeedback]    = useState<CheckAnswerResponse | null>(null);
   const [timeLeft,    setTimeLeft]    = useState(0);
@@ -144,9 +145,16 @@ export default function TestRunner({ test, onClose }: Props) {
         if (!data.correct) setHearts(h => Math.max(0, h - 1));
 
         advanceRef.current = setTimeout(() => {
-          const outOfHearts = !data.correct && hearts - 1 <= 0;
+          // Jonlar tugaganini server hal qiladi (data.eliminated) — mahalliy
+          // hisoblash faqat yurak belgilarini ko'rsatish uchun, chetlab
+          // o'tishga urinish serverda baribir bloklanadi (finishedAt)
           const isLast = index + 1 >= session.questions.length;
-          if (outOfHearts || isLast) {
+          if (data.eliminated && data.result) {
+            if (timerRef.current) clearInterval(timerRef.current);
+            setEliminated(true);
+            setResult(data.result);
+            setPhase('finished');
+          } else if (isLast) {
             finish();
           } else {
             setIndex(i => i + 1);
@@ -201,7 +209,7 @@ export default function TestRunner({ test, onClose }: Props) {
         test={test}
         result={result}
         questions={session.questions}
-        outOfHearts={hearts <= 0}
+        outOfHearts={eliminated}
         onClose={onClose}
       />
     );
@@ -243,9 +251,9 @@ export default function TestRunner({ test, onClose }: Props) {
           className="text-gray-400 hover:text-gray-600 text-sm w-8 h-8 rounded-xl hover:bg-gray-100 flex items-center justify-center transition-colors"
         ><X size={16} /></button>
 
-        {/* Jonlar */}
+        {/* Jonlar — faqat testda cheklov o'rnatilgan bo'lsa ko'rinadi */}
         <div className="flex items-center gap-1">
-          {Array.from({ length: MAX_HEARTS }).map((_, i) => (
+          {livesLimit != null && Array.from({ length: livesLimit }).map((_, i) => (
             <Heart
               key={i}
               size={20}

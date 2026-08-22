@@ -10,7 +10,6 @@ interface Props {
 }
 
 export default function SubjectCard({ subject, active, onClick }: Props) {
-  const avg = subject.stats?.avgScore;
   const visual = getSubjectVisual(subject);
 
   return (
@@ -43,17 +42,6 @@ export default function SubjectCard({ subject, active, onClick }: Props) {
           )}
         </div>
       </div>
-
-      {/* Ball indikator */}
-      {avg != null && (
-        <div className={`shrink-0 text-xs font-bold px-2 py-0.5 rounded-full ${
-          avg >= 80 ? 'bg-green-100 text-green-700'
-          : avg >= 60 ? 'bg-amber-100 text-amber-700'
-          : 'bg-red-100 text-red-700'
-        }`}>
-          {avg.toFixed(0)}%
-        </div>
-      )}
     </button>
   );
 }

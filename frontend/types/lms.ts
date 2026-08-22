@@ -85,6 +85,7 @@ export interface Test {
   visibleGroups?:      { id: string; name: string }[];
   resultsAutoVisible?: boolean;         // false = nazorat ishi rejimi
   resultsReleasedAt?:  string | null;
+  livesLimit?:         number | null;   // nechta xato javobdan keyin avtomatik tugaydi, null = cheksiz
   createdById:         string;
   createdBy?:          { firstName: string; lastName: string };
   questionCount?:      number;    // faqat findOne() javobida
@@ -95,6 +96,12 @@ export interface Test {
   myTotalAttempts?:     number;   // maxAttempts + berilgan qo'shimcha urinishlar
   createdAt:            string;
 }
+
+// GET /tests/:id javobi — to'liq savollar bilan (tahrirlash formasi uchun)
+export type TestWithQuestions = Test & {
+  questionCount: number;
+  questions:     TestQuestion[];
+};
 
 export interface TestOption {
   id:   string;
@@ -111,6 +118,7 @@ export interface TestQuestion {
   difficulty:    TestDifficulty;
   points:        number;
   imageUrl:      string | null;
+  topic:         string | null;
   sortOrder:     number;
 }
 
@@ -134,6 +142,8 @@ export interface TestStartResponse {
 export interface CheckAnswerResponse {
   correct:       boolean;
   correctAnswer: string;
+  eliminated:    boolean;             // jonlar tugab urinish serverda avtomatik yakunlandi
+  result?:       TestSubmitResponse;  // eliminated=true bo'lsa — to'liq yakuniy natija
 }
 
 export type ExtensionStatus = 'pending' | 'approved' | 'rejected';
@@ -162,6 +172,7 @@ export interface TestSubmitResponse {
   timeSpentSeconds: number;
   level:            string;
   cheatingFlag:     boolean;
+  eliminated:       boolean;   // jonlar tugagani sababli avtomatik yakunlandimi
   checkedAnswers:   Record<string, { correct: boolean; correctAnswer: string }>;
   pointsEarned:     number;
 }
@@ -184,6 +195,8 @@ export interface TestResult {
   timeSpentSeconds: number | null;
   cheatingFlag:     boolean;
   tabSwitchCount:   number;
+  wrongCount:       number;
+  eliminated:       boolean;
   createdAt:        string;
 }
 
