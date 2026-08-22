@@ -54,7 +54,7 @@ export class FinanceController {
   }
 
   @Get('kpi')
-  @Roles(Role.SUPER_ADMIN, Role.MANAGER)
+  @Roles(Role.SUPER_ADMIN)
   getKpi(@Query('month') month?: string) {
     return this.financeService.getKpiDashboard(month ?? currentMonth());
   }
@@ -122,26 +122,26 @@ export class FinanceController {
 
   // ─── XARAJATLAR ──────────────────────────────────────────────────────────────
   @Post('expenses')
-  @Roles(Role.SUPER_ADMIN, Role.MANAGER)
+  @Roles(Role.SUPER_ADMIN)
   @HttpCode(HttpStatus.CREATED)
   createExpense(@Body() dto: CreateExpenseDto, @CurrentUser() user: User) {
     return this.expenseService.create(dto, user.id, user.role);
   }
 
   @Get('expenses')
-  @Roles(Role.SUPER_ADMIN, Role.MANAGER)
+  @Roles(Role.SUPER_ADMIN)
   getExpenses(@Query() query: QueryExpenseDto, @CurrentUser() user: User) {
     return this.expenseService.findAll(query, user.id, user.role);
   }
 
   @Get('expenses/summary')
-  @Roles(Role.SUPER_ADMIN, Role.MANAGER)
+  @Roles(Role.SUPER_ADMIN)
   getExpenseSummary(@Query('month') month: string, @CurrentUser() user: User) {
     return this.expenseService.getSummary(month ?? currentMonth(), user.role);
   }
 
   @Patch('expenses/:id')
-  @Roles(Role.SUPER_ADMIN, Role.MANAGER)
+  @Roles(Role.SUPER_ADMIN)
   updateExpense(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateExpenseDto,

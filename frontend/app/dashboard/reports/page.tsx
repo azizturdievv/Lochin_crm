@@ -43,7 +43,7 @@ export default function ReportsPage() {
   const [showTgModal,  setShowTgModal]  = useState(false);
 
   // ── RBAC ────────────────────────────────────────────────────────────────────
-  if (role !== 'super_admin' && role !== 'manager') {
+  if (role !== 'super_admin') {
     return (
       <div className="flex flex-col items-center justify-center h-64 text-gray-400">
         <div className="text-5xl mb-3"><Lock size={16} /></div>

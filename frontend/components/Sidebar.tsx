@@ -47,7 +47,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Chat',            href: '/dashboard/chat',              icon: MessageSquare,   roles: ['super_admin','manager','ustoz','student'], group: 'ALOQA' },
   { label: 'Jonli efir',      href: '/dashboard/live',              icon: Video,           roles: ['super_admin','manager','ustoz','student'], group: 'ALOQA' },
   { label: 'Sifat nazorati',  href: '/dashboard/quality',           icon: SearchCheck,     roles: ['super_admin','manager','ustoz','student'], group: 'ALOQA' },
-  { label: 'Hisobotlar',      href: '/dashboard/reports',           icon: FileBarChart,    roles: ['super_admin','manager'], group: 'ALOQA' },
+  { label: 'Hisobotlar',      href: '/dashboard/reports',           icon: FileBarChart,    roles: ['super_admin'], group: 'ALOQA' },
   { label: 'Sozlamalar',      href: '/dashboard/settings',          icon: Settings,        roles: ['super_admin'], group: 'ALOQA' },
 ];
 
