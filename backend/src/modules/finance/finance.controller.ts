@@ -54,7 +54,8 @@ export class FinanceController {
   }
 
   @Get('kpi')
-  @Roles(Role.SUPER_ADMIN)
+  @Roles(Role.SUPER_ADMIN, Role.MANAGER)
+  @RequirePermissions('finance:report:read')
   getKpi(@Query('month') month?: string) {
     return this.financeService.getKpiDashboard(month ?? currentMonth());
   }
@@ -129,13 +130,15 @@ export class FinanceController {
   }
 
   @Get('expenses')
-  @Roles(Role.SUPER_ADMIN)
+  @Roles(Role.SUPER_ADMIN, Role.MANAGER)
+  @RequirePermissions('finance:report:read')
   getExpenses(@Query() query: QueryExpenseDto, @CurrentUser() user: User) {
     return this.expenseService.findAll(query, user.id, user.role);
   }
 
   @Get('expenses/summary')
-  @Roles(Role.SUPER_ADMIN)
+  @Roles(Role.SUPER_ADMIN, Role.MANAGER)
+  @RequirePermissions('finance:report:read')
   getExpenseSummary(@Query('month') month: string, @CurrentUser() user: User) {
     return this.expenseService.getSummary(month ?? currentMonth(), user.role);
   }

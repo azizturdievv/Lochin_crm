@@ -66,6 +66,20 @@ export interface AdminDashboard {
   staffKpi:       { id: string; name: string; role: string; groups: number; students: number }[];
 }
 
+// ─── DASHBOARD — MANAGER (moliyaviy summalarsiz) ─────────────────────────────
+// Manager finance:report:read ruxsatiga ega emas — shu sabab bu tur alohida:
+// pul summasi ko'rsatadigan maydonlar (revenue, debt.total, amount) umuman yo'q
+export interface ManagerDashboard {
+  role: 'manager';
+  students:     { total: number; active: number; newThisMonth: number };
+  debtorsCount: number;
+  attendance:   { rateToday: number; presentToday: number; totalToday: number };
+  paymentsToday: number;
+  paymentsChart: { date: string; count: number }[];
+  recentPayments: { id: string; studentName: string; method: string; createdAt: string }[];
+  staffKpi:       { id: string; name: string; role: string; groups: number; students: number }[];
+}
+
 // ─── DASHBOARD — USTOZ ───────────────────────────────────────────────────────
 export interface TeacherDashboard {
   role: 'ustoz';
@@ -97,7 +111,7 @@ export interface StudentDashboard {
   lastTestResult: { title: string; score: number; earnedPoints: number; finishedAt: string } | null;
 }
 
-export type DashboardData = AdminDashboard | TeacherDashboard | StudentDashboard;
+export type DashboardData = AdminDashboard | ManagerDashboard | TeacherDashboard | StudentDashboard;
 
 // ─── ESKI TIPLAR (backwards compat) ──────────────────────────────────────────
 export interface DashboardStats {

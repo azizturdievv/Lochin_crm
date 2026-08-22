@@ -13,7 +13,7 @@ import PageHeader from '@/components/ui/PageHeader';
 import Link from 'next/link';
 import { useAuthStore } from '@/store/auth.store';
 import { formatShortDate, formatWeekdayDate } from '@/lib/date';
-import type { AdminDashboard, TeacherDashboard, StudentDashboard, DashboardData } from '@/types';
+import type { AdminDashboard, ManagerDashboard, TeacherDashboard, StudentDashboard, DashboardData } from '@/types';
 
 // ─── YORDAMCHI FUNKSIYALAR ────────────────────────────────────────────────────
 function fmt(n: number): string {
@@ -208,6 +208,199 @@ function AdminDashboardView({ data, loading }: { data?: AdminDashboard; loading:
                 ))}
                 {!data?.recentPayments?.length && (
                   <tr><td colSpan={4} className="px-6 py-8 text-center text-gray-400 text-sm">
+                    Hali to'lov mavjud emas
+                  </td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* E'lonlar */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+          <h3 className="text-base font-semibold text-gray-900">E'lonlar</h3>
+          <Link href="/dashboard/chat" className="text-sm text-primary-600 hover:text-primary-700 font-medium">
+            Barchasi
+          </Link>
+        </div>
+        <div className="flex flex-col items-center justify-center py-10 text-gray-400 gap-2">
+          <Megaphone size={32} className="text-gray-300" />
+          <p className="text-sm">Hali e'lon yo'q</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//   MANAGER DASHBOARD (moliyaviy summalarsiz — faqat operatsion ko'rsatkichlar)
+// ═══════════════════════════════════════════════════════════════════════════════
+function ManagerDashboardView({ data, loading }: { data?: ManagerDashboard; loading: boolean }) {
+  return (
+    <div className="space-y-6">
+
+      <PageHeader title="Dashboard" crumbs={[{ label: 'Bosh sahifa' }, { label: 'Manager Dashboard' }]}>
+        <Link href="/dashboard/students"
+          className="px-4 py-2.5 bg-primary-600 hover:bg-primary-700 text-white text-sm font-medium rounded-xl transition-colors shadow-sm">
+          + Yangi o'quvchi
+        </Link>
+        <Link href="/dashboard/payments"
+          className="px-4 py-2.5 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 text-sm font-medium rounded-xl transition-colors">
+          To'lovlar
+        </Link>
+      </PageHeader>
+
+      {/* KPI kartalar — moliyaviy summasiz */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <KpiCard
+          title="Bugungi to'lovlar"
+          value={loading ? '...' : (data?.paymentsToday ?? 0)}
+          sub="Qabul qilingan to'lovlar soni"
+          icon={Banknote} color="emerald" loading={loading}
+          href="/dashboard/payments"
+        />
+        <KpiCard
+          title="Faol o'quvchilar"
+          value={loading ? '...' : (data?.students.active ?? 0)}
+          sub={`Yangi (shu oy): ${data?.students.newThisMonth ?? 0}`}
+          icon={Users} color="blue" loading={loading}
+          split={data ? { active: data.students.active, inactive: data.students.total - data.students.active } : undefined}
+          href="/dashboard/students"
+        />
+        <KpiCard
+          title="Qarzdorlar"
+          value={loading ? '...' : (data?.debtorsCount ?? 0)}
+          sub="E'tibor talab qiladi"
+          icon={AlertTriangle} color="red" loading={loading}
+          href="/dashboard/payments?tab=debtors"
+        />
+        <KpiCard
+          title="Bugungi davomat"
+          value={loading ? '...' : `${data?.attendance.rateToday ?? 0}%`}
+          icon={CheckCircle2} color="purple" loading={loading}
+          split={data ? {
+            active:   data.attendance.presentToday,
+            inactive: Math.max(0, data.attendance.totalToday - data.attendance.presentToday),
+          } : undefined}
+          splitLabels={{ active: 'Keldi', inactive: 'Kelmadi' }}
+          href="/dashboard/attendance"
+        />
+      </div>
+
+      {/* Grafiklar */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+        {/* 7 kunlik to'lov faolligi (summasiz — nechta to'lov) — 2/3 */}
+        <div className="lg:col-span-2 bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+          <h3 className="text-base font-semibold text-gray-900 mb-4">So'nggi 7 kunlik to'lov faolligi</h3>
+          {loading ? <Skeleton className="h-52" /> : (
+            <ResponsiveContainer width="100%" height={220}>
+              <LineChart data={data?.paymentsChart ?? []}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                <XAxis dataKey="date" tick={{ fontSize: 12 }} />
+                <YAxis allowDecimals={false} tick={{ fontSize: 12 }} />
+                <Tooltip formatter={v => [`${v} ta`, "To'lov"]} />
+                <Line type="monotone" dataKey="count" stroke="#10b981" strokeWidth={2.5}
+                  dot={{ r: 4, fill: '#10b981' }} activeDot={{ r: 6 }} />
+              </LineChart>
+            </ResponsiveContainer>
+          )}
+        </div>
+
+        {/* Bugungi davomat donut — 1/3 */}
+        <div className="lg:col-span-1 bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+          <h3 className="text-base font-semibold text-gray-900 mb-4">Bugungi davomat</h3>
+          {loading ? <Skeleton className="h-52" /> : (
+            <ResponsiveContainer width="100%" height={220}>
+              <PieChart>
+                <Pie
+                  data={[
+                    { name: 'Keldi',   value: data?.attendance.presentToday ?? 0, color: '#10b981' },
+                    { name: 'Kelmadi', value: Math.max(0, (data?.attendance.totalToday ?? 0) - (data?.attendance.presentToday ?? 0)), color: '#ef4444' },
+                  ]}
+                  cx="50%" cy="50%" innerRadius={55} outerRadius={80} paddingAngle={3} dataKey="value"
+                >
+                  <Cell fill="#10b981" strokeWidth={0} />
+                  <Cell fill="#ef4444" strokeWidth={0} />
+                </Pie>
+                <Tooltip formatter={(v, n) => [`${v} ta`, n]} contentStyle={{ borderRadius: '12px', border: '1px solid #e5e7eb' }} />
+                <Legend formatter={v => <span className="text-xs text-gray-600">{v}</span>} iconSize={8} />
+              </PieChart>
+            </ResponsiveContainer>
+          )}
+        </div>
+      </div>
+
+      {/* Xodimlar KPI */}
+      <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+        <h3 className="text-base font-semibold text-gray-900 mb-4">Xodimlar KPI (guruh / o'quvchi)</h3>
+        {loading ? <Skeleton className="h-52" /> : (
+          <ResponsiveContainer width="100%" height={220}>
+            <BarChart data={data?.staffKpi ?? []} layout="vertical" barSize={12}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" horizontal={false} />
+              <XAxis type="number" tick={{ fontSize: 11 }} />
+              <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={100} />
+              <Tooltip formatter={(v, n) => [v, n === 'students' ? "O'quvchi" : 'Guruh']} />
+              <Bar dataKey="students" fill="#3b82f6" radius={[0, 4, 4, 0]} name="students" />
+              <Bar dataKey="groups"   fill="#10b981" radius={[0, 4, 4, 0]} name="groups" />
+            </BarChart>
+          </ResponsiveContainer>
+        )}
+      </div>
+
+      {/* Bugungi darslar */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+          <h3 className="text-base font-semibold text-gray-900">Bugungi darslar</h3>
+          <Link href="/dashboard/schedule" className="text-sm text-primary-600 hover:text-primary-700 font-medium">
+            Barchasi
+          </Link>
+        </div>
+        <div className="flex flex-col items-center justify-center py-10 text-gray-400 gap-2">
+          <Calendar size={32} className="text-gray-300" />
+          <p className="text-sm">Jadval bo'yicha to'liq ro'yxat uchun "Barchasi"ni bosing</p>
+        </div>
+      </div>
+
+      {/* Oxirgi to'lovlar — summasiz, faqat kim/qachon/qanday usulda */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+          <h3 className="text-base font-semibold text-gray-900">Oxirgi to'lovlar</h3>
+          <a href="/dashboard/payments"
+            className="text-sm text-primary-600 hover:text-primary-700 font-medium">
+            Barchasi
+          </a>
+        </div>
+        {loading ? (
+          <div className="p-6 space-y-3">{[...Array(5)].map((_, i) => <Skeleton key={i} />)}</div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-gray-50 text-gray-500 text-xs uppercase tracking-wide">
+                  <th className="text-left px-6 py-3 font-medium">O'quvchi</th>
+                  <th className="text-left px-4 py-3 font-medium hidden sm:table-cell">Usul</th>
+                  <th className="text-left px-4 py-3 font-medium hidden md:table-cell">Sana</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {(data?.recentPayments ?? []).map(p => (
+                  <tr key={p.id} className="hover:bg-gray-50 transition-colors">
+                    <td className="px-6 py-3.5 font-medium text-gray-900">{p.studentName}</td>
+                    <td className="px-4 py-3.5 hidden sm:table-cell">
+                      <span className="inline-block px-2 py-0.5 bg-blue-50 text-blue-700 text-xs rounded-full">
+                        {PAYMENT_LABELS[p.method] ?? p.method}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3.5 text-gray-400 text-xs hidden md:table-cell">
+                      {fmtDate(p.createdAt)}
+                    </td>
+                  </tr>
+                ))}
+                {!data?.recentPayments?.length && (
+                  <tr><td colSpan={3} className="px-6 py-8 text-center text-gray-400 text-sm">
                     Hali to'lov mavjud emas
                   </td></tr>
                 )}
@@ -541,9 +734,16 @@ export default function DashboardPage() {
       </div>
 
       {/* Rol bo'yicha ko'rinish */}
-      {(role === 'super_admin' || role === 'manager') && (
+      {role === 'super_admin' && (
         <AdminDashboardView
           data={data as AdminDashboard}
+          loading={isLoading}
+        />
+      )}
+
+      {role === 'manager' && (
+        <ManagerDashboardView
+          data={data as ManagerDashboard}
           loading={isLoading}
         />
       )}
