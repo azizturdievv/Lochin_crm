@@ -1,7 +1,7 @@
 'use client';
 
-import { AlertTriangle, Calendar, Radio, User, Video } from 'lucide-react';
-import { useState } from 'react';
+import { AlertTriangle, Calendar, MoreVertical, Radio, User, Video } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
@@ -10,6 +10,7 @@ import { useAuthStore } from '@/store/auth.store';
 import { LIVE_SESSION_STATUS_META } from '@/types/live-sessions';
 import type { LiveSession } from '@/types/live-sessions';
 import ScheduleLiveSessionModal from '@/components/live/ScheduleLiveSessionModal';
+import CancelLiveSessionModal from '@/components/live/CancelLiveSessionModal';
 
 export default function LiveSessionsPage() {
   const router = useRouter();
@@ -17,7 +18,9 @@ export default function LiveSessionsPage() {
   const role   = user?.role ?? 'student';
   const canManage = role === 'super_admin' || role === 'manager' || role === 'ustoz';
 
-  const [createOpen, setCreateOpen] = useState(false);
+  const [createOpen,   setCreateOpen]   = useState(false);
+  const [editSession,  setEditSession]  = useState<LiveSession | null>(null);
+  const [cancelSession, setCancelSession] = useState<LiveSession | null>(null);
 
   const { data: sessions = [], isLoading } = useQuery({
     queryKey: ['live-sessions'],
@@ -97,23 +100,50 @@ export default function LiveSessionsPage() {
               session={s}
               isHost={s.hostId === user?.id}
               canManage={canManage}
+              role={role}
               onOpen={() => router.push(`/dashboard/live/${s.id}`)}
+              onEdit={() => setEditSession(s)}
+              onCancel={() => setCancelSession(s)}
             />
           ))}
         </div>
       )}
 
       {createOpen && <ScheduleLiveSessionModal onClose={() => setCreateOpen(false)} />}
+      {editSession && (
+        <ScheduleLiveSessionModal session={editSession} onClose={() => setEditSession(null)} />
+      )}
+      {cancelSession && (
+        <CancelLiveSessionModal session={cancelSession} onClose={() => setCancelSession(null)} />
+      )}
     </div>
   );
 }
 
-function SessionCard({ session, isHost, canManage, onOpen }: {
-  session: LiveSession; isHost: boolean; canManage: boolean; onOpen: () => void;
+function SessionCard({ session, isHost, canManage, role, onOpen, onEdit, onCancel }: {
+  session: LiveSession; isHost: boolean; canManage: boolean; role: string;
+  onOpen: () => void; onEdit: () => void; onCancel: () => void;
 }) {
   const statusMeta = LIVE_SESSION_STATUS_META[session.status];
   const canJoin = session.status === 'live' || (session.status === 'scheduled' && (isHost || canManage));
   const isEnded = session.status === 'ended' || session.status === 'cancelled';
+
+  // Backend faqat host yoki SA/Manager'ga tahrirlash/bekor qilishga ruxsat
+  // beradi — canManage (har qanday ustoz) emas, aks holda o'zganing darsida
+  // ham menyu ko'rinib, bosilganda 403 qaytarardi
+  const canModify = session.status === 'scheduled' && (isHost || role === 'super_admin' || role === 'manager');
+
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    function onClick(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false);
+    }
+    document.addEventListener('mousedown', onClick);
+    return () => document.removeEventListener('mousedown', onClick);
+  }, [menuOpen]);
 
   return (
     <div className={`bg-white border rounded-2xl p-4 space-y-3 transition-colors ${
@@ -121,10 +151,28 @@ function SessionCard({ session, isHost, canManage, onOpen }: {
     }`}>
       <div className="flex items-start justify-between gap-2">
         <h3 className="font-semibold text-gray-900 text-sm min-w-0 truncate">{session.title}</h3>
-        <span className={`shrink-0 inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full ${statusMeta.bg} ${statusMeta.color}`}>
-          {session.status === 'live' && <Radio size={10} className="animate-pulse" />}
-          {statusMeta.label}
-        </span>
+        <div className="flex items-center gap-1 shrink-0">
+          <span className={`inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full ${statusMeta.bg} ${statusMeta.color}`}>
+            {session.status === 'live' && <Radio size={10} className="animate-pulse" />}
+            {statusMeta.label}
+          </span>
+          {canModify && (
+            <div className="relative" ref={menuRef}>
+              <button
+                onClick={() => setMenuOpen(o => !o)}
+                className="p-1 rounded-lg hover:bg-gray-100 text-gray-400 transition-colors"
+              ><MoreVertical size={14} /></button>
+              {menuOpen && (
+                <div className="absolute right-0 top-full mt-1 w-36 bg-white rounded-xl shadow-xl border border-gray-100 z-20 py-1">
+                  <button onClick={() => { setMenuOpen(false); onEdit(); }}
+                    className="w-full text-left px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors">Tahrirlash</button>
+                  <button onClick={() => { setMenuOpen(false); onCancel(); }}
+                    className="w-full text-left px-3 py-2 text-xs text-red-600 hover:bg-red-50 transition-colors">Bekor qilish</button>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="space-y-1 text-xs text-gray-500">

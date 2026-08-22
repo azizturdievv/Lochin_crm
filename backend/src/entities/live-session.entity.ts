@@ -64,4 +64,13 @@ export class LiveSession extends BaseEntity {
   // Maksimal ishtirokchilar: 200
   @Column({ name: 'max_participants', default: 200 })
   maxParticipants: number;
+
+  // Foydalanuvchi tanlovi — hali haqiqiy Livekit Egress yozib olishni
+  // ishga tushirmaydi (kelajakdagi bosqich), faqat afzallik sifatida saqlanadi
+  @Column({ name: 'recording_enabled', default: false })
+  recordingEnabled: boolean;
+
+  // Bekor qilingan sabab (ixtiyoriy, faqat status=cancelled bo'lganda)
+  @Column({ name: 'cancel_reason', type: 'varchar', nullable: true })
+  cancelReason: string | null;
 }

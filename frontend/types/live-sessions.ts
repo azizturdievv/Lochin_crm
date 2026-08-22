@@ -16,6 +16,8 @@ export interface LiveSession {
   endedAt:       string | null;
   recordingUrl:  string | null;
   maxParticipants: number;
+  recordingEnabled: boolean;
+  cancelReason:  string | null;
   createdAt:     string;
 }
 
@@ -25,8 +27,6 @@ export interface JoinLiveSessionResponse {
   session: LiveSession;
 }
 
-// Hozircha faqat "Ustoz-O'quvchi" turi UI orqali yaratiladi (1-bosqich ko'lami);
-// qolgan 5 turi backend/entity'da tayyor, keyingi bosqichda UI'ga qo'shiladi
 export const LIVE_SESSION_TYPE_META: Record<LiveSessionType, { label: string }> = {
   teacher_student: { label: "Ustoz-O'quvchi" },
   staff:            { label: 'Xodimlar' },

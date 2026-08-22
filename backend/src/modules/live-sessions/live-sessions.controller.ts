@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, ParseUUIDPipe, UseGuards, HttpCode, HttpStatus } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Body, Param, ParseUUIDPipe, UseGuards, HttpCode, HttpStatus } from '@nestjs/common';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -6,7 +6,7 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Role } from '../../common/enums/role.enum';
 import { User } from '../../entities/user.entity';
 import { LiveSessionsService } from './live-sessions.service';
-import { CreateLiveSessionDto } from './dto/live-session.dto';
+import { CreateLiveSessionDto, UpdateLiveSessionDto, CancelLiveSessionDto } from './dto/live-session.dto';
 
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('api/v1/live-sessions')
@@ -50,5 +50,28 @@ export class LiveSessionsController {
   @HttpCode(HttpStatus.OK)
   end(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: User) {
     return this.liveSessionsService.end(id, user.id, user.role);
+  }
+
+  // Faqat hali boshlanmagan (scheduled) sessiyani tahrirlash mumkin
+  @Patch(':id')
+  @Roles(Role.SUPER_ADMIN, Role.MANAGER, Role.USTOZ)
+  @HttpCode(HttpStatus.OK)
+  update(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateLiveSessionDto,
+    @CurrentUser() user: User,
+  ) {
+    return this.liveSessionsService.update(id, dto, user.id, user.role);
+  }
+
+  @Post(':id/cancel')
+  @Roles(Role.SUPER_ADMIN, Role.MANAGER, Role.USTOZ)
+  @HttpCode(HttpStatus.OK)
+  cancel(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: CancelLiveSessionDto,
+    @CurrentUser() user: User,
+  ) {
+    return this.liveSessionsService.cancel(id, dto, user.id, user.role);
   }
 }
